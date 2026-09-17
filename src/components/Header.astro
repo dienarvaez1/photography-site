@@ -7,7 +7,9 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
 
 <header class="site-header">
   <div class="wrap bar">
-    <a href="/" class="brand">{SITE.author}</a>
+    <a href="/" class="brand">
+      <img src="/logo.png" alt={SITE.author} class="brand-logo" />
+    </a>
 
     <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" id="nav-toggle">
       <span class="visually-hidden">Toggle navigation</span>
@@ -49,10 +51,15 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
   }
 
   .brand {
-    font-family: Georgia, serif;
-    font-size: 1.15rem;
+    display: flex;
+    align-items: center;
     text-decoration: none;
-    letter-spacing: 0.02em;
+  }
+
+  .brand-logo {
+    height: 2.25rem;
+    width: auto;
+    display: block;
   }
 
   .primary-nav {
