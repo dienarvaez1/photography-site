@@ -1,0 +1,228 @@
+---
+import { CATEGORIES } from '../config/categories';
+import { SITE } from '../config/site';
+
+const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
+---
+
+<header class="site-header">
+  <div class="wrap bar">
+    <a href="/" class="brand">{SITE.author}</a>
+
+    <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" id="nav-toggle">
+      <span class="visually-hidden">Toggle navigation</span>
+      <span class="nav-toggle-icon"></span>
+    </button>
+
+    <nav id="primary-nav" class="primary-nav">
+      <div class="nav-group">
+        <span class="nav-label">Work</span>
+        <div class="nav-dropdown">
+          {CATEGORIES.map((c) => (
+            <a href={`/work/${c.slug}/`} class:list={{ active: currentPath === `/work/${c.slug}` }}>
+              {c.label}
+            </a>
+          ))}
+        </div>
+      </div>
+      <a href="/about/" class:list={{ active: currentPath === '/about' }}>About</a>
+      <a href="/contact/" class:list={{ active: currentPath === '/contact' }}>Contact</a>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: rgba(11, 12, 14, 0.85);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-block: var(--space-2);
+  }
+
+  .brand {
+    font-family: Georgia, serif;
+    font-size: 1.15rem;
+    text-decoration: none;
+    letter-spacing: 0.02em;
+  }
+
+  .primary-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .primary-nav > a {
+    text-decoration: none;
+    font-size: 0.9rem;
+    color: var(--fg-muted);
+    transition: color 0.2s ease;
+  }
+
+  .primary-nav > a:hover,
+  .primary-nav > a.active {
+    color: var(--fg);
+  }
+
+  .nav-group {
+    position: relative;
+  }
+
+  .nav-label {
+    cursor: default;
+    font-size: 0.9rem;
+    color: var(--fg-muted);
+  }
+
+  .nav-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    min-width: 180px;
+    padding: var(--space-1);
+    margin-top: var(--space-2);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    opacity: 0;
+    visibility: hidden;
+    transform-origin: top center;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+  }
+
+  .nav-group:hover .nav-dropdown,
+  .nav-group:focus-within .nav-dropdown {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .nav-dropdown a {
+    padding: 0.5rem 0.75rem;
+    text-decoration: none;
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+    border-radius: var(--radius);
+    white-space: nowrap;
+  }
+
+  .nav-dropdown a:hover,
+  .nav-dropdown a.active {
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .nav-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--fg);
+    padding: 0.5rem;
+    cursor: pointer;
+  }
+
+  .nav-toggle-icon,
+  .nav-toggle-icon::before,
+  .nav-toggle-icon::after {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: currentColor;
+    position: relative;
+    transition: transform 0.2s ease;
+  }
+
+  .nav-toggle-icon::before,
+  .nav-toggle-icon::after {
+    content: '';
+    position: absolute;
+  }
+
+  .nav-toggle-icon::before {
+    top: -7px;
+  }
+
+  .nav-toggle-icon::after {
+    top: 7px;
+  }
+
+  @media (max-width: 720px) {
+    .nav-toggle {
+      display: block;
+    }
+
+    .primary-nav {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.25s ease;
+    }
+
+    .primary-nav.open {
+      max-height: 480px;
+    }
+
+    .primary-nav > a {
+      padding: var(--space-2) var(--space-3);
+      border-top: 1px solid var(--border);
+    }
+
+    .nav-group {
+      padding: var(--space-2) var(--space-3);
+      border-top: 1px solid var(--border);
+    }
+
+    .nav-dropdown {
+      position: static;
+      transform: none;
+      opacity: 1;
+      visibility: visible;
+      display: none;
+      border: none;
+      background: none;
+      margin-top: var(--space-1);
+      padding: 0;
+    }
+
+    .nav-group.open .nav-dropdown {
+      display: flex;
+    }
+  }
+</style>
+
+<script>
+  const toggle = document.getElementById('nav-toggle');
+  const nav = document.getElementById('primary-nav');
+  const navGroup = nav?.querySelector('.nav-group');
+  const navLabel = navGroup?.querySelector('.nav-label');
+
+  toggle?.addEventListener('click', () => {
+    const isOpen = nav?.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', String(Boolean(isOpen)));
+  });
+
+  navLabel?.addEventListener('click', () => {
+    if (window.innerWidth <= 720) {
+      navGroup?.classList.toggle('open');
+    }
+  });
+</script>

@@ -1,0 +1,49 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Gallery from '../../components/Gallery.astro';
+import { CATEGORIES, getCategory } from '../../config/categories';
+
+export async function getStaticPaths() {
+  const allPhotos = await getCollection('photos');
+  return CATEGORIES.map((category) => ({
+    params: { category: category.slug },
+    props: {
+      photos: allPhotos
+        .filter((p) => p.data.category === category.slug)
+        .sort((a, b) => a.data.order - b.data.order || b.data.date.valueOf() - a.data.date.valueOf()),
+    },
+  }));
+}
+
+const { category: slug } = Astro.params;
+const { photos } = Astro.props;
+const category = getCategory(slug!)!;
+---
+
+<BaseLayout title={category.label} description={category.description}>
+  <section class="wrap header">
+    <p class="eyebrow">Portfolio</p>
+    <h1>{category.label}</h1>
+    <p>{category.description}</p>
+  </section>
+
+  <section class="wrap section">
+    {photos.length > 0 ? (
+      <Gallery photos={photos} />
+    ) : (
+      <p>No photos in this category yet. Check back soon.</p>
+    )}
+  </section>
+</BaseLayout>
+
+<style>
+  .header {
+    padding-block: var(--space-4) var(--space-2);
+    max-width: 700px;
+  }
+
+  .section {
+    padding-block: var(--space-3) var(--space-5);
+  }
+</style>

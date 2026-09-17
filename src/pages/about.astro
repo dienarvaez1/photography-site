@@ -1,0 +1,35 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE } from '../config/site';
+---
+
+<BaseLayout title="About" description={`About ${SITE.author}`}>
+  <section class="wrap about">
+    <p class="eyebrow">About</p>
+    <h1>Hi, I'm {SITE.author}.</h1>
+    <p>
+      Replace this paragraph with your own story: how you got into photography, the gear you shoot with,
+      the kinds of sessions you take on, and what clients can expect when they work with you.
+    </p>
+    <p>
+      Mention your experience across real estate, landscape, portrait, astro, pet, and event photography,
+      and anything that sets your style apart.
+    </p>
+    <a class="btn btn-primary" href="/contact/">Get in Touch</a>
+  </section>
+</BaseLayout>
+
+<style>
+  .about {
+    padding-block: var(--space-5);
+    max-width: 700px;
+  }
+
+  .about h1 {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+  }
+
+  .about .btn {
+    margin-top: var(--space-2);
+  }
+</style>

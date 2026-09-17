@@ -1,0 +1,67 @@
+---
+import { getImage } from 'astro:assets';
+import type { CollectionEntry } from 'astro:content';
+import type { Category } from '../config/categories';
+
+interface Props {
+  category: Category;
+  cover?: CollectionEntry<'photos'>;
+}
+
+const { category, cover } = Astro.props;
+const image = cover ? await getImage({ src: cover.data.image, width: 900, format: 'webp' }) : null;
+---
+
+<a class="category-card" href={`/work/${category.slug}/`}>
+  <div class="cover">
+    {image && <img src={image.src} width={image.attributes.width} height={image.attributes.height} alt={cover?.data.alt ?? category.label} loading="lazy" decoding="async" />}
+  </div>
+  <div class="label">
+    <h3>{category.label}</h3>
+    <p>{category.description}</p>
+  </div>
+</a>
+
+<style>
+  .category-card {
+    display: block;
+    text-decoration: none;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg-elevated);
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .category-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .cover {
+    aspect-ratio: 4 / 3;
+    background: #1a1b1e;
+    overflow: hidden;
+  }
+
+  .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .label {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .label h3 {
+    margin-bottom: 0.35rem;
+    font-size: 1.15rem;
+  }
+
+  .label p {
+    margin: 0;
+    font-size: 0.85rem;
+  }
+</style>

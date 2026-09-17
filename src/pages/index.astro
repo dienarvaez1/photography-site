@@ -1,0 +1,89 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Gallery from '../components/Gallery.astro';
+import CategoryCard from '../components/CategoryCard.astro';
+import { CATEGORIES } from '../config/categories';
+import { SITE } from '../config/site';
+
+const allPhotos = await getCollection('photos');
+const featured = allPhotos
+  .filter((p) => p.data.featured)
+  .sort((a, b) => a.data.order - b.data.order)
+  .slice(0, 8);
+
+const covers = CATEGORIES.map((category) => {
+  const inCategory = allPhotos
+    .filter((p) => p.data.category === category.slug)
+    .sort((a, b) => a.data.order - b.data.order);
+  return { category, cover: inCategory[0] };
+});
+---
+
+<BaseLayout title={SITE.title} description={SITE.description}>
+  <section class="hero wrap">
+    <p class="eyebrow">{SITE.tagline}</p>
+    <h1>Photography that tells your story.</h1>
+    <p class="hero-copy">
+      A curated look at real estate, landscape, portrait, astro, pet, and event work.
+      Browse the categories below or see a few favorites first.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="/work/landscape/">View the Work</a>
+      <a class="btn" href="/contact/">Book a Session</a>
+    </div>
+  </section>
+
+  <section class="wrap section">
+    <h2>Featured</h2>
+    <Gallery photos={featured} />
+  </section>
+
+  <section class="wrap section">
+    <h2>Explore by Category</h2>
+    <div class="category-grid">
+      {covers.map(({ category, cover }) => (
+        <CategoryCard category={category} cover={cover} />
+      ))}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .hero {
+    padding-block: var(--space-5) var(--space-4);
+    max-width: 760px;
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    margin-block: 0.5rem 1rem;
+  }
+
+  .hero-copy {
+    font-size: 1.05rem;
+    max-width: 56ch;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  .section {
+    padding-block: var(--space-4);
+  }
+
+  .section h2 {
+    margin-bottom: var(--space-3);
+    font-size: 1.5rem;
+  }
+
+  .category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-3);
+  }
+</style>
