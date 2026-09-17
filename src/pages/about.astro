@@ -6,15 +6,52 @@ import { SITE } from '../config/site';
 <BaseLayout title="About" description={`About ${SITE.author}`}>
   <section class="wrap about">
     <p class="eyebrow">About</p>
-    <h1>Hi, I'm {SITE.author}.</h1>
+    <h1>Real moments. Beautiful places. Photographs worth remembering.</h1>
+
     <p>
-      Replace this paragraph with your own story: how you got into photography, the gear you shoot with,
-      the kinds of sessions you take on, and what clients can expect when they work with you.
+      Hi, I&rsquo;m a Portland, Oregon photographer with a passion for finding the story in a
+      moment — whether that&rsquo;s a quiet landscape beneath the stars, a joyful family
+      gathering, a curious pet, or the energy of a special event.
     </p>
     <p>
-      Mention your experience across real estate, landscape, portrait, astro, pet, and event photography,
-      and anything that sets your style apart.
+      I fell in love with photography because a photograph can do something incredible: it can
+      bring you back to a moment you thought had already passed.
     </p>
+    <p>That idea guides everything I photograph.</p>
+    <p>
+      I enjoy working across a wide range of subjects, including portraits, social events, pets,
+      nature and landscapes, astrophotography, aviation, food, and everyday moments. Each one
+      gives me a different opportunity to look at the world differently and capture something
+      authentic.
+    </p>
+
+    <h2>Photography with curiosity behind it</h2>
+    <p>
+      I&rsquo;m constantly exploring Portland and the Pacific Northwest with a camera nearby,
+      looking for interesting light, unexpected perspectives, and those fleeting moments that
+      might otherwise go unnoticed.
+    </p>
+    <p>
+      From dramatic Oregon skies and mountain landscapes to the personality of a beloved pet, the
+      atmosphere of an event, or the details that make a place memorable, I&rsquo;m interested in
+      photographs that feel genuine, engaging, and alive.
+    </p>
+    <p>My goal isn&rsquo;t simply to take a technically good photograph.</p>
+    <p>It&rsquo;s to create an image that makes you stop, feel something, and remember.</p>
+
+    <h2>Let&rsquo;s create something together</h2>
+    <p>
+      Whether you&rsquo;re looking for photographs of an event, portraits that actually feel like
+      you, memorable images of your pets, photographs for your business or social media, or
+      simply someone who sees the world a little differently through a camera, I&rsquo;d love to
+      hear your idea.
+    </p>
+    <p>
+      I&rsquo;m based in Portland, Oregon and am always interested in meeting new people,
+      exploring new places, and taking on creative projects.
+    </p>
+    <p>Have something in mind? Let&rsquo;s talk.</p>
+
     <a class="btn btn-primary" href="/contact/">Get in Touch</a>
   </section>
 </BaseLayout>
@@ -27,6 +64,11 @@ import { SITE } from '../config/site';
 
   .about h1 {
     font-size: clamp(1.8rem, 4vw, 2.6rem);
+  }
+
+  .about h2 {
+    margin-top: var(--space-4);
+    font-size: 1.4rem;
   }
 
   .about .btn {
