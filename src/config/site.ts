@@ -3,7 +3,7 @@ export const SITE = {
   tagline: 'Capturing moments, one frame at a time',
   description:
     'Photography portfolio featuring real estate, landscape, portrait, astro, pet, and event work.',
-  url: 'https://photography-site.pages.dev',
+  url: 'https://photography-site.diego-narvaez.workers.dev',
   author: 'Diego Narvaez',
   email: 'dienarvaez@gmail.com',
   social: {
