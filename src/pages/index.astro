@@ -40,10 +40,12 @@ const covers = sortedCategories.map((category) => {
     </div>
   </section>
 
-  <section class="wrap section">
-    <h2>Featured</h2>
-    <Gallery photos={featured} />
-  </section>
+  {featured.length > 0 && (
+    <section class="wrap section">
+      <h2>Featured</h2>
+      <Gallery photos={featured} />
+    </section>
+  )}
 
   <section class="wrap section">
     <h2>Explore by Category</h2>

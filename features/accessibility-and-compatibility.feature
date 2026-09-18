@@ -11,7 +11,7 @@ Feature: Accessibility and cross-browser compatibility
     Then the "Work" menu trigger should be a real button element
 
   Scenario: The lightbox dialog exposes proper ARIA semantics
-    When I load the built page "/"
+    When I load the built page "/work/astro/"
     Then the lightbox should declare dialog role and modal attributes
 
   Scenario Outline: Every image on every page has an alt attribute

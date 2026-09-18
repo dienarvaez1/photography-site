@@ -1,6 +1,6 @@
 import { When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
-import { readBuiltPage, loadContentEntries, readWeb3FormsKeyFromEnv } from '../support/lib.js';
+import { readBuiltPage, loadContentEntries, readWeb3FormsKeyFromEnv, loadCategoriesConfig } from '../support/lib.js';
 
 When('I load the built page {string}', function (route) {
   this.data.page = readBuiltPage(route);
@@ -85,16 +85,16 @@ Then('the contact page should show the real form only if a Web3Forms access key 
   }
 });
 
-Then('every featured photo with camera or copyright info should show that info in its tile', function () {
-  const featured = this.data.entries.filter(
-    (e) => e.frontmatter.featured && (e.frontmatter.camera || e.frontmatter.copyright)
+Then('every photo on that page with camera or copyright info should show that info in its tile', function () {
+  const withInfo = this.data.entries.filter(
+    (e) => e.frontmatter.category === 'astro' && (e.frontmatter.camera || e.frontmatter.copyright)
   );
-  assert.ok(featured.length > 0, 'Expected at least one featured photo with camera/copyright info to test against');
+  assert.ok(withInfo.length > 0, 'Expected at least one astro photo with camera/copyright info to test against');
 
-  for (const entry of featured) {
+  for (const entry of withInfo) {
     const title = entry.frontmatter.title;
     const tile = this.data.page.root.querySelector(`.tile[data-title="${title}"]`);
-    if (!tile) continue; // not in the top-8 featured slice shown on the homepage; nothing to check
+    assert.ok(tile, `Expected a tile for "${title}" on its category page`);
     const metaText = tile.querySelector('.tile-meta')?.text ?? '';
     if (entry.frontmatter.camera) {
       assert.ok(metaText.includes(entry.frontmatter.camera), `Tile for "${title}" is missing its camera info`);
@@ -109,4 +109,25 @@ Then('the footer should show the current year', function () {
   const year = String(new Date().getFullYear());
   const footerText = this.data.page.root.querySelector('.site-footer')?.text ?? '';
   assert.ok(footerText.includes(year), `Footer does not show the current year (${year})`);
+});
+
+Then('the homepage should show a {string} section only if a visible photo is marked featured', async function (sectionName) {
+  assert.equal(sectionName, 'Featured');
+  const { VISIBLE_CATEGORIES } = await loadCategoriesConfig();
+  const visibleSlugs = new Set(VISIBLE_CATEGORIES.map((c) => c.slug));
+  const hasFeatured = this.data.entries.some(
+    (e) => e.frontmatter.featured && visibleSlugs.has(e.frontmatter.category)
+  );
+
+  const headings = this.data.page.root.querySelectorAll('h2').map((h) => h.text.trim());
+  const hasSection = headings.includes('Featured');
+
+  if (hasFeatured) {
+    assert.ok(hasSection, 'A visible photo is featured, but the homepage has no "Featured" section');
+  } else {
+    assert.ok(
+      !hasSection,
+      'No photo is featured, but the homepage still shows an (empty) "Featured" section'
+    );
+  }
 });

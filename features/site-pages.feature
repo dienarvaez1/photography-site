@@ -46,9 +46,14 @@ Feature: Site pages render correctly
 
   Scenario: Gallery tiles expose hover metadata for photos that declare camera or copyright info
     Given all photo content entries
-    When I load the built page "/"
-    Then every featured photo with camera or copyright info should show that info in its tile
+    When I load the built page "/work/astro/"
+    Then every photo on that page with camera or copyright info should show that info in its tile
 
   Scenario: The footer shows the current copyright year
     When I load the built page "/"
     Then the footer should show the current year
+
+  Scenario: The homepage "Featured" section matches whether any photo is actually featured
+    Given all photo content entries
+    When I load the built page "/"
+    Then the homepage should show a "Featured" section only if a visible photo is marked featured
