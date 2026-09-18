@@ -5,6 +5,7 @@ import {
   loadContentEntries,
   allowedFrontmatterFields,
   loadCategoriesConfig,
+  loadLocaleConfig,
 } from '../support/lib.js';
 
 Given('all photo content entries', function () {
@@ -98,4 +99,27 @@ Then('each entry\'s frontmatter category should be a real, defined category', as
     .filter((e) => !slugs.has(e.frontmatter.category))
     .map((e) => e.relPath);
   assert.deepEqual(violations, [], 'Found entries with an undefined category');
+});
+
+Given('the configured locales', async function () {
+  const { LOCALES, DEFAULT_LOCALE } = await loadLocaleConfig();
+  this.data.locales = LOCALES;
+  this.data.defaultLocale = DEFAULT_LOCALE;
+});
+
+Then("each entry's translated titles should be non-empty and use configured locales only", function () {
+  const violations = this.data.entries.flatMap((e) =>
+    Object.entries(e.frontmatter.titles ?? {})
+      .filter(([locale, title]) => !this.data.locales.includes(locale) || typeof title !== 'string' || title.trim() === '')
+      .map(([locale]) => `${e.relPath} (${locale})`)
+  );
+  assert.deepEqual(violations, [], 'Found translated titles that are empty or use an unknown locale');
+});
+
+Then('each entry should have a translated title for every non-default locale', function () {
+  const others = this.data.locales.filter((l) => l !== this.data.defaultLocale);
+  const violations = this.data.entries.flatMap((e) =>
+    others.filter((l) => !e.frontmatter.titles?.[l]).map((l) => `${e.relPath} (${l})`)
+  );
+  assert.deepEqual(violations, [], 'Found photos with no translated title — add `titles: { <locale>: "..." }`');
 });

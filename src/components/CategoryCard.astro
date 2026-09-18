@@ -1,20 +1,21 @@
 ---
 import { getImage } from 'astro:assets';
 import type { CollectionEntry } from 'astro:content';
-import type { Category } from '../config/categories';
+import { getLocale, getPhotoTitle, localizePath, type LocalizedCategory } from '../i18n';
 
 interface Props {
-  category: Category;
+  category: LocalizedCategory;
   cover?: CollectionEntry<'photos'>;
 }
 
 const { category, cover } = Astro.props;
+const locale = getLocale(Astro);
 const image = cover ? await getImage({ src: cover.data.image, width: 900, format: 'webp' }) : null;
 ---
 
-<a class="category-card" href={`/work/${category.slug}/`}>
+<a class="category-card" href={localizePath(`/work/${category.slug}/`, locale)}>
   <div class="cover">
-    {image && <img src={image.src} width={image.attributes.width} height={image.attributes.height} alt={cover?.data.title ?? category.label} loading="lazy" decoding="async" />}
+    {image && <img src={image.src} width={image.attributes.width} height={image.attributes.height} alt={cover ? getPhotoTitle(cover.data, locale) : category.label} loading="lazy" decoding="async" />}
   </div>
   <div class="label">
     <h3>{category.label}</h3>

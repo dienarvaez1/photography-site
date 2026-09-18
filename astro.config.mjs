@@ -3,11 +3,26 @@ import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 
 import cloudflare from '@astrojs/cloudflare';
+import { DEFAULT_LOCALE, LOCALES } from './src/i18n/config.ts';
 
 // https://astro.build/config
 export default defineConfig({
   site: 'https://photography-site.diego-narvaez.workers.dev',
-  integrations: [sitemap()],
+  i18n: {
+    defaultLocale: DEFAULT_LOCALE,
+    locales: [...LOCALES],
+    // English lives at the root (/about/); other locales are prefixed (/es/about/).
+    routing: { prefixDefaultLocale: false },
+  },
+  integrations: [
+    // Adds <xhtml:link rel="alternate" hreflang> entries for each page's translations.
+    sitemap({
+      i18n: {
+        defaultLocale: DEFAULT_LOCALE,
+        locales: Object.fromEntries(LOCALES.map((locale) => [locale, locale])),
+      },
+    }),
+  ],
   adapter: cloudflare(),
   vite: {
     build: {

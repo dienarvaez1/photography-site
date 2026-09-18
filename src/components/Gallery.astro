@@ -1,18 +1,21 @@
 ---
 import { getImage } from 'astro:assets';
 import type { CollectionEntry } from 'astro:content';
+import { getLocale, getPhotoTitle, useTranslations } from '../i18n';
 
 interface Props {
   photos: CollectionEntry<'photos'>[];
 }
 
 const { photos } = Astro.props;
+const locale = getLocale(Astro);
+const t = useTranslations(locale);
 
 const tiles = await Promise.all(
   photos.map(async (photo, index) => {
     const thumb = await getImage({ src: photo.data.image, width: 700, format: 'webp' });
     const full = await getImage({ src: photo.data.image, width: 2000, format: 'webp' });
-    return { index, thumb, full, data: photo.data };
+    return { index, thumb, full, data: photo.data, title: getPhotoTitle(photo.data, locale) };
   })
 );
 ---
@@ -23,20 +26,20 @@ const tiles = await Promise.all(
       type="button"
       class="tile"
       data-full={tile.full.src}
-      data-caption={tile.data.title}
-      data-title={tile.data.title}
-      aria-label={`Open photo: ${tile.data.title}`}
+      data-caption={tile.title}
+      data-title={tile.title}
+      aria-label={t('gallery.openPhoto', { title: tile.title })}
     >
       <img
         src={tile.thumb.src}
         width={tile.thumb.attributes.width}
         height={tile.thumb.attributes.height}
-        alt={tile.data.title}
+        alt={tile.title}
         loading="lazy"
         decoding="async"
       />
       <span class="tile-caption">
-        <span class="tile-title">{tile.data.title}</span>
+        <span class="tile-title">{tile.title}</span>
         {(tile.data.camera || tile.data.copyright) && (
           <span class="tile-meta">
             {tile.data.camera && <span class="meta-row">{tile.data.camera}</span>}
@@ -56,13 +59,13 @@ const tiles = await Promise.all(
   aria-labelledby="lightbox-caption"
   hidden
 >
-  <button type="button" class="lightbox-close" id="lightbox-close" aria-label="Close">&times;</button>
-  <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Previous photo">&#8249;</button>
+  <button type="button" class="lightbox-close" id="lightbox-close" aria-label={t('gallery.close')}>&times;</button>
+  <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label={t('gallery.previous')}>&#8249;</button>
   <figure class="lightbox-figure">
     <img id="lightbox-img" alt="" />
     <figcaption id="lightbox-caption"></figcaption>
   </figure>
-  <button type="button" class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next photo">&#8250;</button>
+  <button type="button" class="lightbox-nav lightbox-next" id="lightbox-next" aria-label={t('gallery.next')}>&#8250;</button>
 </div>
 
 <style>

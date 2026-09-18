@@ -1,5 +1,5 @@
-Feature: Site pages render correctly
-  As a visitor
+Feature: Site pages render correctly (English and Spanish)
+  As a visitor, in either language
   I want every page to build successfully and show the right content
   So that the site never silently shows an error page or the wrong data
 
@@ -9,51 +9,106 @@ Feature: Site pages render correctly
     And the page should have a non-empty title
 
     Examples:
-      | route              |
-      | /                  |
-      | /about/            |
-      | /contact/          |
-      | /work/astro/       |
-      | /work/events/      |
-      | /work/landscape/   |
-      | /work/nature/      |
-      | /work/pets/        |
-      | /work/portrait/    |
-      | /work/real-estate/ |
+      | route                 |
+      | /                     |
+      | /about/               |
+      | /contact/             |
+      | /work/astro/          |
+      | /work/events/         |
+      | /work/landscape/      |
+      | /work/nature/         |
+      | /work/pets/           |
+      | /work/portrait/       |
+      | /work/real-estate/    |
+      | /es/                  |
+      | /es/about/            |
+      | /es/contact/          |
+      | /es/work/astro/       |
+      | /es/work/events/      |
+      | /es/work/landscape/   |
+      | /es/work/nature/      |
+      | /es/work/pets/        |
+      | /es/work/portrait/    |
+      | /es/work/real-estate/ |
 
-  Scenario: The header navigation lists only visible categories, in alphabetical order
+  Scenario: Every page the build produces is covered by the tested route list
+    Then the built pages on disk should exactly match the expected routes in every locale
+
+  Scenario: The header navigation on every page lists only visible categories, in alphabetical order
     Given the configured categories
-    When I load the built page "/"
-    Then the header "Work" menu should list exactly the visible category labels in alphabetical order
+    When I load every built page
+    Then the header "Work" menu on every page should list exactly the visible category labels of its language in alphabetical order
 
-  Scenario: A hidden category is not linked from the header navigation
+  Scenario: A hidden category is not linked from the header navigation on any page
     Given the configured categories
-    When I load the built page "/"
-    Then the header "Work" menu should not contain a link for any hidden category
+    When I load every built page
+    Then the header "Work" menu on every page should not contain a link for any hidden category
 
-  Scenario: The homepage category grid matches the header navigation categories
-    When I load the built page "/"
+  Scenario: Every page has the localized header, skip link and footer
+    When I load every built page
+    Then every page should show its language's skip link, navigation labels and copyright footer
+
+  Scenario Outline: The homepage category grid matches the header navigation categories
+    When I load the built page "<route>"
     Then the homepage category grid should list the same categories as the header "Work" menu
 
-  Scenario: A hidden category's page still builds and shows the empty-state message when it has no photos
-    Given the configured categories
-    When I load the built page for each hidden category with no photos
-    Then each of those pages should show the "no photos yet" message
+    Examples:
+      | route |
+      | /     |
+      | /es/  |
 
-  Scenario: The contact page shows the correct state for the configured Web3Forms key
-    When I load the built page "/contact/"
+  Scenario Outline: A hidden category's page still builds and shows the empty-state message when it has no photos
+    Given the configured categories
+    When I load the built page for each hidden category with no photos in locale "<locale>"
+    Then each of those pages should show the "no photos yet" message in its language
+
+    Examples:
+      | locale |
+      | en     |
+      | es     |
+
+  Scenario Outline: The contact page shows the correct state for the configured Web3Forms key
+    When I load the built page "<route>"
     Then the contact page should show the real form only if a Web3Forms access key is configured
 
-  Scenario: Gallery tiles expose hover metadata for photos that declare camera or copyright info
-    Given all photo content entries
-    When I load the built page "/work/astro/"
-    Then every photo on that page with camera or copyright info should show that info in its tile
+    Examples:
+      | route        |
+      | /contact/    |
+      | /es/contact/ |
 
-  Scenario: The footer shows the current copyright year
-    When I load the built page "/"
-    Then the footer should show the current year
-
-  Scenario: The homepage "Featured" section matches whether any photo is actually featured
+  Scenario Outline: A category page shows every photo of its category, with hover metadata
     Given all photo content entries
-    When I load the built page "/"
+    When I load the built page "<route>"
+    Then the page should show a tile for every photo in its category
+    And every photo on that page with camera or copyright info should show that info in its tile
+
+    Examples:
+      | route                 |
+      | /work/astro/          |
+      | /work/events/         |
+      | /work/landscape/      |
+      | /work/nature/         |
+      | /work/pets/           |
+      | /work/portrait/       |
+      | /work/real-estate/    |
+      | /es/work/astro/       |
+      | /es/work/events/      |
+      | /es/work/landscape/   |
+      | /es/work/nature/      |
+      | /es/work/pets/        |
+      | /es/work/portrait/    |
+      | /es/work/real-estate/ |
+
+  Scenario: The footer shows the current copyright year on every page
+    When I load every built page
+    Then the footer on every page should show the current year
+
+  Scenario Outline: The homepage "Featured" section matches whether any photo is actually featured
+    Given all photo content entries
+    When I load the built page "<route>"
     Then the homepage should show a "Featured" section only if a visible photo is marked featured
+
+    Examples:
+      | route |
+      | /     |
+      | /es/  |

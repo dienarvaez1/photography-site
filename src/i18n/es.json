@@ -1,0 +1,112 @@
+{
+  "site": {
+    "title": "Diego Narvaez Fotografía",
+    "tagline": "Capturando momentos, un fotograma a la vez",
+    "description": "Portafolio fotográfico con trabajo de bienes raíces, paisajes, retratos, astrofotografía, mascotas y eventos."
+  },
+  "nav": {
+    "skipToContent": "Saltar al contenido",
+    "toggleNavigation": "Alternar navegación",
+    "work": "Trabajo",
+    "about": "Sobre mí",
+    "contact": "Contacto",
+    "language": "Idioma"
+  },
+  "footer": {
+    "copyright": "© {year} {author} Fotografía. Todos los derechos reservados.",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
+    "opensInNewTab": "(se abre en una pestaña nueva)"
+  },
+  "gallery": {
+    "openPhoto": "Abrir foto: {title}",
+    "close": "Cerrar",
+    "previous": "Foto anterior",
+    "next": "Foto siguiente"
+  },
+  "categories": {
+    "real-estate": {
+      "label": "Bienes raíces",
+      "description": "Fotografía de interiores y exteriores para anuncios y propiedades."
+    },
+    "landscape": {
+      "label": "Paisajes",
+      "description": "Escenarios naturales, vistas amplias y paisajes de viaje."
+    },
+    "portrait": {
+      "label": "Retratos",
+      "description": "Retratos individuales y grupales, en estudio y en exteriores."
+    },
+    "astro": {
+      "label": "Astrofotografía",
+      "description": "Cielo nocturno, estrellas y fotografía celeste de larga exposición."
+    },
+    "pets": {
+      "label": "Mascotas",
+      "description": "Retratos y momentos espontáneos de tus compañeros animales."
+    },
+    "nature": {
+      "label": "Naturaleza",
+      "description": "Fauna, plantas y el mundo natural de cerca."
+    },
+    "events": {
+      "label": "Eventos públicos",
+      "description": "Bodas, fiestas y reuniones."
+    }
+  },
+  "home": {
+    "heroTitle": "Fotografía que cuenta tu historia.",
+    "heroCopy": "Convierto momentos reales en fotografías inolvidables: capturo a las personas, los lugares, las personalidades y las historias que más importan, con creatividad, autenticidad y una mirada profesional. Desde retratos y eventos hasta paisajes impresionantes, mascotas, comida y mucho más, creo imágenes pensadas no solo para ser vistas, sino para ser recordadas.",
+    "viewWork": "Ver el trabajo",
+    "bookSession": "Reservar una sesión",
+    "featured": "Destacadas",
+    "exploreByCategory": "Explorar por categoría"
+  },
+  "work": {
+    "eyebrow": "Portafolio",
+    "empty": "Aún no hay fotos en esta categoría. Vuelve pronto."
+  },
+  "about": {
+    "title": "Sobre mí",
+    "description": "Sobre {author}",
+    "eyebrow": "Sobre mí",
+    "heading": "Momentos reales. Lugares hermosos. Fotografías que valen la pena recordar.",
+    "intro": [
+      "Hola, hago fotografía en Portland, Oregón, y me apasiona encontrar la historia en cada momento: ya sea un paisaje tranquilo bajo las estrellas, una alegre reunión familiar, una mascota curiosa o la energía de un evento especial.",
+      "Me enamoré de la fotografía porque una imagen puede hacer algo increíble: llevarte de vuelta a un momento que creías haber dejado atrás.",
+      "Esa idea guía todo lo que fotografío.",
+      "Disfruto trabajar con una gran variedad de temas, como retratos, eventos públicos, mascotas, naturaleza y paisajes, astrofotografía, aviación, comida y momentos cotidianos. Cada uno me ofrece la oportunidad de mirar el mundo de otra manera y capturar algo auténtico."
+    ],
+    "curiosityHeading": "Fotografía con curiosidad de fondo",
+    "curiosity": [
+      "Recorro Portland y el noroeste del Pacífico con una cámara siempre a mano, en busca de luz interesante, perspectivas inesperadas y esos instantes fugaces que de otro modo pasarían desapercibidos.",
+      "Desde los cielos dramáticos de Oregón y los paisajes de montaña hasta la personalidad de una mascota querida, la atmósfera de un evento o los detalles que hacen memorable un lugar, me interesan las fotografías que se sienten genuinas, cautivadoras y llenas de vida.",
+      "Mi objetivo no es simplemente tomar una fotografía técnicamente buena.",
+      "Es crear una imagen que te detenga, te haga sentir algo y te quede en la memoria."
+    ],
+    "ctaHeading": "Creemos algo juntos",
+    "cta": [
+      "Ya sea que busques fotografías de un evento, retratos que de verdad se parezcan a ti, imágenes memorables de tus mascotas, fotografías para tu negocio o tus redes sociales, o simplemente una mirada distinta del mundo a través de la cámara, me encantaría conocer tu idea.",
+      "Vivo en Portland, Oregón, y siempre me interesa conocer gente nueva, explorar lugares nuevos y sumarme a proyectos creativos.",
+      "¿Tienes algo en mente? Hablemos."
+    ],
+    "button": "Ponte en contacto"
+  },
+  "contact": {
+    "title": "Contacto",
+    "description": "Ponte en contacto con {author}",
+    "eyebrow": "Contacto",
+    "heading": "Trabajemos juntos.",
+    "intro": "Cuéntame un poco sobre tu proyecto y te responderé pronto. También puedes escribirme directamente a {email}.",
+    "name": "Nombre",
+    "email": "Correo electrónico",
+    "interest": "¿Qué te interesa?",
+    "other": "Otro",
+    "message": "Mensaje",
+    "send": "Enviar mensaje",
+    "sending": "Enviando...",
+    "success": "¡Gracias! Tu mensaje ha sido enviado; me pondré en contacto contigo pronto.",
+    "error": "Algo salió mal. Por favor, escríbeme directamente por correo electrónico.",
+    "notConfigured": "El formulario de contacto aún no está configurado. Agrega una clave de acceso gratuita de {link} como <code>PUBLIC_WEB3FORMS_KEY</code> para activarlo; consulta el README. Mientras tanto, escríbeme por correo electrónico a la dirección indicada arriba."
+  }
+}

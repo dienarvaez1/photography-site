@@ -1,23 +1,50 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import { SITE } from '../config/site';
-import { CATEGORIES } from '../config/categories';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { SITE } from '../../config/site';
+import { getWeb3FormsKey } from '../../config/web3forms';
+import {
+  DEFAULT_LOCALE,
+  getLocale,
+  getLocalizedCategories,
+  localeStaticParams,
+  useTranslations,
+} from '../../i18n';
 
-// Free contact form via Web3Forms (no backend, no cost). See README for setup.
-const accessKey = import.meta.env.PUBLIC_WEB3FORMS_KEY as string | undefined;
+export const getStaticPaths = localeStaticParams;
+
+const locale = getLocale(Astro);
+const t = useTranslations(locale);
+// Option values stay English so submissions read the same whatever language the visitor used.
+const englishLabels = Object.fromEntries(getLocalizedCategories(DEFAULT_LOCALE).map((c) => [c.slug, c.label]));
+const categoryOptions = getLocalizedCategories(locale).map((c) => ({
+  value: englishLabels[c.slug],
+  label: c.label,
+}));
+
+// Free contact form via Web3Forms (no backend, no cost), with a separate form per language.
+// See README for setup.
+const accessKey = getWeb3FormsKey(locale);
+
+const emailLink = `<a href="mailto:${SITE.email}">${SITE.email}</a>`;
+const web3formsLink =
+  '<a href="https://web3forms.com/" target="_blank" rel="noopener noreferrer">Web3Forms' +
+  `<span class="visually-hidden"> ${t('footer.opensInNewTab')}</span></a>`;
 ---
 
-<BaseLayout title="Contact" description={`Get in touch with ${SITE.author}`}>
+<BaseLayout title={t('contact.title')} description={t('contact.description', { author: SITE.author })}>
   <section class="wrap contact">
-    <p class="eyebrow">Contact</p>
-    <h1>Let's work together.</h1>
-    <p>
-      Tell me a bit about your project and I'll get back to you shortly. You can also email me
-      directly at <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.
-    </p>
+    <p class="eyebrow">{t('contact.eyebrow')}</p>
+    <h1>{t('contact.heading')}</h1>
+    <p set:html={t('contact.intro', { email: emailLink })} />
 
     {accessKey ? (
-      <form id="contact-form" class="contact-form">
+      <form
+        id="contact-form"
+        class="contact-form"
+        data-msg-sending={t('contact.sending')}
+        data-msg-success={t('contact.success')}
+        data-msg-error={t('contact.error')}
+      >
         <input type="hidden" name="access_key" value={accessKey} />
         <input
           type="checkbox"
@@ -29,42 +56,35 @@ const accessKey = import.meta.env.PUBLIC_WEB3FORMS_KEY as string | undefined;
         />
 
         <label>
-          Name
+          {t('contact.name')}
           <input type="text" name="name" required />
         </label>
 
         <label>
-          Email
+          {t('contact.email')}
           <input type="email" name="email" required />
         </label>
 
         <label>
-          What are you interested in?
+          {t('contact.interest')}
           <select name="category">
-            {CATEGORIES.map((c) => (
-              <option value={c.label}>{c.label}</option>
+            {categoryOptions.map((option) => (
+              <option value={option.value}>{option.label}</option>
             ))}
-            <option value="Other">Other</option>
+            <option value="Other">{t('contact.other')}</option>
           </select>
         </label>
 
         <label>
-          Message
+          {t('contact.message')}
           <textarea name="message" rows="5" required></textarea>
         </label>
 
-        <button type="submit" class="btn btn-primary">Send Message</button>
+        <button type="submit" class="btn btn-primary">{t('contact.send')}</button>
         <p id="form-status" class="form-status" role="status"></p>
       </form>
     ) : (
-      <p class="notice">
-        The contact form isn't configured yet. Add a free
-        <a href="https://web3forms.com/" target="_blank" rel="noopener noreferrer">
-          Web3Forms<span class="visually-hidden"> (opens in a new tab)</span>
-        </a>
-        access key as <code>PUBLIC_WEB3FORMS_KEY</code> to enable it — see the README. Until then,
-        please reach out via email above.
-      </p>
+      <p class="notice" set:html={t('contact.notConfigured', { link: web3formsLink })} />
     )}
   </section>
 </BaseLayout>
@@ -135,6 +155,8 @@ const accessKey = import.meta.env.PUBLIC_WEB3FORMS_KEY as string | undefined;
 <script>
   const form = document.getElementById('contact-form') as HTMLFormElement | null;
   const status = document.getElementById('form-status');
+  // Localized status messages are rendered into the form's data attributes.
+  const msg = form?.dataset ?? {};
 
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -142,7 +164,7 @@ const accessKey = import.meta.env.PUBLIC_WEB3FORMS_KEY as string | undefined;
 
     const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
     submitBtn && (submitBtn.disabled = true);
-    status.textContent = 'Sending...';
+    status.textContent = msg.msgSending ?? '';
 
     try {
       const formData = new FormData(form);
@@ -154,13 +176,13 @@ const accessKey = import.meta.env.PUBLIC_WEB3FORMS_KEY as string | undefined;
       const result = await response.json();
 
       if (result.success) {
-        status.textContent = "Thanks! Your message has been sent — I'll be in touch soon.";
+        status.textContent = msg.msgSuccess ?? '';
         form.reset();
       } else {
-        status.textContent = 'Something went wrong. Please try emailing me directly instead.';
+        status.textContent = msg.msgError ?? '';
       }
     } catch {
-      status.textContent = 'Something went wrong. Please try emailing me directly instead.';
+      status.textContent = msg.msgError ?? '';
     } finally {
       submitBtn && (submitBtn.disabled = false);
     }

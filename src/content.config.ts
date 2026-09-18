@@ -10,6 +10,9 @@ const photos = defineCollection({
   schema: ({ image }) =>
     z.object({
       title: z.string(),
+      // Optional per-locale titles, e.g. `titles: { es: "..." }`. Locales
+      // without an entry fall back to `title`.
+      titles: z.record(z.string(), z.string()).optional(),
       category: z.enum(categorySlugs),
       image: image(),
       camera: z.string().optional(),

@@ -1,0 +1,25 @@
+---
+// Front-door language detection: include on the default-language home page
+// only. See src/i18n/geo.ts for the rules.
+---
+
+<script>
+  import { runGeoRedirect } from '../i18n/geo.ts';
+
+  function getStorage(): Storage | null {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  }
+
+  void runGeoRedirect({
+    storage: getStorage(),
+    fetch: (url, init) => window.fetch(url, init),
+    location: window.location,
+    userAgent: navigator.userAgent,
+    // Dev only, e.g. http://localhost:4321/?geo=MX (Cloudflare's trace endpoint doesn't exist locally).
+    countryOverride: import.meta.env.DEV ? new URLSearchParams(window.location.search).get('geo') : null,
+  });
+</script>

@@ -1,10 +1,23 @@
 ---
 import { getCollection } from 'astro:content';
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Gallery from '../components/Gallery.astro';
-import CategoryCard from '../components/CategoryCard.astro';
-import { VISIBLE_CATEGORIES } from '../config/categories';
-import { SITE } from '../config/site';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Gallery from '../../components/Gallery.astro';
+import CategoryCard from '../../components/CategoryCard.astro';
+import GeoRedirect from '../../components/GeoRedirect.astro';
+import { VISIBLE_CATEGORIES } from '../../config/categories';
+import {
+  DEFAULT_LOCALE,
+  getLocale,
+  getSortedVisibleCategories,
+  localeStaticParams,
+  localizePath,
+  useTranslations,
+} from '../../i18n';
+
+export const getStaticPaths = localeStaticParams;
+
+const locale = getLocale(Astro);
+const t = useTranslations(locale);
 
 const visibleSlugs = new Set(VISIBLE_CATEGORIES.map((c) => c.slug));
 
@@ -14,7 +27,7 @@ const featured = allPhotos
   .sort((a, b) => a.data.order - b.data.order)
   .slice(0, 8);
 
-const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCompare(b.label));
+const sortedCategories = getSortedVisibleCategories(locale);
 
 const covers = sortedCategories.map((category) => {
   const inCategory = allPhotos
@@ -24,31 +37,27 @@ const covers = sortedCategories.map((category) => {
 });
 ---
 
-<BaseLayout title={SITE.title} description={SITE.description}>
+<BaseLayout title={t('site.title')} description={t('site.description')}>
+  {locale === DEFAULT_LOCALE && <GeoRedirect />}
   <section class="hero wrap">
-    <p class="eyebrow">{SITE.tagline}</p>
-    <h1>Photography that tells your story.</h1>
-    <p class="hero-copy">
-      I turn real moments into unforgettable photographs—capturing the people, places,
-      personalities, and stories that matter most with creativity, authenticity, and a
-      professional eye. From portraits and events to breathtaking landscapes, pets, food, and
-      beyond, I create images designed not just to be seen, but to be remembered.
-    </p>
+    <p class="eyebrow">{t('site.tagline')}</p>
+    <h1>{t('home.heroTitle')}</h1>
+    <p class="hero-copy">{t('home.heroCopy')}</p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="/work/landscape/">View the Work</a>
-      <a class="btn" href="/contact/">Book a Session</a>
+      <a class="btn btn-primary" href={localizePath('/work/landscape/', locale)}>{t('home.viewWork')}</a>
+      <a class="btn" href={localizePath('/contact/', locale)}>{t('home.bookSession')}</a>
     </div>
   </section>
 
   {featured.length > 0 && (
     <section class="wrap section">
-      <h2>Featured</h2>
+      <h2>{t('home.featured')}</h2>
       <Gallery photos={featured} />
     </section>
   )}
 
   <section class="wrap section">
-    <h2>Explore by Category</h2>
+    <h2>{t('home.exploreByCategory')}</h2>
     <div class="category-grid">
       {covers.map(({ category, cover }) => (
         <CategoryCard category={category} cover={cover} />

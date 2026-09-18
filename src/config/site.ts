@@ -1,8 +1,6 @@
+// Language-independent site facts. Translatable copy (title, tagline,
+// description) lives in src/i18n/<locale>.json.
 export const SITE = {
-  title: 'Diego Narvaez Photography',
-  tagline: 'Capturing moments, one frame at a time',
-  description:
-    'Photography portfolio featuring real estate, landscape, portrait, astro, pet, and event work.',
   url: 'https://photography-site.diego-narvaez.workers.dev',
   author: 'Diego Narvaez',
   email: 'dienarvaez@gmail.com',

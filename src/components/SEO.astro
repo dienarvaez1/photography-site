@@ -1,5 +1,6 @@
 ---
 import { SITE } from '../config/site';
+import { DEFAULT_LOCALE, LOCALE_INFO, getAlternates, getLocale, useTranslations } from '../i18n';
 
 interface Props {
   title: string;
@@ -7,19 +8,36 @@ interface Props {
   image?: string;
 }
 
-const { title, description = SITE.description, image } = Astro.props;
-const pageTitle = title === SITE.title ? title : `${title} · ${SITE.title}`;
+const locale = getLocale(Astro);
+const t = useTranslations(locale);
+const siteTitle = t('site.title');
+
+const { title, description = t('site.description'), image } = Astro.props;
+const pageTitle = title === siteTitle ? title : `${title} · ${siteTitle}`;
 const canonicalURL = new URL(Astro.url.pathname, SITE.url);
+
+// Every translation of this page, for hreflang. The default locale doubles as x-default.
+const alternates = getAlternates(Astro.url.pathname).map((alt) => ({
+  ...alt,
+  url: new URL(alt.path, SITE.url),
+}));
+const xDefault = alternates.find((alt) => alt.locale === DEFAULT_LOCALE)!;
 ---
 
 <title>{pageTitle}</title>
 <meta name="description" content={description} />
 <link rel="canonical" href={canonicalURL} />
+{alternates.map((alt) => <link rel="alternate" hreflang={alt.locale} href={alt.url} />)}
+<link rel="alternate" hreflang="x-default" href={xDefault.url} />
 
 <meta property="og:type" content="website" />
 <meta property="og:title" content={pageTitle} />
 <meta property="og:description" content={description} />
 <meta property="og:url" content={canonicalURL} />
+<meta property="og:locale" content={LOCALE_INFO[locale].ogLocale} />
+{alternates
+  .filter((alt) => alt.locale !== locale)
+  .map((alt) => <meta property="og:locale:alternate" content={LOCALE_INFO[alt.locale].ogLocale} />)}
 {image && <meta property="og:image" content={new URL(image, SITE.url)} />}
 
 <meta name="twitter:card" content="summary_large_image" />

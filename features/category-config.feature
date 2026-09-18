@@ -7,7 +7,7 @@ Feature: Category configuration consistency
     Given the configured categories
     Then no two categories should share the same slug
 
-  Scenario: Every category has a non-empty label and description
+  Scenario: Every category has a non-empty label and description in every locale
     Given the configured categories
     Then each category should have a non-empty label
     And each category should have a non-empty description

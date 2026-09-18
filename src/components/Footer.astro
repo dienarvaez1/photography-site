@@ -1,21 +1,24 @@
 ---
 import { SITE } from '../config/site';
+import { getLocale, useTranslations } from '../i18n';
+
+const t = useTranslations(getLocale(Astro));
 
 const year = new Date().getFullYear();
 ---
 
 <footer class="site-footer">
   <div class="wrap footer-bar">
-    <p>&copy; {year} {SITE.author} Photography. All rights reserved.</p>
+    <p>{t('footer.copyright', { year, author: SITE.author })}</p>
     <div class="footer-links">
       {SITE.social.instagram && (
         <a href={SITE.social.instagram} target="_blank" rel="noopener noreferrer">
-          Instagram<span class="visually-hidden"> (opens in a new tab)</span>
+          {t('footer.instagram')}<span class="visually-hidden"> {t('footer.opensInNewTab')}</span>
         </a>
       )}
       {SITE.social.facebook && (
         <a href={SITE.social.facebook} target="_blank" rel="noopener noreferrer">
-          Facebook<span class="visually-hidden"> (opens in a new tab)</span>
+          {t('footer.facebook')}<span class="visually-hidden"> {t('footer.opensInNewTab')}</span>
         </a>
       )}
       <a href={`mailto:${SITE.email}`}>{SITE.email}</a>

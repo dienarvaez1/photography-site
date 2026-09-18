@@ -2,6 +2,7 @@
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import SEO from '../components/SEO.astro';
+import { getLocale, useTranslations } from '../i18n';
 import '../styles/global.css';
 
 interface Props {
@@ -11,10 +12,12 @@ interface Props {
 }
 
 const { title, description, image } = Astro.props;
+const locale = getLocale(Astro);
+const t = useTranslations(locale);
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={locale}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -23,7 +26,7 @@ const { title, description, image } = Astro.props;
     <SEO title={title} description={description} image={image} />
   </head>
   <body>
-    <a href="#main-content" class="skip-link">Skip to content</a>
+    <a href="#main-content" class="skip-link">{t('nav.skipToContent')}</a>
     <Header />
     <main id="main-content">
       <slot />

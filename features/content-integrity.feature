@@ -27,3 +27,11 @@ Feature: Photo content integrity
 
   Scenario: Every entry's order is a valid number
     Then each entry's order should be a number when present
+
+  Scenario: Every translated title only uses configured locales and is non-empty
+    And the configured locales
+    Then each entry's translated titles should be non-empty and use configured locales only
+
+  Scenario: Every entry has a title for every non-default locale
+    And the configured locales
+    Then each entry should have a translated title for every non-default locale

@@ -11,6 +11,7 @@ export const DIST_DIR = join(ROOT, 'dist/client');
 
 const ALLOWED_FRONTMATTER_FIELDS = new Set([
   'title',
+  'titles',
   'category',
   'image',
   'camera',
@@ -74,6 +75,21 @@ export async function loadCategoriesConfig() {
   return mod;
 }
 
+/** Locales configured for the site (src/i18n/config.ts), default locale first. */
+export async function loadLocaleConfig() {
+  return import(join(ROOT, 'src/i18n/config.ts'));
+}
+
+/** The raw translation messages for a locale (src/i18n/<locale>.json). */
+export function loadMessages(locale) {
+  return JSON.parse(readFileSync(join(ROOT, 'src/i18n', `${locale}.json`), 'utf-8'));
+}
+
+/** Built-page route for a locale-less route, e.g. ("/about/", "es") -> "/es/about/". */
+export function localizedRoute(route, locale, defaultLocale = 'en') {
+  return locale === defaultLocale ? route : `/${locale}${route}`;
+}
+
 /** Read a built static page from dist/client and parse it as HTML. Throws with a clear message if the site hasn't been built. */
 export function readBuiltPage(routePath) {
   const normalized = routePath === '/' ? '/index.html' : `${routePath.replace(/\/$/, '')}/index.html`;
@@ -92,21 +108,37 @@ export function distExists() {
 }
 
 /**
- * Reads PUBLIC_WEB3FORMS_KEY straight out of .env, the same way Vite reads
- * it to inline `import.meta.env.PUBLIC_WEB3FORMS_KEY` at build time. This
- * only reflects the local build environment — it says nothing about what a
- * separate CI/deploy pipeline (e.g. a Git-connected Cloudflare build) has
- * configured, since that's a dashboard setting this repo can't see.
+ * Reads a PUBLIC_* variable the way Vite resolves it at build time: the
+ * process environment first, then the .env file. This only reflects the
+ * local build environment — it says nothing about what a separate CI/deploy
+ * pipeline (e.g. a Git-connected Cloudflare build) has configured, since
+ * that's a dashboard setting this repo can't see.
  */
-export function readWeb3FormsKeyFromEnv() {
+export function readEnvVar(name) {
+  if (process.env[name]?.trim()) return process.env[name].trim();
   const envPath = join(ROOT, '.env');
   if (!existsSync(envPath)) return undefined;
-  const match = readFileSync(envPath, 'utf-8').match(/^PUBLIC_WEB3FORMS_KEY=(.*)$/m);
+  const match = readFileSync(envPath, 'utf-8').match(new RegExp(`^${name}=(.*)$`, 'm'));
   return match?.[1]?.trim() || undefined;
 }
 
+/** Env var holding a locale's Web3Forms key: PUBLIC_WEB3FORMS_KEY for the default locale, PUBLIC_WEB3FORMS_KEY_<LOCALE> otherwise. */
+export function web3formsEnvName(locale, defaultLocale = 'en') {
+  return locale === defaultLocale ? 'PUBLIC_WEB3FORMS_KEY' : `PUBLIC_WEB3FORMS_KEY_${locale.toUpperCase()}`;
+}
+
+/** The explicitly configured Web3Forms key for a locale (no fallback to the default locale's key). */
+export function readWeb3FormsKeyFromEnv(locale = 'en') {
+  return readEnvVar(web3formsEnvName(locale));
+}
+
+/** The key a locale's built contact page should actually use: its own, else the default locale's (mirrors src/config/web3forms.ts). */
+export function effectiveWeb3FormsKey(locale = 'en') {
+  return readWeb3FormsKeyFromEnv(locale) ?? readWeb3FormsKeyFromEnv('en');
+}
+
 /** Every *.css file emitted by the build, plus inline <style> blocks in every built page — used for CSS-syntax regression checks. */
-export function allBuiltCss() {
+export async function allBuiltCss() {
   const chunks = [];
   const astroDir = join(DIST_DIR, '_astro');
   if (existsSync(astroDir)) {
@@ -116,7 +148,7 @@ export function allBuiltCss() {
       }
     }
   }
-  for (const routePath of listBuiltRoutes()) {
+  for (const routePath of await listBuiltRoutes()) {
     const { html } = readBuiltPage(routePath);
     const styleMatches = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)];
     for (const [, css] of styleMatches) {
@@ -126,8 +158,8 @@ export function allBuiltCss() {
   return chunks;
 }
 
-/** Every route this site is expected to build, derived from the pages directory + dynamic category routes. */
-export function listBuiltRoutes() {
+/** Every locale-less route this site is expected to build, derived from the pages directory + dynamic category routes. */
+export function listBaseRoutes() {
   return [
     '/',
     '/about/',
@@ -140,4 +172,44 @@ export function listBuiltRoutes() {
     '/work/portrait/',
     '/work/real-estate/',
   ];
+}
+
+/** Every route the site builds, in every locale. */
+export async function listBuiltRoutes() {
+  const { LOCALES, DEFAULT_LOCALE } = await loadLocaleConfig();
+  return LOCALES.flatMap((locale) =>
+    listBaseRoutes().map((route) => localizedRoute(route, locale, DEFAULT_LOCALE))
+  );
+}
+
+/** The locale a built page declares via <html lang>. */
+export function pageLocale(page) {
+  return page.root.querySelector('html')?.getAttribute('lang') ?? null;
+}
+
+/** Every built page, in every locale, as { route, locale, page } — for "every page" scenarios. */
+export async function readAllBuiltPages() {
+  const routes = await listBuiltRoutes();
+  return routes.map((route) => {
+    const page = readBuiltPage(route);
+    return { route, locale: pageLocale(page), page };
+  });
+}
+
+/** Routes of every index.html actually present in the build output (e.g. "/es/about/"). */
+export function listDistRoutes() {
+  const routes = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+      } else if (entry === 'index.html') {
+        const rel = relative(DIST_DIR, dir).split('\\').join('/');
+        routes.push(rel ? `/${rel}/` : '/');
+      }
+    }
+  };
+  walk(DIST_DIR);
+  return routes.sort();
 }

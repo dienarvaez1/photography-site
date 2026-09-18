@@ -1,0 +1,59 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Gallery from '../../../components/Gallery.astro';
+import { CATEGORIES } from '../../../config/categories';
+import {
+  getLocale,
+  getLocalizedCategory,
+  localeStaticParams,
+  useTranslations,
+} from '../../../i18n';
+
+export async function getStaticPaths() {
+  const allPhotos = await getCollection('photos');
+  return localeStaticParams().flatMap(({ params }) =>
+    CATEGORIES.map((category) => ({
+      params: { ...params, category: category.slug },
+      props: {
+        photos: allPhotos
+          .filter((p) => p.data.category === category.slug)
+          .sort((a, b) => a.data.order - b.data.order),
+      },
+    }))
+  );
+}
+
+const locale = getLocale(Astro);
+const t = useTranslations(locale);
+const { category: slug } = Astro.params;
+const { photos } = Astro.props;
+const category = getLocalizedCategory(slug!, locale)!;
+---
+
+<BaseLayout title={category.label} description={category.description}>
+  <section class="wrap header">
+    <p class="eyebrow">{t('work.eyebrow')}</p>
+    <h1>{category.label}</h1>
+    <p>{category.description}</p>
+  </section>
+
+  <section class="wrap section">
+    {photos.length > 0 ? (
+      <Gallery photos={photos} />
+    ) : (
+      <p>{t('work.empty')}</p>
+    )}
+  </section>
+</BaseLayout>
+
+<style>
+  .header {
+    padding-block: var(--space-4) var(--space-2);
+    max-width: 700px;
+  }
+
+  .section {
+    padding-block: var(--space-3) var(--space-5);
+  }
+</style>

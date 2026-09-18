@@ -1,6 +1,6 @@
 import { Given, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
-import { loadCategoriesConfig, contentCategoryFolders } from '../support/lib.js';
+import { loadCategoriesConfig, loadLocaleConfig, loadMessages, contentCategoryFolders } from '../support/lib.js';
 
 Given('the configured categories', async function () {
   const { CATEGORIES, VISIBLE_CATEGORIES } = await loadCategoriesConfig();
@@ -18,18 +18,25 @@ Then('no two categories should share the same slug', function () {
   assert.deepEqual([...new Set(duplicates)], [], 'Found duplicate category slugs');
 });
 
-Then('each category should have a non-empty label', function () {
-  const violations = this.data.categories
-    .filter((c) => typeof c.label !== 'string' || c.label.trim() === '')
-    .map((c) => c.slug);
-  assert.deepEqual(violations, [], 'Found categories with a missing or empty label');
+// Category text lives in the locale files (src/i18n/<locale>.json), not in the category config.
+async function categoryTextViolations(categories, field) {
+  const { LOCALES } = await loadLocaleConfig();
+  return LOCALES.flatMap((locale) => {
+    const text = loadMessages(locale).categories ?? {};
+    return categories
+      .filter((c) => typeof text[c.slug]?.[field] !== 'string' || text[c.slug][field].trim() === '')
+      .map((c) => `${locale}:${c.slug}`);
+  });
+}
+
+Then('each category should have a non-empty label', async function () {
+  const violations = await categoryTextViolations(this.data.categories, 'label');
+  assert.deepEqual(violations, [], 'Found categories with a missing or empty label in a locale file');
 });
 
-Then('each category should have a non-empty description', function () {
-  const violations = this.data.categories
-    .filter((c) => typeof c.description !== 'string' || c.description.trim() === '')
-    .map((c) => c.slug);
-  assert.deepEqual(violations, [], 'Found categories with a missing or empty description');
+Then('each category should have a non-empty description', async function () {
+  const violations = await categoryTextViolations(this.data.categories, 'description');
+  assert.deepEqual(violations, [], 'Found categories with a missing or empty description in a locale file');
 });
 
 Then('every category marked hidden should be absent from the visible categories', function () {

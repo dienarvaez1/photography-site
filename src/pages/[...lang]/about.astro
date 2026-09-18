@@ -1,0 +1,54 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { SITE } from '../../config/site';
+import {
+  getLocale,
+  getMessages,
+  localeStaticParams,
+  localizePath,
+  useTranslations,
+} from '../../i18n';
+
+export const getStaticPaths = localeStaticParams;
+
+const locale = getLocale(Astro);
+const t = useTranslations(locale);
+const about = getMessages(locale).about;
+---
+
+<BaseLayout title={t('about.title')} description={t('about.description', { author: SITE.author })}>
+  <section class="wrap about">
+    <p class="eyebrow">{t('about.eyebrow')}</p>
+    <h1>{t('about.heading')}</h1>
+
+    {about.intro.map((paragraph) => <p>{paragraph}</p>)}
+
+    <h2>{t('about.curiosityHeading')}</h2>
+    {about.curiosity.map((paragraph) => <p>{paragraph}</p>)}
+
+    <h2>{t('about.ctaHeading')}</h2>
+    {about.cta.map((paragraph) => <p>{paragraph}</p>)}
+
+    <a class="btn btn-primary" href={localizePath('/contact/', locale)}>{t('about.button')}</a>
+  </section>
+</BaseLayout>
+
+<style>
+  .about {
+    padding-block: var(--space-5);
+    max-width: 700px;
+  }
+
+  .about h1 {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+  }
+
+  .about h2 {
+    margin-top: var(--space-4);
+    font-size: 1.4rem;
+  }
+
+  .about .btn {
+    margin-top: var(--space-2);
+  }
+</style>

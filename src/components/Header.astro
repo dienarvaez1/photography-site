@@ -1,20 +1,33 @@
 ---
-import { VISIBLE_CATEGORIES } from '../config/categories';
 import { SITE } from '../config/site';
+import {
+  LOCALE_INFO,
+  getAlternates,
+  getLocale,
+  getSortedVisibleCategories,
+  localizePath,
+  splitLocalePath,
+  useTranslations,
+} from '../i18n';
 
-const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
-const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCompare(b.label));
+const locale = getLocale(Astro);
+const t = useTranslations(locale);
+
+// Compare against the locale-less path so "active" works the same in every language.
+const currentPath = splitLocalePath(Astro.url.pathname).path.replace(/\/+$/, '') || '/';
+const sortedCategories = getSortedVisibleCategories(locale);
+const alternates = getAlternates(Astro.url.pathname);
 ---
 
 <header class="site-header">
   <div class="wrap bar">
-    <a href="/" class="brand">
+    <a href={localizePath('/', locale)} class="brand">
       <img src="/logo.png" alt={SITE.author} class="brand-logo" />
       <img src="/aperture-logo.png" alt="" class="aperture-logo" />
     </a>
 
     <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" id="nav-toggle">
-      <span class="visually-hidden">Toggle navigation</span>
+      <span class="visually-hidden">{t('nav.toggleNavigation')}</span>
       <span class="nav-toggle-icon"></span>
     </button>
 
@@ -27,18 +40,44 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
           aria-expanded="false"
           aria-controls="nav-work-dropdown"
         >
-          Work
+          {t('nav.work')}
         </button>
         <div class="nav-dropdown" id="nav-work-dropdown">
           {sortedCategories.map((c) => (
-            <a href={`/work/${c.slug}/`} class:list={{ active: currentPath === `/work/${c.slug}` }}>
+            <a
+              href={localizePath(`/work/${c.slug}/`, locale)}
+              class:list={{ active: currentPath === `/work/${c.slug}` }}
+            >
               {c.label}
             </a>
           ))}
         </div>
       </div>
-      <a href="/about/" class:list={{ active: currentPath === '/about' }}>About</a>
-      <a href="/contact/" class:list={{ active: currentPath === '/contact' }}>Contact</a>
+      <a href={localizePath('/about/', locale)} class:list={{ active: currentPath === '/about' }}>
+        {t('nav.about')}
+      </a>
+      <a href={localizePath('/contact/', locale)} class:list={{ active: currentPath === '/contact' }}>
+        {t('nav.contact')}
+      </a>
+      <div class="lang-switcher" role="group" aria-label={t('nav.language')}>
+        {alternates.map((alt) =>
+          alt.current ? (
+            <span class="lang-current" lang={alt.locale} aria-current="true" title={LOCALE_INFO[alt.locale].name}>
+              {LOCALE_INFO[alt.locale].short}
+            </span>
+          ) : (
+            <a
+              href={alt.path}
+              lang={alt.locale}
+              hreflang={alt.locale}
+              title={LOCALE_INFO[alt.locale].name}
+              aria-label={LOCALE_INFO[alt.locale].name}
+            >
+              {LOCALE_INFO[alt.locale].short}
+            </a>
+          )
+        )}
+      </div>
     </nav>
   </div>
 </header>
@@ -100,6 +139,36 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
   .primary-nav > a:hover,
   .primary-nav > a.active {
     color: var(--fg);
+  }
+
+  .lang-switcher {
+    --lang-switch: #ffe600;
+    --lang-switch-hover: #fff27a;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding-left: var(--space-3);
+    border-left: 1px solid var(--border);
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+  }
+
+  .lang-switcher a {
+    text-decoration: none;
+    color: var(--lang-switch);
+    transition: color 0.2s ease;
+  }
+
+  .lang-switcher a:hover {
+    color: var(--lang-switch-hover);
+  }
+
+  /* Same yellow as the link; bold + underline marks the active language. */
+  .lang-current {
+    color: var(--lang-switch);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
   }
 
   .nav-group {
@@ -228,7 +297,7 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
     }
 
     .primary-nav.open {
-      max-height: 480px;
+      max-height: 560px;
     }
 
     .primary-nav > a {
@@ -238,6 +307,12 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
 
     .nav-group {
       padding: var(--space-2) var(--space-3);
+      border-top: 1px solid var(--border);
+    }
+
+    .lang-switcher {
+      padding: var(--space-2) var(--space-3);
+      border-left: none;
       border-top: 1px solid var(--border);
     }
 
@@ -262,6 +337,8 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
 </style>
 
 <script>
+  import { storeLocale } from '../i18n/geo.ts';
+
   const toggle = document.getElementById('nav-toggle');
   const nav = document.getElementById('primary-nav');
   const navGroup = nav?.querySelector('.nav-group');
@@ -277,5 +354,17 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
       const isOpen = navGroup?.classList.toggle('open');
       navLabel.setAttribute('aria-expanded', String(Boolean(isOpen)));
     }
+  });
+
+  // Clicking the language switcher is an explicit choice: remember it so the
+  // location-based default on the home page never overrides it.
+  document.querySelectorAll<HTMLAnchorElement>('.lang-switcher a[hreflang]').forEach((link) => {
+    link.addEventListener('click', () => {
+      try {
+        storeLocale(window.localStorage, link.hreflang);
+      } catch {
+        // Storage unavailable: navigation still works, the choice just isn't remembered.
+      }
+    });
   });
 </script>
