@@ -48,7 +48,14 @@ const tiles = await Promise.all(
   ))}
 </div>
 
-<div id="lightbox" class="lightbox" hidden>
+<div
+  id="lightbox"
+  class="lightbox"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="lightbox-caption"
+  hidden
+>
   <button type="button" class="lightbox-close" id="lightbox-close" aria-label="Close">&times;</button>
   <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Previous photo">&#8249;</button>
   <figure class="lightbox-figure">
@@ -265,6 +272,22 @@ const tiles = await Promise.all(
       if (event.key === 'Escape') close();
       if (event.key === 'ArrowLeft') show(currentIndex - 1);
       if (event.key === 'ArrowRight') show(currentIndex + 1);
+
+      if (event.key === 'Tab') {
+        const focusable = [closeBtn, prevBtn, nextBtn].filter(
+          (el): el is HTMLButtonElement => el !== null
+        );
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     });
   }
 

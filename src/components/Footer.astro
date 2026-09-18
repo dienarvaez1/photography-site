@@ -8,8 +8,16 @@ const year = new Date().getFullYear();
   <div class="wrap footer-bar">
     <p>&copy; {year} {SITE.author} Photography. All rights reserved.</p>
     <div class="footer-links">
-      {SITE.social.instagram && <a href={SITE.social.instagram} target="_blank" rel="noopener noreferrer">Instagram</a>}
-      {SITE.social.facebook && <a href={SITE.social.facebook} target="_blank" rel="noopener noreferrer">Facebook</a>}
+      {SITE.social.instagram && (
+        <a href={SITE.social.instagram} target="_blank" rel="noopener noreferrer">
+          Instagram<span class="visually-hidden"> (opens in a new tab)</span>
+        </a>
+      )}
+      {SITE.social.facebook && (
+        <a href={SITE.social.facebook} target="_blank" rel="noopener noreferrer">
+          Facebook<span class="visually-hidden"> (opens in a new tab)</span>
+        </a>
+      )}
       <a href={`mailto:${SITE.email}`}>{SITE.email}</a>
     </div>
   </div>

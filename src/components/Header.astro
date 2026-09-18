@@ -20,8 +20,16 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
 
     <nav id="primary-nav" class="primary-nav">
       <div class="nav-group">
-        <span class="nav-label">Work</span>
-        <div class="nav-dropdown">
+        <button
+          type="button"
+          class="nav-label"
+          id="nav-work-toggle"
+          aria-expanded="false"
+          aria-controls="nav-work-dropdown"
+        >
+          Work
+        </button>
+        <div class="nav-dropdown" id="nav-work-dropdown">
           {sortedCategories.map((c) => (
             <a href={`/work/${c.slug}/`} class:list={{ active: currentPath === `/work/${c.slug}` }}>
               {c.label}
@@ -41,6 +49,7 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
     top: 0;
     z-index: 40;
     background: rgba(11, 12, 14, 0.85);
+    -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border);
   }
@@ -98,7 +107,11 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
   }
 
   .nav-label {
-    cursor: default;
+    background: none;
+    border: none;
+    font: inherit;
+    padding: 0;
+    cursor: pointer;
     font-size: 0.9rem;
     color: var(--fg-muted);
   }
@@ -117,15 +130,18 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
     border: 1px solid var(--border);
     border-radius: var(--radius);
     opacity: 0;
-    visibility: hidden;
+    /* Kept focusable (not visibility:hidden) so keyboard users tabbing
+       to these links triggers :focus-within below and reveals them —
+       matching what mouse users get on :hover. */
+    pointer-events: none;
     transform-origin: top center;
-    transition: opacity 0.15s ease, visibility 0.15s ease;
+    transition: opacity 0.15s ease;
   }
 
   .nav-group:hover .nav-dropdown,
   .nav-group:focus-within .nav-dropdown {
     opacity: 1;
-    visibility: visible;
+    pointer-events: auto;
   }
 
   .nav-dropdown a {
@@ -229,7 +245,9 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
       position: static;
       transform: none;
       opacity: 1;
-      visibility: visible;
+      /* Mobile shows/hides via the .open class (JS), not hover/focus,
+         so it must stay clickable regardless of focus state. */
+      pointer-events: auto;
       display: none;
       border: none;
       background: none;
@@ -256,7 +274,8 @@ const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCo
 
   navLabel?.addEventListener('click', () => {
     if (window.innerWidth <= 720) {
-      navGroup?.classList.toggle('open');
+      const isOpen = navGroup?.classList.toggle('open');
+      navLabel.setAttribute('aria-expanded', String(Boolean(isOpen)));
     }
   });
 </script>

@@ -19,7 +19,14 @@ const accessKey = import.meta.env.PUBLIC_WEB3FORMS_KEY as string | undefined;
     {accessKey ? (
       <form id="contact-form" class="contact-form">
         <input type="hidden" name="access_key" value={accessKey} />
-        <input type="checkbox" name="botcheck" class="visually-hidden" tabindex="-1" autocomplete="off" />
+        <input
+          type="checkbox"
+          name="botcheck"
+          class="visually-hidden"
+          tabindex="-1"
+          autocomplete="off"
+          aria-hidden="true"
+        />
 
         <label>
           Name
@@ -52,7 +59,9 @@ const accessKey = import.meta.env.PUBLIC_WEB3FORMS_KEY as string | undefined;
     ) : (
       <p class="notice">
         The contact form isn't configured yet. Add a free
-        <a href="https://web3forms.com/" target="_blank" rel="noopener noreferrer">Web3Forms</a>
+        <a href="https://web3forms.com/" target="_blank" rel="noopener noreferrer">
+          Web3Forms<span class="visually-hidden"> (opens in a new tab)</span>
+        </a>
         access key as <code>PUBLIC_WEB3FORMS_KEY</code> to enable it — see the README. Until then,
         please reach out via email above.
       </p>
