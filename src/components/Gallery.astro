@@ -23,7 +23,7 @@ const tiles = await Promise.all(
       type="button"
       class="tile"
       data-full={tile.full.src}
-      data-caption={tile.data.description ?? tile.data.title}
+      data-caption={tile.data.title}
       data-title={tile.data.title}
       aria-label={`Open photo: ${tile.data.title}`}
     >
@@ -31,11 +31,19 @@ const tiles = await Promise.all(
         src={tile.thumb.src}
         width={tile.thumb.attributes.width}
         height={tile.thumb.attributes.height}
-        alt={tile.data.alt}
+        alt={tile.data.title}
         loading="lazy"
         decoding="async"
       />
-      <span class="tile-caption">{tile.data.title}</span>
+      <span class="tile-caption">
+        <span class="tile-title">{tile.data.title}</span>
+        {(tile.data.camera || tile.data.copyright) && (
+          <span class="tile-meta">
+            {tile.data.camera && <span class="meta-row">{tile.data.camera}</span>}
+            {tile.data.copyright && <span class="meta-row">{tile.data.copyright}</span>}
+          </span>
+        )}
+      </span>
     </button>
   ))}
 </div>
@@ -83,18 +91,40 @@ const tiles = await Promise.all(
   .tile-caption {
     position: absolute;
     inset: auto 0 0 0;
-    padding: 0.6rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.6rem 0.8rem 0.7rem;
     font-size: 0.8rem;
     color: #fff;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 20%, transparent);
     text-align: left;
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transform: translateY(4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
   }
 
   .tile:hover .tile-caption,
   .tile:focus-visible .tile-caption {
     opacity: 1;
+    transform: translateY(0);
+  }
+
+  .tile-title {
+    font-weight: 600;
+  }
+
+  .tile-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .meta-row {
+    display: block;
   }
 
   .lightbox {

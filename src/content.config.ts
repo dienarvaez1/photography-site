@@ -12,11 +12,8 @@ const photos = defineCollection({
       title: z.string(),
       category: z.enum(categorySlugs),
       image: image(),
-      alt: z.string(),
-      description: z.string().optional(),
-      location: z.string().optional(),
       camera: z.string().optional(),
-      date: z.coerce.date(),
+      copyright: z.string().optional(),
       featured: z.boolean().default(false),
       // Lower numbers sort first within a category; ties fall back to date desc.
       order: z.number().default(0),

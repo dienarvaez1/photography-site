@@ -11,7 +11,7 @@ export async function getStaticPaths() {
     props: {
       photos: allPhotos
         .filter((p) => p.data.category === category.slug)
-        .sort((a, b) => a.data.order - b.data.order || b.data.date.valueOf() - a.data.date.valueOf()),
+        .sort((a, b) => a.data.order - b.data.order),
     },
   }));
 }

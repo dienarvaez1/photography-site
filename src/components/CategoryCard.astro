@@ -14,7 +14,7 @@ const image = cover ? await getImage({ src: cover.data.image, width: 900, format
 
 <a class="category-card" href={`/work/${category.slug}/`}>
   <div class="cover">
-    {image && <img src={image.src} width={image.attributes.width} height={image.attributes.height} alt={cover?.data.alt ?? category.label} loading="lazy" decoding="async" />}
+    {image && <img src={image.src} width={image.attributes.width} height={image.attributes.height} alt={cover?.data.title ?? category.label} loading="lazy" decoding="async" />}
   </div>
   <div class="label">
     <h3>{category.label}</h3>

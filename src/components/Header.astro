@@ -1,14 +1,16 @@
 ---
-import { CATEGORIES } from '../config/categories';
+import { VISIBLE_CATEGORIES } from '../config/categories';
 import { SITE } from '../config/site';
 
 const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
+const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCompare(b.label));
 ---
 
 <header class="site-header">
   <div class="wrap bar">
     <a href="/" class="brand">
       <img src="/logo.png" alt={SITE.author} class="brand-logo" />
+      <img src="/aperture-logo.png" alt="" class="aperture-logo" />
     </a>
 
     <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" id="nav-toggle">
@@ -20,7 +22,7 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
       <div class="nav-group">
         <span class="nav-label">Work</span>
         <div class="nav-dropdown">
-          {CATEGORIES.map((c) => (
+          {sortedCategories.map((c) => (
             <a href={`/work/${c.slug}/`} class:list={{ active: currentPath === `/work/${c.slug}` }}>
               {c.label}
             </a>
@@ -44,15 +46,18 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
   }
 
   .bar {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
     padding-block: var(--space-2);
   }
 
   .brand {
+    grid-column: 2;
+    justify-self: center;
     display: flex;
     align-items: center;
+    gap: 0.75rem;
     text-decoration: none;
   }
 
@@ -62,7 +67,15 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
     display: block;
   }
 
+  .aperture-logo {
+    height: 3.4rem;
+    width: auto;
+    display: block;
+  }
+
   .primary-nav {
+    grid-column: 3;
+    justify-self: end;
     display: flex;
     align-items: center;
     gap: var(--space-4);
@@ -131,6 +144,8 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
   }
 
   .nav-toggle {
+    grid-column: 3;
+    justify-self: end;
     display: none;
     align-items: center;
     justify-content: center;
@@ -171,6 +186,10 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
   @media (max-width: 720px) {
     .brand-logo {
       height: 2.75rem;
+    }
+
+    .aperture-logo {
+      height: 1.85rem;
     }
 
     .nav-toggle {

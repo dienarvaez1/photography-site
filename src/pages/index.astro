@@ -3,16 +3,20 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Gallery from '../components/Gallery.astro';
 import CategoryCard from '../components/CategoryCard.astro';
-import { CATEGORIES } from '../config/categories';
+import { VISIBLE_CATEGORIES } from '../config/categories';
 import { SITE } from '../config/site';
+
+const visibleSlugs = new Set(VISIBLE_CATEGORIES.map((c) => c.slug));
 
 const allPhotos = await getCollection('photos');
 const featured = allPhotos
-  .filter((p) => p.data.featured)
+  .filter((p) => p.data.featured && visibleSlugs.has(p.data.category))
   .sort((a, b) => a.data.order - b.data.order)
   .slice(0, 8);
 
-const covers = CATEGORIES.map((category) => {
+const sortedCategories = [...VISIBLE_CATEGORIES].sort((a, b) => a.label.localeCompare(b.label));
+
+const covers = sortedCategories.map((category) => {
   const inCategory = allPhotos
     .filter((p) => p.data.category === category.slug)
     .sort((a, b) => a.data.order - b.data.order);

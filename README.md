@@ -1,7 +1,7 @@
 # Photography Portfolio
 
 A fast, free-to-host photography portfolio built with [Astro](https://astro.build). Organizes
-work into categories (real estate, landscape, portrait, astro, pets, social events — easy to add
+work into categories (real estate, landscape, portrait, astro, pets, public events — easy to add
 more), auto-optimizes every photo (resized + converted to WebP at build time), and includes a
 lightbox gallery, SEO tags, sitemap, and a working contact form — all without a paid backend.
 
