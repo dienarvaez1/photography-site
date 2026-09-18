@@ -14,6 +14,35 @@ lightbox gallery, SEO tags, sitemap, and a working contact form — all without 
 | `npm run build`       | Build the production site to `./dist/`          |
 | `npm run preview`     | Preview the production build locally            |
 | `npm run astro check` | Type-check the project                          |
+| `npm test`            | Run the automated test suite (see Testing below) |
+
+## Testing
+
+Automated tests live in `features/` as Gherkin scenarios run by
+[Cucumber.js](https://github.com/cucumber/cucumber-js):
+
+```sh
+npm test
+```
+
+This builds the site once (`npm run build`), then checks the actual built output — the same
+static files that get deployed — against four areas:
+
+- **`content-integrity.feature`** — every photo's image file exists, no duplicate images within
+  a category, frontmatter only uses schema fields, no leftover placeholder titles.
+- **`category-config.feature`** — category slugs are unique, hidden categories are excluded from
+  the visible list, every content folder maps to a configured category.
+- **`site-pages.feature`** — every route builds without erroring, the nav menu and homepage
+  category grid agree and stay alphabetical, hidden categories still build (just unlinked), the
+  contact form matches whether `PUBLIC_WEB3FORMS_KEY` is set, gallery hover metadata is present.
+- **`accessibility-and-compatibility.feature`** — no CSS uses the modern range media-query syntax
+  that breaks on Safari <16.4/legacy Edge, the header dropdown trigger is a real focusable
+  button, the lightbox has dialog ARIA semantics, every image has an alt attribute, `_headers`
+  declares the baseline security headers.
+
+Add new scenarios in `features/*.feature` and their step definitions in
+`features/step_definitions/`; shared helpers (reading content files, parsing built HTML) live in
+`features/support/lib.js`.
 
 ## Adding photos (git-based workflow)
 
