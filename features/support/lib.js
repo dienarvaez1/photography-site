@@ -91,6 +91,20 @@ export function distExists() {
   return existsSync(DIST_DIR);
 }
 
+/**
+ * Reads PUBLIC_WEB3FORMS_KEY straight out of .env, the same way Vite reads
+ * it to inline `import.meta.env.PUBLIC_WEB3FORMS_KEY` at build time. This
+ * only reflects the local build environment — it says nothing about what a
+ * separate CI/deploy pipeline (e.g. a Git-connected Cloudflare build) has
+ * configured, since that's a dashboard setting this repo can't see.
+ */
+export function readWeb3FormsKeyFromEnv() {
+  const envPath = join(ROOT, '.env');
+  if (!existsSync(envPath)) return undefined;
+  const match = readFileSync(envPath, 'utf-8').match(/^PUBLIC_WEB3FORMS_KEY=(.*)$/m);
+  return match?.[1]?.trim() || undefined;
+}
+
 /** Every *.css file emitted by the build, plus inline <style> blocks in every built page — used for CSS-syntax regression checks. */
 export function allBuiltCss() {
   const chunks = [];

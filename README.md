@@ -26,7 +26,7 @@ npm test
 ```
 
 This builds the site once (`npm run build`), then checks the actual built output — the same
-static files that get deployed — against four areas:
+static files that get deployed — against five areas:
 
 - **`content-integrity.feature`** — every photo's image file exists, no duplicate images within
   a category, frontmatter only uses schema fields, no leftover placeholder titles.
@@ -35,6 +35,12 @@ static files that get deployed — against four areas:
 - **`site-pages.feature`** — every route builds without erroring, the nav menu and homepage
   category grid agree and stay alphabetical, hidden categories still build (just unlinked), the
   contact form matches whether `PUBLIC_WEB3FORMS_KEY` is set, gallery hover metadata is present.
+- **`contact-form-configuration.feature`** — `PUBLIC_WEB3FORMS_KEY` is actually set and looks
+  like a valid key, the built contact page renders the real form (not the fallback notice), the
+  form's `access_key` field matches the configured key, it posts to the Web3Forms API, and every
+  required field (name/email/message/honeypot) is present. This guards specifically against the
+  key being set locally but missing from a separate deploy pipeline's build environment (e.g. a
+  Git-connected Cloudflare build), which silently ships the "not configured" notice instead.
 - **`accessibility-and-compatibility.feature`** — no CSS uses the modern range media-query syntax
   that breaks on Safari <16.4/legacy Edge, the header dropdown trigger is a real focusable
   button, the lightbox has dialog ARIA semantics, every image has an alt attribute, `_headers`

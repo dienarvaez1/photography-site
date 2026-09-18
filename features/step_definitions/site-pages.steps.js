@@ -1,16 +1,6 @@
 import { When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { readBuiltPage, loadContentEntries, ROOT } from '../support/lib.js';
-
-/** Reads PUBLIC_WEB3FORMS_KEY straight out of .env, the same way Vite would at build time. */
-function readWeb3FormsKeyFromEnv() {
-  const envPath = join(ROOT, '.env');
-  if (!existsSync(envPath)) return undefined;
-  const match = readFileSync(envPath, 'utf-8').match(/^PUBLIC_WEB3FORMS_KEY=(.*)$/m);
-  return match?.[1]?.trim() || undefined;
-}
+import { readBuiltPage, loadContentEntries, readWeb3FormsKeyFromEnv } from '../support/lib.js';
 
 When('I load the built page {string}', function (route) {
   this.data.page = readBuiltPage(route);
