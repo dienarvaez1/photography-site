@@ -28,7 +28,7 @@ npm test
 ```
 
 This builds the site once (`npm run build`), then checks the actual built output — the same
-static files that get deployed — against ten areas. **Every page-level check runs against every
+static files that get deployed — against eleven areas. **Every page-level check runs against every
 page in both English and Spanish** (the 20 routes listed in `features/support/lib.js`); expected
 text is read from `src/i18n/<locale>.json`, so tests follow the page's own language.
 
@@ -37,6 +37,21 @@ text is read from `src/i18n/<locale>.json`, so tests follow the page's own langu
   `camera`), no GPS/serial data, and no photo files are stored in the repo; the site code never
   processes photos or calls R2 at build time; no duplicate photos within a category; frontmatter only
   uses schema fields; every photo has a title for each non-default locale.
+- **`category-config.feature`** — category slugs are unique, every category has a label and
+  description in every locale file, hidden categories are excluded from the visible list, every
+  content folder maps to a configured category.
+- **`site-pages.feature`** — every route builds without erroring, **the build output exactly
+  matches the tested route list** (a new page that isn't listed fails), the nav menu and homepage
+  category grid agree and stay alphabetical (in each language's own order), hidden categories
+  still build (just unlinked, with the localized empty message), localized skip link / nav /
+  footer, the contact form matches whether a Web3Forms key is set, every category page shows all
+  its photos loaded from the R2 URL derived from each entry, with its camera line on hover (and
+  no copyright), and homepage category covers use each category's first photo.
+- **`contact-form-configuration.feature`** — `PUBLIC_WEB3FORMS_KEY` and `PUBLIC_WEB3FORMS_KEY_ES`
+  are each set, look like valid keys and differ, both contact pages render the real form (not the
+  fallback notice), each page's `access_key` matches its own language's key, it posts to the
+  Web3Forms API, every required field is present, and the labels/button/status messages are in the
+  page's language while option values stay English.
 - **`photo-storage.feature`** — the photo workflow (add / replace / remove / verify / sync)
   against an in-memory fake of R2: correct buckets and sizes, rotation, and that a failed or
   corrupted upload never writes an entry or deletes your local file.
@@ -54,6 +69,8 @@ text is read from `src/i18n/<locale>.json`, so tests follow the page's own langu
   English), Cloudflare trace parsing, the full redirect flow against a fake browser (Mexico →
   `/es/`, USA stays, failures/timeouts/bots/blocked storage stay put, query and hash preserved),
   and that only the English home page ships the detection script.
+- **`documentation.feature`** — the README lists every feature file, states the right number of test
+  areas, and documents every `photos:*` command.
 - **`accessibility-and-compatibility.feature`** — no CSS uses the modern range media-query syntax
   that breaks on Safari <16.4/legacy Edge, the "Work" trigger is a real button, the language
   switcher is a labelled group, every gallery page has a dialog lightbox with localized control
