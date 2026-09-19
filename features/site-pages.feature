@@ -76,12 +76,12 @@ Feature: Site pages render correctly (English and Spanish)
       | /contact/    |
       | /es/contact/ |
 
-  Scenario Outline: A category page shows every photo of its category, with hover metadata
+  Scenario Outline: A category page shows every photo of its category, with its camera line on hover
     Given all photo content entries
     When I load the built page "<route>"
     Then the page should show a tile for every photo in its category
     And each tile should load its photo sizes from the public photo bucket
-    And every photo on that page with camera or copyright info should show that info in its tile
+    And every photo on that page with a camera line should show it in its tile, and no tile should show a copyright
 
     Examples:
       | route                 |

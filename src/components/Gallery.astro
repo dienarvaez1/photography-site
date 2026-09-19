@@ -41,10 +41,9 @@ const tiles = photos.map((photo, index) => ({
       />
       <span class="tile-caption">
         <span class="tile-title">{tile.title}</span>
-        {(tile.data.camera || tile.data.copyright) && (
+        {tile.data.camera && (
           <span class="tile-meta">
-            {tile.data.camera && <span class="meta-row">{tile.data.camera}</span>}
-            {tile.data.copyright && <span class="meta-row">{tile.data.copyright}</span>}
+            <span class="meta-row">{tile.data.camera}</span>
           </span>
         )}
       </span>

@@ -43,3 +43,17 @@ Feature: Photo content integrity
   Scenario: Every entry has a title for every non-default locale
     And the configured locales
     Then each entry should have a translated title for every non-default locale
+
+  Scenario: Every entry is <category>/images/<photo id>.md
+    Then each entry should be a .md file inside the "images" folder of its own category
+    And each entry's file name should be its photo id
+    And no other folders should exist under the photo content
+
+  Scenario: Entries hold only the fields the site uses: no exif block and no copyright
+    Then no entry should have an "exif" field
+    And no entry should have a "copyright" field
+    And no entry should contain GPS or serial-number data
+    And each camera line should be a non-empty string
+
+  Scenario: The site itself no longer knows about exif or copyright
+    Then the content schema and gallery should not define or read "exif" or "copyright"

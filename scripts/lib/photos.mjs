@@ -15,13 +15,16 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import matter from 'gray-matter';
 import sharp from 'sharp';
+import { CATEGORIES } from '../../src/config/categories.ts';
 import {
+  ENTRY_FOLDER,
   PHOTO_ID_PATTERN,
   PHOTO_VARIANTS,
   photoKey,
   photoKeys,
   variantSize,
 } from '../../src/config/photos.ts';
+import { readCameraLine } from './exif.mjs';
 
 const CONTENT_TYPES = { original: 'image/jpeg', web: 'image/webp' };
 const IMMUTABLE = 'public, max-age=31536000, immutable';
@@ -120,7 +123,7 @@ export async function listEntries(contentDir) {
   return entries;
 }
 
-const FIELD_ORDER = ['title', 'titles', 'category', 'photo', 'camera', 'copyright', 'featured', 'order'];
+const FIELD_ORDER = ['title', 'titles', 'category', 'photo', 'camera', 'featured', 'order'];
 
 /** YAML lines for `key: value`; nested objects become an indented block (no trailing space after the key). */
 function yamlLines(key, value, indent) {
@@ -138,9 +141,25 @@ export function serializeEntry(data, body = '') {
   return `---\n${lines.join('\n')}\n---\n${body}`;
 }
 
+/**
+ * Fields older versions wrote to entries and the site no longer uses. The tool never
+ * writes them, so rewriting an older entry (replace, camera) cleans them up.
+ */
+const RETIRED_FIELDS = ['exif', 'copyright'];
+
 export async function writeEntry(file, data, body = '') {
+  const current = Object.fromEntries(Object.entries(data).filter(([key]) => !RETIRED_FIELDS.includes(key)));
   await mkdir(dirname(file), { recursive: true });
-  await writeFile(file, serializeEntry(data, body));
+  await writeFile(file, serializeEntry(current, body));
+}
+
+/**
+ * Where an entry's .md goes: `<contentDir>/<category>/images/<photo id>.md`.
+ * The file is named after its photo id, so it maps 1:1 to its R2 objects
+ * (`photos/<id>/...`); the photo itself is in R2, not next to the file.
+ */
+export function entryPath(contentDir, category, id) {
+  return join(contentDir, category, ENTRY_FOLDER, `${id}.md`);
 }
 
 export function slugify(text) {
@@ -176,20 +195,27 @@ async function deletePhotoObjects({ id, contentDir, exceptFile, storage, log }) 
 // --- Commands ---------------------------------------------------------------
 
 /**
- * Adds a photo: uploads it, verifies it, writes its .md, then (unless
- * keepSource) deletes the local file. Returns { file, photo }.
+ * Adds a photo: uploads it, verifies it, reads the camera line from its EXIF,
+ * writes its .md (`<category>/images/<photo id>.md`), then (unless keepSource)
+ * deletes the local file. `camera` overrides the line built from EXIF. Only the
+ * camera line is kept from EXIF: no copyright, dates, GPS or serial numbers.
+ * Returns { file, photo, camera }.
  */
-export async function addPhoto({ source, category, title, slug, titleEs, camera, copyright, order = 0, featured = false, contentDir, storage, keepSource = false, log = () => {} }) {
+export async function addPhoto({ source, category, title, titleEs, camera, order = 0, featured = false, contentDir, storage, keepSource = false, categories = CATEGORIES.map((c) => c.slug), log = () => {} }) {
   if (!category) throw new Error('--category is required');
-  if (!title) throw new Error('--title is required');
-  const finalSlug = slug ?? slugify(title);
-  const file = join(contentDir, category, `${finalSlug}.md`);
-  if ((await listEntries(contentDir)).some((e) => e.file === file)) {
-    throw new Error(`${file} already exists — use "photos:replace" to change its photo`);
+  if (!categories.includes(category)) {
+    throw new Error(`Unknown category "${category}". Configured categories: ${categories.join(', ')}`);
   }
+  if (!title) throw new Error('--title is required');
 
   const { buffer, id, width, height } = await analyzePhoto(source);
-  log(`${basename(source)} -> ${id} (${width}x${height})`);
+  const file = entryPath(contentDir, category, id);
+  if ((await listEntries(contentDir)).some((e) => e.file === file)) {
+    throw new Error(`${file} already exists — this photo is already in "${category}" (use "photos:replace" to change an entry's photo)`);
+  }
+
+  const cameraLine = camera ?? (await readCameraLine(buffer));
+  log(`${basename(source)} -> ${id} (${width}x${height})${cameraLine ? '' : ' — no camera info in EXIF'}`);
   await uploadPhoto({ buffer, photo: { id, width, height }, storage, log });
 
   await writeEntry(file, {
@@ -197,8 +223,7 @@ export async function addPhoto({ source, category, title, slug, titleEs, camera,
     ...(titleEs ? { titles: { es: titleEs } } : {}),
     category,
     photo: { id, width, height },
-    ...(camera ? { camera } : {}),
-    ...(copyright ? { copyright } : {}),
+    ...(cameraLine ? { camera: cameraLine } : {}),
     featured,
     order,
   });
@@ -206,25 +231,38 @@ export async function addPhoto({ source, category, title, slug, titleEs, camera,
     await unlink(source);
     log(`  removed local ${basename(source)} (safe copy is in R2)`);
   }
-  return { file, photo: { id, width, height } };
+  return { file, photo: { id, width, height }, camera: cameraLine };
 }
 
-/** Replaces the photo of an existing entry; the old photo's objects are deleted once nothing uses them. */
-export async function replacePhoto({ entryFile, source, contentDir, storage, keepSource = false, log = () => {} }) {
+/**
+ * Replaces the photo of an existing entry. The entry file is renamed to the new
+ * photo id (same folder) and the old photo's objects are deleted once nothing
+ * uses them. The camera line is `camera`, else the new photo's EXIF, else the
+ * entry's existing line: a camera line is never lost.
+ */
+export async function replacePhoto({ entryFile, source, camera, contentDir, storage, keepSource = false, log = () => {} }) {
   const entry = (await listEntries(contentDir)).find((e) => e.file === entryFile);
   if (!entry) throw new Error(`${entryFile} is not a photo entry`);
   const old = entry.data.photo;
 
   const { buffer, id, width, height } = await analyzePhoto(source);
+  const newFile = join(dirname(entryFile), `${id}.md`);
+  if (newFile !== entryFile && (await listEntries(contentDir)).some((e) => e.file === newFile)) {
+    throw new Error(`${newFile} already exists — that photo is already in this category`);
+  }
   log(`${basename(source)} -> ${id} (${width}x${height})`);
   await uploadPhoto({ buffer, photo: { id, width, height }, storage, log });
 
-  await writeEntry(entryFile, { ...entry.data, photo: { id, width, height } }, entry.body);
+  const cameraLine = camera ?? (await readCameraLine(buffer)) ?? entry.data.camera;
+  const data = { ...entry.data, photo: { id, width, height } };
+  if (cameraLine) data.camera = cameraLine; else delete data.camera;
+  await writeEntry(newFile, data, entry.body);
+  if (newFile !== entryFile) await unlink(entryFile);
   if (old?.id && old.id !== id) {
     await deletePhotoObjects({ id: old.id, contentDir, exceptFile: entryFile, storage, log });
   }
   if (!keepSource) await unlink(source);
-  return { file: entryFile, photo: { id, width, height } };
+  return { file: newFile, photo: { id, width, height } };
 }
 
 /** Removes an entry and its objects (objects kept if another entry shares the photo). */
@@ -290,4 +328,44 @@ export async function syncPhotos({ contentDir, storage, log = () => {} }) {
     repaired.push(entry.file);
   }
   return { repaired, problems };
+}
+
+/**
+ * Fills in a missing camera line from the EXIF of the entry's original in R2.
+ * An entry that already has a camera line is never touched (nor its original
+ * downloaded). Pass `entryFiles` to limit it to some entries.
+ * Returns { updated, unchanged, problems }.
+ */
+export async function fillCameraLines({ contentDir, storage, entryFiles, log = () => {} }) {
+  const updated = [];
+  const unchanged = [];
+  const problems = [];
+  for (const entry of await listEntries(contentDir)) {
+    if (entryFiles && !entryFiles.includes(entry.file)) continue;
+    if (typeof entry.data.camera === 'string' && entry.data.camera.trim()) {
+      unchanged.push(entry.file);
+      continue;
+    }
+    const photo = entry.data.photo;
+    if (!photo?.id || !PHOTO_ID_PATTERN.test(photo.id)) {
+      problems.push({ file: entry.file, message: 'has no valid photo.id' });
+      continue;
+    }
+    const original = await storage.originals.get(photoKey(photo.id, 'original'));
+    if (!original || contentId(original) !== photo.id) {
+      problems.push({ file: entry.file, message: 'original missing or corrupted in R2 — cannot read EXIF' });
+      continue;
+    }
+    const camera = await readCameraLine(original);
+    const { camera: _empty, ...rest } = entry.data; // drop an empty `camera: ""`
+    if (!camera) {
+      if ('camera' in entry.data) await writeEntry(entry.file, rest, entry.body);
+      unchanged.push(entry.file);
+      continue;
+    }
+    await writeEntry(entry.file, { ...rest, camera }, entry.body);
+    updated.push(entry.file);
+    log(`camera line added to ${basename(entry.file)}`);
+  }
+  return { updated, unchanged, problems };
 }

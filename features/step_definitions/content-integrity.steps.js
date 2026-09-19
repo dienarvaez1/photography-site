@@ -1,6 +1,10 @@
 import { Given, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { basename, join, relative } from 'node:path';
 import {
+  CONTENT_DIR,
+  ROOT,
   listPhotoFilesInRepo,
   listSourceFiles,
   loadContentEntries,
@@ -141,4 +145,67 @@ Then('each entry should have a translated title for every non-default locale', f
     others.filter((l) => !e.frontmatter.titles?.[l]).map((l) => `${e.relPath} (${l})`)
   );
   assert.deepEqual(violations, [], 'Found photos with no translated title — add `titles: { <locale>: "..." }`');
+});
+
+Then('each entry should be a .md file inside the {string} folder of its own category', function (folder) {
+  const violations = this.data.entries
+    .filter((e) => {
+      const parts = relative(CONTENT_DIR, e.filePath).split('/');
+      return !(parts.length === 3 && parts[0] === e.frontmatter.category && parts[1] === folder);
+    })
+    .map((e) => `${e.relPath} (category "${e.frontmatter.category}")`);
+  assert.deepEqual(violations, [], `Entries must live at src/content/photos/<category>/${folder}/<photo id>.md`);
+});
+
+Then("each entry's file name should be its photo id", function () {
+  const violations = this.data.entries
+    .filter((e) => basename(e.filePath, '.md') !== e.frontmatter.photo?.id)
+    .map((e) => `${e.relPath} (photo.id ${e.frontmatter.photo?.id})`);
+  assert.deepEqual(violations, [], 'Each file must be named after its photo id, matching photos/<id>/ in R2');
+});
+
+Then('no other folders should exist under the photo content', function () {
+  const allowed = new Set(['images']);
+  const found = [];
+  const walk = (dir, depth) => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (!statSync(full).isDirectory()) continue;
+      // depth 0 = category folders; depth 1 = the images folder; nothing deeper.
+      if (depth === 1 && !allowed.has(entry)) found.push(relative(CONTENT_DIR, full));
+      if (depth >= 2) found.push(relative(CONTENT_DIR, full));
+      walk(full, depth + 1);
+    }
+  };
+  walk(CONTENT_DIR, 0);
+  assert.deepEqual(found, [], 'Only <category>/images/ folders belong under the photo content');
+});
+
+Then(/^no entry should have an? "([^"]+)" field$/, function (field) {
+  const violations = this.data.entries.filter((e) => field in e.frontmatter).map((e) => e.relPath);
+  assert.deepEqual(violations, [], `Entries must not have a "${field}" field (only "camera" is kept from EXIF)`);
+});
+
+Then('no entry should contain GPS or serial-number data', function () {
+  const violations = this.data.entries
+    .filter((e) => /gps|latitude|longitude|serial/i.test(readFileSync(e.filePath, 'utf-8')))
+    .map((e) => e.relPath);
+  assert.deepEqual(violations, [], 'Location and serial numbers must never be stored — the .md files are committed');
+});
+
+Then('each camera line should be a non-empty string', function () {
+  const violations = this.data.entries
+    .filter((e) => 'camera' in e.frontmatter && !(typeof e.frontmatter.camera === 'string' && e.frontmatter.camera.trim()))
+    .map((e) => e.relPath);
+  assert.deepEqual(violations, [], 'A camera line is either a real line or absent — never empty');
+});
+
+Then('the content schema and gallery should not define or read {string} or {string}', function (a, b) {
+  // A schema field (`copyright: z...`) or a property read (`data.copyright`) — not a comment that explains the rule.
+  const files = ['src/content.config.ts', 'src/components/Gallery.astro'];
+  const offenders = files.filter((file) => {
+    const text = readFileSync(join(ROOT, file), 'utf-8');
+    return [a, b].some((name) => new RegExp(`(^|\\s)${name}\\s*:|\\.${name}\\b`, 'im').test(text));
+  });
+  assert.deepEqual(offenders, [], `${a} / ${b} are no longer part of an entry, so the site must not define or read them`);
 });

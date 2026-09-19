@@ -22,8 +22,9 @@ const photos = defineCollection({
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),
+    // The camera line shown on the gallery, read from the photo's EXIF when it is added
+    // (`npm run photos:add`). No copyright, dates, GPS or serial numbers are stored.
     camera: z.string().optional(),
-    copyright: z.string().optional(),
     featured: z.boolean().default(false),
     // Lower numbers sort first within a category; ties fall back to date desc.
     order: z.number().default(0),

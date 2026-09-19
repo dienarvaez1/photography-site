@@ -28,30 +28,24 @@ npm test
 ```
 
 This builds the site once (`npm run build`), then checks the actual built output — the same
-static files that get deployed — against eight areas. **Every page-level check runs against every
+static files that get deployed — against ten areas. **Every page-level check runs against every
 page in both English and Spanish** (the 20 routes listed in `features/support/lib.js`); expected
 text is read from `src/i18n/<locale>.json`, so tests follow the page's own language.
 
-- **`content-integrity.feature`** — every entry references its photo in R2 by a valid content id
-  and size, no photo files are stored in the repo, the site code never processes photos or calls
-  R2 at build time, no duplicate photos within a category, frontmatter only uses schema fields,
-  no leftover placeholder titles, and every photo has a title for each non-default locale.
+- **`content-integrity.feature`** — every entry is `<category>/images/<photo id>.md` (file name = its
+  photo id), references its photo in R2 by a valid id and size, has no `exif`/`copyright` field (only
+  `camera`), no GPS/serial data, and no photo files are stored in the repo; the site code never
+  processes photos or calls R2 at build time; no duplicate photos within a category; frontmatter only
+  uses schema fields; every photo has a title for each non-default locale.
 - **`photo-storage.feature`** — the photo workflow (add / replace / remove / verify / sync)
-  against an in-memory fake of R2: correct buckets and sizes, EXIF rotation, and that a failed or
+  against an in-memory fake of R2: correct buckets and sizes, rotation, and that a failed or
   corrupted upload never writes an entry or deletes your local file.
-- **`category-config.feature`** — category slugs are unique, every category has a label and
-  description in every locale file, hidden categories are excluded from the visible list, every
-  content folder maps to a configured category.
-- **`site-pages.feature`** — every route builds without erroring, **the build output exactly
-  matches the tested route list** (a new page that isn't listed fails), the nav menu and homepage
-  category grid agree and stay alphabetical (in each language's own order), hidden categories
-  still build (just unlinked, with the localized empty message), localized skip link / nav /
-  footer, the contact form matches whether `PUBLIC_WEB3FORMS_KEY` is set, every category page
-  shows all its photos with hover metadata.
-- **`contact-form-configuration.feature`** — `PUBLIC_WEB3FORMS_KEY` and `PUBLIC_WEB3FORMS_KEY_ES`
-  are each set, look like valid keys and differ, both contact pages render the real form (not the
-  fallback notice), each page's `access_key` matches its own language's key, it posts to the Web3Forms API, every required field is present, and the
-  labels/button/status messages are in the page's language while option values stay English.
+- **`photo-cli.feature`** — the real command-line code (fake R2): every new entry lands in
+  `<category>/images/<photo id>.md` for every configured category, entries can be referred to by id,
+  title or path, removed options (`--copyright`, `--slug`) are rejected, and bad input (e.g. an unknown
+  category) is refused before anything is uploaded, created or deleted.
+- **`photo-exif.feature`** — the camera line built from real JPEGs' EXIF: formatting rules, what is
+  (and is never) stored, overrides, replace behaviour, and filling in missing camera lines.
 - **`localization.feature`** — locale files define identical keys, hreflang (`en`/`es`/`x-default`),
   canonical and `og:locale` are correct on every page, the switcher links to the equivalent page,
   pages never link into the other language, Spanish pages differ from their English twins, and the
@@ -73,7 +67,12 @@ Add new scenarios in `features/*.feature` and their step definitions in
 ## Photos (stored in Cloudflare R2)
 
 Photos are **not** stored in this repo or on your disk. Each photo is one small Markdown file in
-git (`src/content/photos/<category>/<slug>.md`) that points at its photo in R2:
+git that points at its photo in R2. The file is named after the photo's id, so it maps 1:1 to its
+objects in R2 (`photos/<id>/...`):
+
+```text
+src/content/photos/<category>/images/<photo id>.md      e.g. nature/images/b997ba44c64e5158.md
+```
 
 ```md
 ---
@@ -82,15 +81,18 @@ titles:
   es: "Pez roca"
 category: "nature"
 photo:
-  id: "a1b2c3d4e5f6a7b8"   # first 16 hex chars of the original's SHA-256
+  id: "b997ba44c64e5158"   # first 16 hex chars of the original's SHA-256 — also the file name
   width: 4000              # size of the original as displayed (EXIF rotation applied)
   height: 2667
-camera: "Nikon Z 7 · NIKKOR Z 70-200mm f/2.8 VR S"
-copyright: "© Diego Narvaez Photography"
+camera: "Nikon Z 7 · NIKKOR Z 70-200mm f/2.8 VR S · 140mm · f/5.6 · 1/125s · ISO 110"
 featured: false
 order: 3
 ---
 ```
+
+That is every field an entry has. There is no `exif:` block and no `copyright:` line. The `camera`
+line is the one piece of EXIF that is kept, because it is shown with each picture (see "Camera line"
+below).
 
 The `.md` holds no URL — the site builds URLs from `photo.id` and the base URL in
 `src/config/photos.ts`, so moving to a custom domain later is a one-line change.
@@ -108,16 +110,21 @@ forever (`immutable`). Your originals are never publicly reachable.
 All commands use your existing `wrangler login` — no extra keys.
 
 ```sh
-# Add a photo: uploads it, checks it arrived, writes the .md, deletes your local file.
-npm run photos:add -- ~/Desktop/rockfish.jpg --category nature --title "Rockfish" \
-    --title-es "Pez roca" --camera "Nikon Z 7" --copyright "© Diego Narvaez Photography" --order 3
+# Add a photo: uploads it, checks it arrived, reads the camera line from its EXIF, writes
+# <category>/images/<photo id>.md, and deletes your local file.
+# --category must be a slug from src/config/categories.ts (a typo is refused, nothing is created).
+npm run photos:add -- ~/Desktop/rockfish.jpg --category nature --title "Rockfish" --title-es "Pez roca" --order 3
+#   --camera "..." overrides the camera line built from EXIF
 
-npm run photos:replace -- rockfish ~/Desktop/rockfish-v2.jpg   # new photo, same entry
+npm run photos:replace -- rockfish ~/Desktop/rockfish-v2.jpg   # new photo; the file is renamed to the new id
 npm run photos:remove  -- rockfish                             # entry + its R2 files
+npm run photos:camera                                          # fill in camera lines that are missing
 npm run photos:verify                                          # is every entry's photo in R2?
 npm run photos:verify -- --deep                                # also re-download originals and check hashes
 npm run photos:sync                                            # rebuild missing web sizes from the original in R2
 ```
+
+An `<entry>` (in `replace`, `remove`, `camera`) is its photo id, its title, or the path to its `.md`.
 
 Then commit the `.md` (and deploy as usual). What keeps entry and R2 in sync:
 
@@ -125,10 +132,31 @@ Then commit the `.md` (and deploy as usual). What keeps entry and R2 in sync:
   sizes are served → *only then* write the `.md` → *only then* delete your local file. A failure at
   any point leaves no `.md` pointing at missing files and never removes your only copy.
 - **Replace / remove** delete the old photo's R2 files, unless another entry uses the same photo.
+  Replace also renames the entry's file to the new photo id.
+- Adding the same photo to the same category twice is refused (the file name would be identical).
 - **`photos:verify`** is read-only and exits 1 if anything is missing — run it before deploying.
   It needs network; `npm run build` and `npm test` never do.
 - **`photos:sync`** is the repair tool, e.g. after changing `PHOTO_VARIANTS` widths.
+- **`photos:camera`** fills in a *missing* camera line from the original in R2 (all entries, or one:
+  `photos:camera rockfish`). An entry that already has a camera line is never touched.
 - The same file added twice gets the same id, so uploads are idempotent and shared safely.
+### Camera line
+
+When a photo is added (or replaced), the camera line is built from its EXIF: camera, lens, focal
+length, aperture, shutter speed and ISO — like
+`Nikon Z 7 · NIKKOR Z 70-200mm f/2.8 VR S · 140mm · f/5.6 · 1/125s · ISO 110`. The gallery shows it
+when you hover a picture.
+
+- **Only the camera line is stored.** No `exif:` block, no `copyright:`, no dates. **GPS position,
+  serial numbers, the artist name and the copyright are never read**, because the `.md` files are
+  committed to git. The original in R2 keeps all of its EXIF untouched.
+- **Overrides:** `--camera "..."` on `photos:add` / `photos:replace` sets the line by hand (say, to add
+  `+ TC-2.0x`). On `replace` the line is `--camera`, else the new photo's EXIF, else the entry's
+  existing line — a camera line is never lost.
+- A photo without camera info in its EXIF simply gets no `camera` line.
+
+### Notes on R2
+
 - R2 can't be listed with wrangler, so the `.md` files are the source of truth. Files in R2 that no
   `.md` references (only possible if you delete objects by hand) aren't detected; remove photos with
   `photos:remove`, not the dashboard.
@@ -272,7 +300,7 @@ src/
 │   ├── photos.ts       # R2 buckets, public photo URL, web sizes, key layout
 │   └── site.ts         # language-independent site facts
 ├── content/
-│   └── photos/<category>/   # one .md per photo (the photo itself is in R2)
+│   └── photos/<category>/images/   # one <photo id>.md per photo (the photo itself is in R2)
 ├── content.config.ts   # photo content collection schema
 ├── components/         # Header, Footer, Gallery (with lightbox), SEO, CategoryCard
 ├── layouts/
@@ -283,6 +311,6 @@ src/
     ├── contact.astro
     └── work/[category].astro   # generates /work/<slug>/ for every category
 scripts/
-├── photos.mjs          # `npm run photos:*` command line
-└── lib/                # photo workflow (photos.mjs) and R2 backend (r2-storage.mjs)
+├── photos.mjs          # `npm run photos:*` entry point
+└── lib/                # cli.mjs (commands), photos.mjs (workflow), exif.mjs (camera line), r2-storage.mjs (R2)
 ```

@@ -18,7 +18,8 @@
     "photos:replace": "node scripts/photos.mjs replace",
     "photos:remove": "node scripts/photos.mjs remove",
     "photos:verify": "node scripts/photos.mjs verify",
-    "photos:sync": "node scripts/photos.mjs sync"
+    "photos:sync": "node scripts/photos.mjs sync",
+    "photos:camera": "node scripts/photos.mjs camera"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.2",
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@cucumber/cucumber": "^13.2.1",
+    "exifr": "^7.1.3",
     "gray-matter": "^4.0.3",
     "node-html-parser": "^9.0.4",
     "sharp": "^0.35.4",
