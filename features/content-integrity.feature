@@ -6,11 +6,19 @@ Feature: Photo content integrity
   Background:
     Given all photo content entries
 
-  Scenario: Every photo entry's image file exists on disk
-    Then each entry's declared image file should exist
+  Scenario: Every photo entry references its photo in R2 by a valid content id and size
+    Then each entry should reference its photo in R2 by a valid content id and size
+    And no entry should still point at a local image file
 
-  Scenario: No two entries in the same category point at the same image file
-    Then no category should contain duplicate image files
+  Scenario: No two entries in the same category use the same photo
+    Then no category should contain the same photo twice
+
+  Scenario: Photos are stored in R2, not in the repository
+    Then the repository should contain no photo files
+
+  Scenario: Building the site needs no photo files and no network access to R2
+    Then the site code should not process photos at build time
+    And the photo tooling should be the only code that contacts R2
 
   Scenario: Every entry only uses recognized frontmatter fields
     Then each entry should only use the allowed frontmatter fields

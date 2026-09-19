@@ -28,3 +28,13 @@ pnpm-debug.log*
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# photos live in Cloudflare R2, never in the repo (see README "Photos"); `npm test` fails if any appear
+src/**/*.jpg
+src/**/*.jpeg
+src/**/*.png
+src/**/*.webp
+src/**/*.avif
+src/**/*.tif
+src/**/*.tiff
+src/**/*.heic

@@ -1,5 +1,6 @@
 import { When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import {
   listBuiltRoutes,
   listDistRoutes,
@@ -11,8 +12,11 @@ import {
   pageLocale,
   readAllBuiltPages,
   readBuiltPage,
+  ROOT,
   effectiveWeb3FormsKey,
 } from '../support/lib.js';
+
+const photos = await import(join(ROOT, 'src/config/photos.ts'));
 
 /** The visible category labels for a locale, in that locale's alphabetical order. */
 async function expectedNavLabels(locale) {
@@ -206,5 +210,38 @@ Then('the homepage should show a {string} section only if a visible photo is mar
     assert.ok(hasSection, `A visible photo is featured, but the homepage has no "${heading}" section`);
   } else {
     assert.ok(!hasSection, `No photo is featured, but the homepage still shows an (empty) "${heading}" section`);
+  }
+});
+
+Then('each tile should load its photo sizes from the public photo bucket', function () {
+  const slug = categoryOfRoute(this.data.route);
+  const entries = this.data.entries.filter((e) => e.frontmatter.category === slug);
+  const locale = pageLocale(this.data.page);
+  const tiles = this.data.page.root.querySelectorAll('.tile');
+  assert.equal(tiles.length, entries.length);
+  for (const entry of entries) {
+    const { photo } = entry.frontmatter;
+    const tile = tiles.find((t) => t.getAttribute('data-title') === shownTitle(entry, locale));
+    const img = tile.querySelector('img');
+    const thumb = photos.photoVariant(photo, 'thumb');
+    assert.equal(img.getAttribute('src'), thumb.src, `${entry.relPath}: thumbnail URL`);
+    assert.equal(img.getAttribute('width'), String(thumb.width));
+    assert.equal(img.getAttribute('height'), String(thumb.height));
+    assert.equal(tile.getAttribute('data-full'), photos.photoVariant(photo, 'full').src, `${entry.relPath}: lightbox URL`);
+    assert.ok(thumb.src.startsWith(`${photos.PHOTOS_BASE_URL}/photos/${photo.id}/`), 'photo must come from the R2 public URL');
+  }
+});
+
+Then('each category card should use the first photo of its category as the cover', async function () {
+  const { VISIBLE_CATEGORIES } = await loadCategoriesConfig();
+  const cards = this.data.page.root.querySelectorAll('.category-card');
+  for (const category of VISIBLE_CATEGORIES) {
+    const first = this.data.entries
+      .filter((e) => e.frontmatter.category === category.slug)
+      .sort((a, b) => (a.frontmatter.order ?? 0) - (b.frontmatter.order ?? 0))[0];
+    const card = cards.find((c) => c.getAttribute('href').endsWith(`/work/${category.slug}/`));
+    assert.ok(card, `No card for ${category.slug}`);
+    const src = card.querySelector('img')?.getAttribute('src') ?? null;
+    assert.equal(src, first ? photos.photoVariant(first.frontmatter.photo, 'cover').src : null, `${category.slug}: cover image`);
   }
 });

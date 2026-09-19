@@ -12,7 +12,13 @@
     "astro": "astro",
     "generate-types": "wrangler types",
     "deploy": "npm run build && wrangler deploy",
-    "test": "cucumber-js"
+    "test": "cucumber-js",
+    "photos": "node scripts/photos.mjs",
+    "photos:add": "node scripts/photos.mjs add",
+    "photos:replace": "node scripts/photos.mjs replace",
+    "photos:remove": "node scripts/photos.mjs remove",
+    "photos:verify": "node scripts/photos.mjs verify",
+    "photos:sync": "node scripts/photos.mjs sync"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.2",
@@ -27,6 +33,7 @@
     "@cucumber/cucumber": "^13.2.1",
     "gray-matter": "^4.0.3",
     "node-html-parser": "^9.0.4",
+    "sharp": "^0.35.4",
     "typescript": "^6.0.3",
     "wrangler": "^4.134.0"
   }

@@ -1,6 +1,6 @@
 ---
-import { getImage } from 'astro:assets';
 import type { CollectionEntry } from 'astro:content';
+import { photoVariant } from '../config/photos';
 import { getLocale, getPhotoTitle, useTranslations } from '../i18n';
 
 interface Props {
@@ -11,13 +11,14 @@ const { photos } = Astro.props;
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
 
-const tiles = await Promise.all(
-  photos.map(async (photo, index) => {
-    const thumb = await getImage({ src: photo.data.image, width: 700, format: 'webp' });
-    const full = await getImage({ src: photo.data.image, width: 2000, format: 'webp' });
-    return { index, thumb, full, data: photo.data, title: getPhotoTitle(photo.data, locale) };
-  })
-);
+// Photos live in R2; the URLs are derived from each entry's photo id (no network at build time).
+const tiles = photos.map((photo, index) => ({
+  index,
+  thumb: photoVariant(photo.data.photo, 'thumb'),
+  full: photoVariant(photo.data.photo, 'full'),
+  data: photo.data,
+  title: getPhotoTitle(photo.data, locale),
+}));
 ---
 
 <div class="gallery">
@@ -32,8 +33,8 @@ const tiles = await Promise.all(
     >
       <img
         src={tile.thumb.src}
-        width={tile.thumb.attributes.width}
-        height={tile.thumb.attributes.height}
+        width={tile.thumb.width}
+        height={tile.thumb.height}
         alt={tile.title}
         loading="lazy"
         decoding="async"

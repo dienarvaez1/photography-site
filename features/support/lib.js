@@ -13,7 +13,7 @@ const ALLOWED_FRONTMATTER_FIELDS = new Set([
   'title',
   'titles',
   'category',
-  'image',
+  'photo',
   'camera',
   'copyright',
   'featured',
@@ -36,26 +36,52 @@ function findMarkdownFiles(dir) {
 }
 
 /**
- * Load every photo content entry: its frontmatter, the folder it lives in
+ * Load every photo content entry: its frontmatter and the folder it lives in
  * (which the collection loader treats as informational only — `category`
- * in frontmatter is the actual source of truth), and whether its declared
- * image resolves to a real file on disk.
+ * in frontmatter is the actual source of truth). The photo itself is not on
+ * disk: `frontmatter.photo` is a content id pointing at objects in R2.
  */
 export function loadContentEntries() {
   return findMarkdownFiles(CONTENT_DIR).map((filePath) => {
     const raw = readFileSync(filePath, 'utf-8');
     const { data: frontmatter } = matter(raw);
-    const dir = dirname(filePath);
-    const imagePath = frontmatter.image ? join(dir, frontmatter.image) : null;
     return {
       filePath,
       relPath: relative(ROOT, filePath),
-      dir,
+      dir: dirname(filePath),
       frontmatter,
-      imagePath,
-      imageExists: imagePath ? existsSync(imagePath) : false,
     };
   });
+}
+
+/** Image files that must live in R2, not in the repo: any image under src/, and photo formats under public/ (logos are PNG/SVG). */
+export function listPhotoFilesInRepo() {
+  const found = [];
+  const walk = (dir, pattern) => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) walk(full, pattern);
+      else if (pattern.test(entry)) found.push(relative(ROOT, full));
+    }
+  };
+  walk(join(ROOT, 'src'), /\.(jpe?g|png|webp|avif|gif|tiff?|heic)$/i);
+  walk(join(ROOT, 'public'), /\.(jpe?g|webp|avif|tiff?|heic)$/i);
+  return found;
+}
+
+/** Every .astro/.ts source file under src/ with its text — for "the code must not do X" checks. */
+export function listSourceFiles() {
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/\.(astro|ts)$/.test(entry)) files.push({ path: relative(ROOT, full), text: readFileSync(full, 'utf-8') });
+    }
+  };
+  walk(join(ROOT, 'src'));
+  return files;
 }
 
 export function allowedFrontmatterFields() {

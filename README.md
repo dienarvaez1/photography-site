@@ -2,8 +2,9 @@
 
 A fast, free-to-host photography portfolio built with [Astro](https://astro.build). Organizes
 work into categories (real estate, landscape, portrait, astro, pets, public events — easy to add
-more), auto-optimizes every photo (resized + converted to WebP at build time), and includes a
-lightbox gallery, SEO tags, sitemap, and a working contact form — all without a paid backend.
+more), serves every photo from Cloudflare R2 (resized + converted to WebP when a photo is added),
+and includes a lightbox gallery, SEO tags, sitemap, and a working contact form — all without a
+paid backend.
 
 ## Commands
 
@@ -15,6 +16,7 @@ lightbox gallery, SEO tags, sitemap, and a working contact form — all without 
 | `npm run preview`     | Preview the production build locally            |
 | `npm run astro check` | Type-check the project                          |
 | `npm test`            | Run the automated test suite (see Testing below) |
+| `npm run photos -- help` | Add / replace / remove / verify photos in R2 (see Adding photos) |
 
 ## Testing
 
@@ -26,13 +28,17 @@ npm test
 ```
 
 This builds the site once (`npm run build`), then checks the actual built output — the same
-static files that get deployed — against seven areas. **Every page-level check runs against every
+static files that get deployed — against eight areas. **Every page-level check runs against every
 page in both English and Spanish** (the 20 routes listed in `features/support/lib.js`); expected
 text is read from `src/i18n/<locale>.json`, so tests follow the page's own language.
 
-- **`content-integrity.feature`** — every photo's image file exists, no duplicate images within
-  a category, frontmatter only uses schema fields, no leftover placeholder titles, and every
-  photo has a title for each non-default locale.
+- **`content-integrity.feature`** — every entry references its photo in R2 by a valid content id
+  and size, no photo files are stored in the repo, the site code never processes photos or calls
+  R2 at build time, no duplicate photos within a category, frontmatter only uses schema fields,
+  no leftover placeholder titles, and every photo has a title for each non-default locale.
+- **`photo-storage.feature`** — the photo workflow (add / replace / remove / verify / sync)
+  against an in-memory fake of R2: correct buckets and sizes, EXIF rotation, and that a failed or
+  corrupted upload never writes an entry or deletes your local file.
 - **`category-config.feature`** — category slugs are unique, every category has a label and
   description in every locale file, hidden categories are excluded from the visible list, every
   content folder maps to a configured category.
@@ -64,41 +70,83 @@ Add new scenarios in `features/*.feature` and their step definitions in
 `features/step_definitions/`; shared helpers (reading content files, parsing built HTML) live in
 `features/support/lib.js`.
 
-## Adding photos (git-based workflow)
+## Photos (stored in Cloudflare R2)
 
-Photos live in `src/content/photos/<category>/`, one Markdown file per photo, with the image
-file colocated alongside it. To add a photo:
+Photos are **not** stored in this repo or on your disk. Each photo is one small Markdown file in
+git (`src/content/photos/<category>/<slug>.md`) that points at its photo in R2:
 
-1. Drop your image file into `src/content/photos/<category>/images/` (any reasonable filename).
-2. Create a Markdown file next to the category folder, e.g.
-   `src/content/photos/landscape/yosemite-sunrise.md`:
+```md
+---
+title: "Rockfish"
+titles:
+  es: "Pez roca"
+category: "nature"
+photo:
+  id: "a1b2c3d4e5f6a7b8"   # first 16 hex chars of the original's SHA-256
+  width: 4000              # size of the original as displayed (EXIF rotation applied)
+  height: 2667
+camera: "Nikon Z 7 · NIKKOR Z 70-200mm f/2.8 VR S"
+copyright: "© Diego Narvaez Photography"
+featured: false
+order: 3
+---
+```
 
-   ```md
-   ---
-   title: "Yosemite Sunrise"
-   category: "landscape"
-   image: "./images/yosemite-sunrise.jpg"
-   alt: "Sunrise over Half Dome, Yosemite Valley"
-   description: "Shot from Tunnel View at first light."
-   location: "Yosemite National Park, CA"
-   camera: "Sony A7IV, 24-70mm"
-   date: 2026-05-10
-   featured: true
-   order: 1
-   ---
-   ```
+The `.md` holds no URL — the site builds URLs from `photo.id` and the base URL in
+`src/config/photos.ts`, so moving to a custom domain later is a one-line change.
 
-3. Commit and push. Cloudflare Pages rebuilds and redeploys automatically (see Deployment below).
+| Bucket                       | Access  | Holds                                               |
+| :--------------------------- | :------ | :-------------------------------------------------- |
+| `photography-site-originals` | private | `photos/<id>/original.jpg` — your full-resolution file |
+| `photography-site-web`       | public (r2.dev) | `photos/<id>/{thumb,cover,full}.webp` — the sizes the site shows (700 / 900 / 2000 px wide) |
+
+Keys are content-addressed, so a changed photo always gets a new id and web files are cached
+forever (`immutable`). Your originals are never publicly reachable.
+
+### Workflow
+
+All commands use your existing `wrangler login` — no extra keys.
+
+```sh
+# Add a photo: uploads it, checks it arrived, writes the .md, deletes your local file.
+npm run photos:add -- ~/Desktop/rockfish.jpg --category nature --title "Rockfish" \
+    --title-es "Pez roca" --camera "Nikon Z 7" --copyright "© Diego Narvaez Photography" --order 3
+
+npm run photos:replace -- rockfish ~/Desktop/rockfish-v2.jpg   # new photo, same entry
+npm run photos:remove  -- rockfish                             # entry + its R2 files
+npm run photos:verify                                          # is every entry's photo in R2?
+npm run photos:verify -- --deep                                # also re-download originals and check hashes
+npm run photos:sync                                            # rebuild missing web sizes from the original in R2
+```
+
+Then commit the `.md` (and deploy as usual). What keeps entry and R2 in sync:
+
+- **Order of operations:** upload → read the original back and compare its hash → confirm the web
+  sizes are served → *only then* write the `.md` → *only then* delete your local file. A failure at
+  any point leaves no `.md` pointing at missing files and never removes your only copy.
+- **Replace / remove** delete the old photo's R2 files, unless another entry uses the same photo.
+- **`photos:verify`** is read-only and exits 1 if anything is missing — run it before deploying.
+  It needs network; `npm run build` and `npm test` never do.
+- **`photos:sync`** is the repair tool, e.g. after changing `PHOTO_VARIANTS` widths.
+- The same file added twice gets the same id, so uploads are idempotent and shared safely.
+- R2 can't be listed with wrangler, so the `.md` files are the source of truth. Files in R2 that no
+  `.md` references (only possible if you delete objects by hand) aren't detected; remove photos with
+  `photos:remove`, not the dashboard.
+
+Builds and `npm test` need **no network access to R2** (and no photo files): the build only reads
+the `.md` files and writes plain `<img>` URLs. The tests prove this by checking the site code never
+processes photos or calls R2, and `photo-storage.feature` runs the whole workflow against a fake R2.
 
 Notes:
 
 - `category` must match one of the slugs in `src/config/categories.ts`.
 - `featured: true` surfaces the photo in the homepage "Featured" section.
-- `order` controls sort position within a category (lower first); ties fall back to `date`.
-- Delete the placeholder gradient images (`placeholder-*.md` / `placeholder-*.jpg`) in each
-  category folder once you have real photos there — they only exist so the site isn't empty
-  out of the box. `scripts/generate-placeholders.mjs` is the tool that generated them; delete
-  the script too whenever you no longer need it.
+- `order` controls sort position within a category (lower first).
+- Photos are already in git *history* from before the move to R2; clones stay large until that
+  history is rewritten (not done automatically — it needs a force-push).
+- The public bucket uses Cloudflare's `r2.dev` address, which Cloudflare rate-limits and doesn't
+  recommend for heavy production traffic. To move to a custom domain later: add it to the web
+  bucket (`wrangler r2 bucket domain add`) and update `PHOTOS_BASE_URL` in `src/config/photos.ts`.
 
 ### Adding a new category
 
@@ -221,16 +269,20 @@ none of which this site currently needs.
 src/
 ├── config/
 │   ├── categories.ts   # category taxonomy (add new categories here)
-│   └── site.ts         # site title, author, contact email, social links
+│   ├── photos.ts       # R2 buckets, public photo URL, web sizes, key layout
+│   └── site.ts         # language-independent site facts
 ├── content/
-│   └── photos/<category>/   # one .md per photo + colocated images/
+│   └── photos/<category>/   # one .md per photo (the photo itself is in R2)
 ├── content.config.ts   # photo content collection schema
 ├── components/         # Header, Footer, Gallery (with lightbox), SEO, CategoryCard
 ├── layouts/
 │   └── BaseLayout.astro
-└── pages/
+└── pages/[...lang]/    # one file serves both / and /es/
     ├── index.astro
     ├── about.astro
     ├── contact.astro
     └── work/[category].astro   # generates /work/<slug>/ for every category
+scripts/
+├── photos.mjs          # `npm run photos:*` command line
+└── lib/                # photo workflow (photos.mjs) and R2 backend (r2-storage.mjs)
 ```

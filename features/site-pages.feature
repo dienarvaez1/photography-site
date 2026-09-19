@@ -80,6 +80,7 @@ Feature: Site pages render correctly (English and Spanish)
     Given all photo content entries
     When I load the built page "<route>"
     Then the page should show a tile for every photo in its category
+    And each tile should load its photo sizes from the public photo bucket
     And every photo on that page with camera or copyright info should show that info in its tile
 
     Examples:
@@ -98,6 +99,16 @@ Feature: Site pages render correctly (English and Spanish)
       | /es/work/pets/        |
       | /es/work/portrait/    |
       | /es/work/real-estate/ |
+
+  Scenario Outline: The homepage category cards use each category's first photo as the cover
+    Given all photo content entries
+    When I load the built page "<route>"
+    Then each category card should use the first photo of its category as the cover
+
+    Examples:
+      | route |
+      | /     |
+      | /es/  |
 
   Scenario: The footer shows the current copyright year on every page
     When I load every built page

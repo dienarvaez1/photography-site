@@ -1,7 +1,8 @@
 import { Given, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
-import { basename } from 'node:path';
 import {
+  listPhotoFilesInRepo,
+  listSourceFiles,
   loadContentEntries,
   allowedFrontmatterFields,
   loadCategoriesConfig,
@@ -18,37 +19,55 @@ Given('the configured category slugs', async function () {
   this.data.categorySlugs = new Set(CATEGORIES.map((c) => c.slug));
 });
 
-Then('each entry\'s declared image file should exist', function () {
-  const missing = this.data.entries.filter((e) => !e.imageExists);
-  assert.deepEqual(
-    missing.map((e) => e.relPath),
-    [],
-    `These entries reference an image file that does not exist on disk`
-  );
+Then('each entry should reference its photo in R2 by a valid content id and size', function () {
+  const violations = this.data.entries
+    .filter(({ frontmatter: { photo } }) => {
+      const validId = typeof photo?.id === 'string' && /^[0-9a-f]{16}$/.test(photo.id);
+      const validSize = [photo?.width, photo?.height].every((n) => Number.isInteger(n) && n > 0);
+      return !(validId && validSize);
+    })
+    .map((e) => e.relPath);
+  assert.deepEqual(violations, [], 'Entries need photo: { id: <16 hex chars>, width, height } — create them with `npm run photos:add`');
 });
 
-Then('no category should contain duplicate image files', function () {
-  const byCategory = new Map();
-  for (const entry of this.data.entries) {
-    const category = entry.frontmatter.category;
-    const list = byCategory.get(category) ?? [];
-    list.push(entry);
-    byCategory.set(category, list);
-  }
+Then('no entry should still point at a local image file', function () {
+  const violations = this.data.entries.filter((e) => 'image' in e.frontmatter).map((e) => e.relPath);
+  assert.deepEqual(violations, [], 'Found entries with a local `image:` field — photos live in R2 now');
+});
 
+Then('no category should contain the same photo twice', function () {
+  const seen = new Map();
   const duplicates = [];
-  for (const [category, entries] of byCategory) {
-    const seen = new Map();
-    for (const entry of entries) {
-      const key = entry.imagePath;
-      if (seen.has(key)) {
-        duplicates.push(`${category}: ${seen.get(key)} and ${entry.relPath} both use ${basename(key)}`);
-      } else {
-        seen.set(key, entry.relPath);
-      }
-    }
+  for (const entry of this.data.entries) {
+    const key = `${entry.frontmatter.category}:${entry.frontmatter.photo?.id}`;
+    if (seen.has(key)) duplicates.push(`${seen.get(key)} and ${entry.relPath} use the same photo`);
+    else seen.set(key, entry.relPath);
   }
-  assert.deepEqual(duplicates, [], 'Found duplicate image references within a category');
+  assert.deepEqual(duplicates, [], 'Found the same photo twice within a category');
+});
+
+Then('the repository should contain no photo files', function () {
+  assert.deepEqual(listPhotoFilesInRepo(), [], 'Photos belong in R2 — add them with `npm run photos:add`, not into the repo');
+});
+
+Then('the site code should not process photos at build time', function () {
+  // getImage()/image() read the image bytes (a local file or, for remote images, over the
+  // network) during the build; photo URLs must come from the entry's data alone.
+  const offenders = listSourceFiles()
+    .filter(({ text }) => /\bgetImage\s*\(|\bimage\s*\(\s*\)|astro:assets/.test(text))
+    .map((f) => f.path);
+  assert.deepEqual(offenders, [], 'These files process images at build time, which would need photos on disk or network access');
+});
+
+Then('the photo tooling should be the only code that contacts R2', function () {
+  const offenders = listSourceFiles()
+    .filter(({ text, path }) => /r2\.dev|r2\.cloudflarestorage/.test(text) && path !== 'src/config/photos.ts')
+    .map((f) => f.path);
+  assert.deepEqual(offenders, [], 'Only src/config/photos.ts may name the R2 host');
+  const fetchers = listSourceFiles()
+    .filter(({ text, path }) => /\bfetch\s*\(/.test(text) && !/GeoRedirect|geo\.ts|contact\.astro/.test(path))
+    .map((f) => f.path);
+  assert.deepEqual(fetchers, [], 'Unexpected network calls in site source (only location detection and the contact form may fetch, at runtime in the browser)');
 });
 
 Then('each entry should only use the allowed frontmatter fields', function () {
