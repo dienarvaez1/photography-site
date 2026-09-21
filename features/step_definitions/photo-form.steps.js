@@ -22,7 +22,7 @@ const SITE = 'http://localhost:4321';
 /** The service, over this scenario's temporary content folder and fake R2. */
 function service(world) {
   const s = state(world);
-  s.service ??= form.createPhotoFormHandler({ contentDir: s.contentDir, storage: s.storage, sync: Boolean(s.sync) });
+  s.service ??= form.createPhotoFormHandler({ contentDir: s.contentDir, storage: s.storage, sync: Boolean(s.sync), categories: s.configured ? () => s.configured : undefined });
   return s.service;
 }
 
@@ -242,4 +242,25 @@ Then("the form's code should only fetch from the local photo service, never writ
   assert.match(code, /const SERVICE = '\/__photos';/);
   assert.match(code, /fetch\(`\$\{SERVICE\}\$\{path\}`/);
   assert.doesNotMatch(code, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|Authorization|remembered|sessionStorage|localStorage/);
+});
+
+// --- Categories added while the service is running ------------------------------------------------------------------------------
+
+Given('the form service was started when only these categories were configured: {string}', function (list) {
+  state(this).configured = list.split(', ');
+  service(this); // started now, with that list
+});
+
+When('the category {string} is added to the configuration', function (slug) {
+  state(this).configured.push(slug);
+});
+
+Then('the form should offer these categories: {string}', function (list) {
+  assert.deepEqual(Object.keys(answer(this).body.categories), list.split(', '));
+});
+
+Then(/^the form should offer every category of src\/config\/categories\.ts, including "other"$/, function () {
+  const offered = Object.keys(answer(this).body.categories);
+  assert.deepEqual(offered, CATEGORIES.map((c) => c.slug));
+  assert.ok(offered.includes('other'));
 });

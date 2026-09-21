@@ -17,7 +17,7 @@
 // The endpoints upload with the owner's Cloudflare login, so they are for the owner's own machine only: they
 // exist only in `astro dev`, answer only requests addressed to localhost, and refuse a POST that does not come
 // from the page itself (a web page open in another tab cannot use them).
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -31,6 +31,19 @@ export const PHOTO_FORM_PREFIX = '/__photos/';
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+const CATEGORIES_FILE = new URL('../../src/config/categories.ts', import.meta.url);
+
+/**
+ * The configured category slugs, read again whenever src/config/categories.ts has changed. The dev server keeps
+ * running for days and categories get added meanwhile: a list read once at start-up would refuse a category the
+ * form's own dropdown (which the page reloads) already offers.
+ */
+export async function currentCategories() {
+  const { mtimeMs } = await stat(CATEGORIES_FILE);
+  const { CATEGORIES: configured } = await import(`${CATEGORIES_FILE.href}?v=${mtimeMs}`);
+  return configured.map((c) => c.slug);
+}
 
 class FormError extends Error {
   constructor(status, code, message) {
@@ -153,9 +166,10 @@ async function add({ request, contentDir, storage, categories, publish, log }) {
 
 /**
  * Answers a request for the New Photo form, or returns null when it is not one of its addresses.
+ * `categories` is a list of slugs or a function returning it (default: the current src/config/categories.ts).
  * One photo is added at a time, so two quick submissions can never be handed the same order.
  */
-export function createPhotoFormHandler({ contentDir, storage, sync = false, categories = CATEGORIES.map((c) => c.slug), log = () => {} }) {
+export function createPhotoFormHandler({ contentDir, storage, sync = false, categories: configured = currentCategories, log = () => {} }) {
   let queue = Promise.resolve();
   const inTurn = (work) => {
     const turn = queue.then(work, work);
@@ -174,6 +188,8 @@ export function createPhotoFormHandler({ contentDir, storage, sync = false, cate
     const route = `${request.method} ${url.pathname.slice(PHOTO_FORM_PREFIX.length)}`;
     try {
       assertOwnPage(request, url);
+      // The category slugs to accept: a list, or a function giving the current list (the default reads the config file).
+      const categories = typeof configured === 'function' ? await configured() : configured;
       switch (route) {
         case 'GET status':
           return await inTurn(async () => {

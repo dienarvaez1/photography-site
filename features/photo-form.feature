@@ -205,6 +205,27 @@ Feature: The New Photo form adds a photo from what the photo itself says
     And the entries "astro/half-moon" and "nature/moon-in-nature" should reference the same photo
     And the private originals bucket should hold 1 object
 
+  Scenario: The form offers every configured category, including the newest
+    When I ask the form for the category orders
+    Then the form should offer every category of src/config/categories.ts, including "other"
+
+  Scenario: A category added while the service is running is accepted without restarting it
+    Given the form service was started when only these categories were configured: "landscape, astro"
+    And a photo file "moon.jpg" of 1200x700
+    When I submit the photo "moon.jpg" to the form with:
+      | title    | Street Market |
+      | category | other         |
+    Then the form should refuse it with status 400 and the code "bad-request"
+    And nothing should have been uploaded
+    When the category "other" is added to the configuration
+    And I ask the form for the category orders
+    Then the form should offer these categories: "landscape, astro, other"
+    When I submit the photo "moon.jpg" to the form with:
+      | title    | Street Market |
+      | category | other         |
+    Then the form should answer with status 200
+    And the entry "other/street-market" should still have order 1
+
   # --- What is refused ---------------------------------------------------------------------------------------------------
 
   Scenario Outline: A form that cannot be added is refused, and nothing is uploaded or written
