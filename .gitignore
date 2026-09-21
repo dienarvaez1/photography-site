@@ -1,5 +1,9 @@
 # build output
 dist/
+dist-prod/
+
+# local mirror of the photo entries (they live in R2; see scripts/lib/entry-sync.mjs)
+.photo-entries/
 # generated types
 .astro/
 

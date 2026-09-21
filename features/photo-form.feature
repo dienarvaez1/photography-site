@@ -4,7 +4,8 @@ Feature: The New Photo form adds a photo from what the photo itself says
   So that a photo added from the form is exactly as good as one added with `npm run photos:add`
 
   These scenarios call the form's real request handler (scripts/lib/photo-form.mjs) with a fake R2 and a
-  temporary content folder, the way the dev server does. The form's screens are in browser/photo-form.feature.
+  temporary folder for the local mirror of the entries, the way the dev server does. The form's screens are in
+  browser/photo-form.feature, and how entries reach R2 in entry-sync.feature.
 
   Background:
     Given an empty photo library and a fake R2
@@ -125,29 +126,7 @@ Feature: The New Photo form adds a photo from what the photo itself says
       ---
       """
     And the entry "astro/half-moon" should be stored as "astro/images" named after its photo id
-    And the form should answer with the written entry, identical to the file, and its path under the content folder
-
-  Scenario: An entry that was written can be read back by its category and photo id
-    Given a photo file "moon.jpg" of 1200x700
-    When I submit the photo "moon.jpg" to the form with:
-      | title    | Half Moon |
-      | category | astro     |
-    And I ask the form for the entry written for "astro/half-moon"
-    Then the form should answer with status 200
-    And the form should answer with the written entry, identical to the file, and its path under the content folder
-    And the form should say the entry was given the order 1
-
-  Scenario Outline: An entry that cannot be read back is refused
-    When I ask the form for the entry of the category "<category>" and the photo id "<id>"
-    Then the form should refuse it with status <status> and the code "<code>"
-
-    Examples:
-      | category | id                | status | code        |
-      | astro    | 0123456789abcdef  | 404    | not-found   |
-      | astro    | ../../etc/passwd  | 400    | bad-request |
-      | astro    |                   | 400    | bad-request |
-      | galaxies | 0123456789abcdef  | 400    | bad-request |
-      |          | 0123456789abcdef  | 400    | bad-request |
+    And the form should answer with the written entry, identical to the file, and where it is
 
   Scenario: The original goes to the private bucket and every web size to the public one
     Given a photo file "moon.jpg" of 1200x700
@@ -285,3 +264,57 @@ Feature: The New Photo form adds a photo from what the photo itself says
 
   Scenario: The form only talks to the local service, puts everything on the page as text, and never sends the admin token
     Then the form's code should only fetch from the local photo service, never write HTML, and never send the admin token
+
+  # --- With the entries in R2 (as in `astro dev`) ----------------------------------------------------------------------------------
+
+  Scenario: The form suggests orders from the entries R2 holds, and publishes what it adds
+    Given the entries live in R2, with the library folder as their local mirror
+    And R2 holds these entries:
+      | category | title     | order | camera |
+      | astro    | Half Moon | 4     |        |
+    And a photo file "orion.jpg" of 1200x700
+    When I ask the form for the category orders
+    Then the form should say "astro" has 1 photos, a highest order of 4 and a next order of 5
+    When I submit the photo "orion.jpg" to the form with:
+      | title    | Orion Nebula |
+      | category | astro        |
+    Then the form should answer with status 200
+    And the entry "astro/orion-nebula" should still have order 5
+    And the manifest in R2 should list exactly: "astro/half-moon, astro/orion-nebula"
+    And the form should answer with the written entry, identical to the file, and where it is
+    And the entry "astro/orion-nebula" should be in R2 as its own .md file, identical to the local file
+
+  Scenario: An entry another computer added is taken into account before the next order is chosen
+    Given the entries live in R2, with the library folder as their local mirror
+    And R2 holds these entries:
+      | category | title     | order | camera |
+      | astro    | Half Moon | 1     |        |
+    When I ask the form for the category orders
+    And R2 holds these entries:
+      | category | title     | order | camera |
+      | astro    | Half Moon | 1     |        |
+      | astro    | Comet     | 2     |        |
+    And I ask the form for the category orders
+    Then the form should say "astro" has 2 photos, a highest order of 2 and a next order of 3
+
+  Scenario: A manifest that cannot be stored is reported by the form, and the photo is not on the site
+    Given the entries live in R2, with the library folder as their local mirror
+    And a photo file "moon.jpg" of 1200x700
+    And R2 will fail to store anything matching "index.json"
+    When I submit the photo "moon.jpg" to the form with:
+      | title    | Half Moon |
+      | category | astro     |
+    Then the form should refuse it with status 500 and the code "failed"
+    And the form's message should mention "simulated upload failure"
+    And R2 should hold no manifest
+
+  Scenario: The form refuses to overwrite entries that were changed locally and never published
+    Given the entries live in R2, with the library folder as their local mirror
+    And R2 holds these entries:
+      | category | title     | order | camera |
+      | astro    | Half Moon | 3     |        |
+    When I ask the form for the category orders
+    And the local entry "astro/half-moon" is edited to have order 9
+    And I ask the form for the category orders
+    Then the form should refuse it with status 500 and the code "failed"
+    And the form's message should mention "never published"

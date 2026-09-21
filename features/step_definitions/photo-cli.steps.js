@@ -40,6 +40,7 @@ When(/^I run the command: (.+)$/, async function (line) {
   const code = await cli.run(await resolveArgs(this, splitCommand(line)), {
     contentDir: state(this).contentDir,
     storage: state(this).storage,
+    sync: Boolean(state(this).sync), // the entries live in R2 and the folder is their mirror (entry-sync.feature)
     log: (text) => out.push(text),
     error: (text) => err.push(text),
   });

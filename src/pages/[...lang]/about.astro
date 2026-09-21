@@ -9,6 +9,8 @@ import {
   useTranslations,
 } from '../../i18n';
 
+// Built once, as a static file (the site's default is to render on request; see astro.config.mjs).
+export const prerender = true;
 export const getStaticPaths = localeStaticParams;
 
 const locale = getLocale(Astro);

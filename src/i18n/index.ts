@@ -99,6 +99,14 @@ export function localeStaticParams() {
   return LOCALES.map((locale) => ({ params: { lang: locale === DEFAULT_LOCALE ? undefined : locale } }));
 }
 
+/**
+ * Is this the `[...lang]` param of a real address: none (English) or a non-default locale? Pages rendered when
+ * requested get any path that fits `[...lang]` (`/nothing-here/`), and must answer those with the 404 page.
+ */
+export function isLangParam(lang: string | undefined): boolean {
+  return lang === undefined || (isLocale(lang) && lang !== DEFAULT_LOCALE);
+}
+
 // --- Categories & photos ------------------------------------------------
 
 export interface LocalizedCategory {

@@ -9,6 +9,11 @@
 // R2 and checked, and a source file is deleted only after that. A failure
 // part-way therefore never leaves an .md pointing at missing photos or loses
 // the only copy of a file.
+//
+// The entries themselves live in R2 too (see entry-sync.mjs); `contentDir` is a local mirror of them. The commands
+// that change entries take a `publish` callback, which pushes the mirror to R2. They call it once the local entry
+// is written and BEFORE deleting anything a published entry might still point at, so the live site never lists a
+// photo whose files are gone.
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -24,6 +29,7 @@ import {
   photoKeys,
   variantSize,
 } from '../../src/config/photos.ts';
+import { entryKey } from '../../src/config/photo-manifest.ts';
 import { readCameraLine } from './exif.mjs';
 
 const CONTENT_TYPES = { original: 'image/jpeg', web: 'image/webp' };
@@ -201,7 +207,7 @@ async function deletePhotoObjects({ id, contentDir, exceptFile, storage, log }) 
  * camera line is kept from EXIF: no copyright, dates, GPS or serial numbers.
  * Returns { file, photo, camera }.
  */
-export async function addPhoto({ source, category, title, titleEs, camera, order = 0, featured = false, contentDir, storage, keepSource = false, categories = CATEGORIES.map((c) => c.slug), log = () => {} }) {
+export async function addPhoto({ source, category, title, titleEs, camera, order = 0, featured = false, contentDir, storage, keepSource = false, categories = CATEGORIES.map((c) => c.slug), publish, log = () => {} }) {
   if (!category) throw new Error('--category is required');
   if (!categories.includes(category)) {
     throw new Error(`Unknown category "${category}". Configured categories: ${categories.join(', ')}`);
@@ -227,6 +233,7 @@ export async function addPhoto({ source, category, title, titleEs, camera, order
     featured,
     order,
   });
+  await publish?.();
   if (!keepSource) {
     await unlink(source);
     log(`  removed local ${basename(source)} (safe copy is in R2)`);
@@ -240,7 +247,7 @@ export async function addPhoto({ source, category, title, titleEs, camera, order
  * uses them. The camera line is `camera`, else the new photo's EXIF, else the
  * entry's existing line: a camera line is never lost.
  */
-export async function replacePhoto({ entryFile, source, camera, contentDir, storage, keepSource = false, log = () => {} }) {
+export async function replacePhoto({ entryFile, source, camera, contentDir, storage, keepSource = false, publish, log = () => {} }) {
   const entry = (await listEntries(contentDir)).find((e) => e.file === entryFile);
   if (!entry) throw new Error(`${entryFile} is not a photo entry`);
   const old = entry.data.photo;
@@ -258,6 +265,7 @@ export async function replacePhoto({ entryFile, source, camera, contentDir, stor
   if (cameraLine) data.camera = cameraLine; else delete data.camera;
   await writeEntry(newFile, data, entry.body);
   if (newFile !== entryFile) await unlink(entryFile);
+  await publish?.(); // the site now points at the new photo; only then may the old one go
   if (old?.id && old.id !== id) {
     await deletePhotoObjects({ id: old.id, contentDir, exceptFile: entryFile, storage, log });
   }
@@ -266,10 +274,11 @@ export async function replacePhoto({ entryFile, source, camera, contentDir, stor
 }
 
 /** Removes an entry and its objects (objects kept if another entry shares the photo). */
-export async function removePhoto({ entryFile, contentDir, storage, log = () => {} }) {
+export async function removePhoto({ entryFile, contentDir, storage, publish, log = () => {} }) {
   const entry = (await listEntries(contentDir)).find((e) => e.file === entryFile);
   if (!entry) throw new Error(`${entryFile} is not a photo entry`);
   await unlink(entryFile);
+  await publish?.(); // the site stops listing the entry before its photo's files are deleted
   if (entry.data.photo?.id) {
     await deletePhotoObjects({ id: entry.data.photo.id, contentDir, exceptFile: entryFile, storage, log });
   }
@@ -278,9 +287,10 @@ export async function removePhoto({ entryFile, contentDir, storage, log = () => 
 /**
  * Checks every entry against R2. Read-only.
  * Returns { problems: [{ file, message }], checked } — empty problems means in sync.
- * `deep` also downloads each original and compares its hash to the entry's id.
+ * `deep` also downloads each original and compares its hash to the entry's id;
+ * `checkEntries` also checks that each entry's .md is in the web bucket.
  */
-export async function verifyPhotos({ contentDir, storage, deep = false, log = () => {} }) {
+export async function verifyPhotos({ contentDir, storage, deep = false, checkEntries = false, log = () => {} }) {
   const problems = [];
   const entries = await listEntries(contentDir);
   for (const entry of entries) {
@@ -291,6 +301,11 @@ export async function verifyPhotos({ contentDir, storage, deep = false, log = ()
     }
     for (const key of await findMissing(storage.web, photoKeys(photo.id).web)) {
       problems.push({ file: entry.file, message: `missing in web bucket: ${key}` });
+    }
+    if (checkEntries) {
+      for (const key of await findMissing(storage.web, [entryKey(entry.data.category, photo.id)])) {
+        problems.push({ file: entry.file, message: `entry file missing in web bucket: ${key}` });
+      }
     }
     if (deep) {
       const stored = await storage.originals.get(photoKey(photo.id, 'original'));
@@ -336,7 +351,7 @@ export async function syncPhotos({ contentDir, storage, log = () => {} }) {
  * downloaded). Pass `entryFiles` to limit it to some entries.
  * Returns { updated, unchanged, problems }.
  */
-export async function fillCameraLines({ contentDir, storage, entryFiles, log = () => {} }) {
+export async function fillCameraLines({ contentDir, storage, entryFiles, publish, log = () => {} }) {
   const updated = [];
   const unchanged = [];
   const problems = [];
@@ -367,5 +382,6 @@ export async function fillCameraLines({ contentDir, storage, entryFiles, log = (
     updated.push(entry.file);
     log(`camera line added to ${basename(entry.file)}`);
   }
+  if (updated.length) await publish?.();
   return { updated, unchanged, problems };
 }

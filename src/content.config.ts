@@ -6,8 +6,11 @@ import { PHOTO_ID_PATTERN } from './config/photos';
 
 const categorySlugs = CATEGORIES.map((c) => c.slug) as [string, ...string[]];
 
+// The site's real entries live in R2 (see src/config/photo-manifest.ts) and are read when a page is requested.
+// This collection is only the sample library the tests build the site from (`PHOTOS_SNAPSHOT=1`, see
+// src/lib/photo-entries.ts), and the schema below is what every entry, real or sample, must satisfy.
 const photos = defineCollection({
-  loader: glob({ pattern: '**/*.md', base: './src/content/photos' }),
+  loader: glob({ pattern: '**/*.md', base: './test-fixtures/photos' }),
   schema: z.object({
     title: z.string(),
     // Optional per-locale titles, e.g. `titles: { es: "..." }`. Locales

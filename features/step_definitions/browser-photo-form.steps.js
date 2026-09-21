@@ -1,7 +1,7 @@
 import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
-import { entryFile, lib, sourcePath, state } from '../support/photo-helpers.js';
+import { entryFile, sourcePath, state } from '../support/photo-helpers.js';
 import { startPhotoService } from '../support/browser.js';
 
 const page = (world) => world.b.page;
@@ -38,42 +38,6 @@ Given('the local photo service is not running', function () {
 
 Given('a text file {string}', async function (name) {
   await writeFile(sourcePath(this, name), 'this is not a picture');
-});
-
-/**
- * Makes the tab remember, before the page loads, that a photo was being added (as the form does when it submits),
- * and that the admin is signed in (the token is in the tab too). Set once: a later reload finds what the page left.
- */
-function rememberInTab(world, flash) {
-  world.b.initScripts.push(`(() => {
-    if (sessionStorage.getItem('test-seeded')) return;
-    sessionStorage.setItem('test-seeded', '1');
-    sessionStorage.setItem('admin-token', 'browser-test-admin-token');
-    sessionStorage.setItem('admin-token-seen', String(Date.now()));
-    const flash = ${JSON.stringify(flash)};
-    sessionStorage.setItem('admin-photo-added', JSON.stringify({ ...flash, at: Date.now() - flash.ago }));
-  })();`);
-}
-
-Given('the photo {string} was added as {string} to {string} with order {int} without the page hearing back', async function (file, title, category, order) {
-  const { id } = await lib.analyzePhoto(sourcePath(this, file));
-  await lib.addPhoto({ source: sourcePath(this, file), category, title, order, keepSource: true, contentDir: state(this).contentDir, storage: state(this).storage });
-  rememberInTab(this, { id, title, category, ago: 0 });
-});
-
-Given(/^the tab remembers a photo "([^"]+)" that was just added to "([^"]+)" but has no entry$/, function (title, category) {
-  rememberInTab(this, { id: '0123456789abcdef', title, category, ago: 0 });
-});
-
-Given(/^the tab remembers a photo "([^"]+)" that was added to "([^"]+)" (\d+) minutes ago$/, async function (title, category, minutes) {
-  const { id } = await lib.analyzePhoto(sourcePath(this, 'moon.jpg'));
-  await lib.addPhoto({ source: sourcePath(this, 'moon.jpg'), category, title, order: 5, keepSource: true, contentDir: state(this).contentDir, storage: state(this).storage });
-  rememberInTab(this, { id, title, category, ago: Number(minutes) * 60_000 });
-});
-
-Then('the tab should no longer remember a photo being added', async function () {
-  await settle(500);
-  assert.equal(await page(this).evaluate(() => sessionStorage.getItem('admin-photo-added')), null);
 });
 
 // --- The form's place and fields ---------------------------------------------------------------------------------------

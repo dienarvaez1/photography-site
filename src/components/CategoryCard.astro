@@ -1,11 +1,11 @@
 ---
-import type { CollectionEntry } from 'astro:content';
+import type { PhotoEntry } from '../config/photo-manifest';
 import { COVER_SRCSET, photoSrcSet, photoVariant } from '../config/photos';
 import { getLocale, getPhotoTitle, localizePath, type LocalizedCategory } from '../i18n';
 
 interface Props {
   category: LocalizedCategory;
-  cover?: CollectionEntry<'photos'>;
+  cover?: PhotoEntry;
 }
 
 const { category, cover } = Astro.props;

@@ -1,36 +1,30 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Gallery from '../../../components/Gallery.astro';
 import { CATEGORIES } from '../../../config/categories';
 import { photoVariant } from '../../../config/photos';
+import { notFound } from '../../../lib/not-found';
+import { getPhotos } from '../../../lib/photo-entries';
 import {
   getLocale,
   getLocalizedCategory,
   getPhotoTitle,
+  isLangParam,
   localeStaticParams,
   useTranslations,
 } from '../../../i18n';
 
-export async function getStaticPaths() {
-  const allPhotos = await getCollection('photos');
-  return localeStaticParams().flatMap(({ params }) =>
-    CATEGORIES.map((category) => ({
-      params: { ...params, category: category.slug },
-      props: {
-        photos: allPhotos
-          .filter((p) => p.data.category === category.slug)
-          .sort((a, b) => a.data.order - b.data.order),
-      },
-    }))
-  );
+// Rendered when requested, from the entries in R2 (`output: 'server'`, see astro.config.mjs); the tests' snapshot build makes it static.
+export function getStaticPaths() {
+  return localeStaticParams().flatMap(({ params }) => CATEGORIES.map((category) => ({ params: { ...params, category: category.slug } })));
 }
 
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
-const { category: slug } = Astro.params;
-const { photos } = Astro.props;
+const { category: slug, lang } = Astro.params;
+if (!isLangParam(lang) || !CATEGORIES.some((c) => c.slug === slug)) return notFound();
 const category = getLocalizedCategory(slug!, locale)!;
+const photos = (await getPhotos()).filter((p) => p.data.category === slug).sort((a, b) => a.data.order - b.data.order);
 
 // Share this category's first photo when the page is linked on social media / messaging apps.
 const first = photos[0];

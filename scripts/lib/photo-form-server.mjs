@@ -31,7 +31,7 @@ export function photoForm({ contentDir }) {
     hooks: {
       'astro:server:setup': async ({ server }) => {
         const { createR2Storage } = await import('./r2-storage.mjs');
-        server.middlewares.use(await photoFormMiddleware({ contentDir, storage: createR2Storage(), log: (line) => console.error(line) }));
+        server.middlewares.use(await photoFormMiddleware({ contentDir, storage: createR2Storage(), sync: true, log: (line) => console.error(line) }));
       },
     },
   };

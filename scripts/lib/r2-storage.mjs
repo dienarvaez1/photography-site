@@ -84,6 +84,8 @@ export function createR2Storage({ baseUrl = PHOTOS_BASE_URL } = {}) {
     originals: privateBucket(PHOTO_BUCKETS.originals),
     web: {
       put: web.put,
+      /** Downloads an object from the web bucket (through wrangler, so it is never a stale copy from a cache); null when missing. */
+      get: web.get,
       delete: web.delete,
       /** Is the object served publicly? A network failure throws (never reads as "missing"). */
       async exists(key) {

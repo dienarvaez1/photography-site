@@ -4,7 +4,7 @@
 // own public web copy of the photo; the private originals are never fetched or shown: the API only ever
 // returns numbers and text. Everything from the API is put on the page as text.
 import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, remembered, type Child, type Messages } from './admin-common';
-import { forgetJustAdded, photoForm, readJustAdded, type FormCategory, type JustAdded } from './photo-form';
+import { photoForm, type FormCategory } from './photo-form';
 import { PICS_TAB, formatBytes, formatExactBytes, joinPhotos, thumbSize, type KnownPhoto, type Original } from './pics-view';
 import { resolveApiUrl } from './results-view';
 
@@ -108,16 +108,14 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
 
   // --- The count and the Upload / Remove buttons ---------------------------------------------------------------
 
-  /** Opens the New Photo form above the list (a second press just goes back to it). `resume`: after a reload, shows the photo just added. */
-  function openForm(resume?: JustAdded) {
+  /** Opens the New Photo form above the list (a second press just goes back to it). */
+  function openForm() {
     const open = formHost.querySelector<HTMLElement>('input');
     if (open) return open.focus();
     formHost.append(
       photoForm({
         m,
         categories,
-        resume,
-        onGone: () => formHost.replaceChildren(),
         // The photo is now in the bucket: look at the list again (the form stays, showing what was written).
         onAdded: () => {
           details.clear();
@@ -221,11 +219,6 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   // Clicking elsewhere closes a tooltip opened by a tap.
   document.addEventListener('click', (event) => tipOwner && !tipOwner.contains(event.target as Node) && hideTip());
 
-  // The dev server reloads the page when a photo has just been added: show what was added, again.
-  const justAdded = readJustAdded();
-  if (justAdded && token) openForm(justAdded);
-  else forgetJustAdded();
-
   // Nothing is requested while the tab is hidden; showing it loads the list once.
   const sync = () => {
     if (panel.hidden) return hideTip();
@@ -240,7 +233,6 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     details.clear();
     hideTip();
     formHost.replaceChildren(); // signing out (or in as someone else) closes the form
-    forgetJustAdded();
     if (!panel.hidden) void render();
     else root.replaceChildren();
   });

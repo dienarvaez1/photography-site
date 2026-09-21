@@ -69,9 +69,9 @@ Then('the photo tooling should be the only code that contacts R2', function () {
     .map((f) => f.path);
   assert.deepEqual(offenders, [], 'Only src/config/photos.ts may name the R2 host');
   const fetchers = listSourceFiles()
-    .filter(({ text, path }) => /\bfetch\s*\(/.test(text) && !/GeoRedirect|geo\.ts|contact\.astro|results-viewer\.ts|admin-common\.ts|photo-form\.ts/.test(path))
+    .filter(({ text, path }) => /\bfetch\s*\(/.test(text) && !/GeoRedirect|geo\.ts|contact\.astro|results-viewer\.ts|admin-common\.ts|photo-form\.ts|photo-entries\.ts|middleware\.ts|cloudflare\.d\.ts/.test(path))
     .map((f) => f.path);
-  assert.deepEqual(fetchers, [], 'Unexpected network calls in site source (only location detection, the contact form, the Admin viewers (through admin-common.ts) and the local service of the New Photo form (photo-form.ts) may fetch, at runtime in the browser)');
+  assert.deepEqual(fetchers, [], 'Unexpected network calls in site source (only location detection, the contact form, the Admin viewers (through admin-common.ts) the local service of the New Photo form (photo-form.ts), and the Worker reading the manifest and the 404 page (photo-entries.ts, middleware.ts) may fetch, at runtime)');
 });
 
 Then('each entry should only use the allowed frontmatter fields', function () {

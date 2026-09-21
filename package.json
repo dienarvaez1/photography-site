@@ -21,6 +21,8 @@
     "photos:verify": "node scripts/photos.mjs verify",
     "photos:sync": "node scripts/photos.mjs sync",
     "photos:camera": "node scripts/photos.mjs camera",
+    "photos:pull": "node scripts/photos.mjs pull",
+    "photos:push": "node scripts/photos.mjs push",
     "predeploy": "node scripts/check-build-env.mjs --require && npm test && npm run photos:verify",
     "deploy:unchecked": "npm run build && wrangler deploy",
     "smoke": "node scripts/smoke.mjs",

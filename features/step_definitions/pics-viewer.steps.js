@@ -237,7 +237,7 @@ Then('the built page {string} should hold the Pics Viewer for the configured API
       else if (entry.name.endsWith('.md')) ids.push(entry.name.replace(/\.md$/, ''));
     }
   };
-  walk(join(ROOT, 'src/content/photos'));
+  walk(join(ROOT, 'test-fixtures/photos'));
   assert.ok(ids.length > 0);
   assert.deepEqual(Object.keys(known).sort(), ids.sort(), 'every photo entry is known to the viewer, by its id');
   for (const value of Object.values(known)) assert.ok(value.title && value.category);
@@ -265,7 +265,7 @@ Then('the built page {string} should give every photo of the site a thumbnail th
       }
     }
   };
-  walk(join(ROOT, 'src/content/photos'));
+  walk(join(ROOT, 'test-fixtures/photos'));
   for (const [id, photo] of Object.entries(known)) {
     assert.equal(photo.thumb.src, `${photosConfig.PHOTOS_BASE_URL}/photos/${id}/w400.webp`);
     assert.ok(!/original/.test(photo.thumb.src));

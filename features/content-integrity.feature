@@ -3,6 +3,9 @@ Feature: Photo content integrity
   I want every photo entry's data to be internally consistent
   So that visitors never hit a missing image, a duplicate, or stray placeholder content
 
+  These scenarios check the sample library in test-fixtures/photos, which the tests build the site from; the
+  site's real entries live in R2 and are checked by `npm run photos:verify` before every deploy.
+
   Background:
     Given all photo content entries
 
@@ -16,7 +19,7 @@ Feature: Photo content integrity
   Scenario: Photos are stored in R2, not in the repository
     Then the repository should contain no photo files
 
-  Scenario: Building the site needs no photo files and no network access to R2
+  Scenario: Building the site needs no photo files and no network access to R2 (photos are read only when a page is requested)
     Then the site code should not process photos at build time
     And the photo tooling should be the only code that contacts R2
 

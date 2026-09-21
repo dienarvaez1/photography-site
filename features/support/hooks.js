@@ -8,5 +8,8 @@ import { ROOT } from './lib.js';
 // anything: a broken build fails every "site pages" scenario immediately,
 // which is itself a meaningful, correct test result.
 BeforeAll({ timeout: 60_000 }, () => {
-  execSync('npm run build', { cwd: ROOT, stdio: 'pipe' });
+  // The snapshot build: every page static, from the sample library in test-fixtures/photos (the real site renders
+// its photo pages when they are requested, from R2). The production build is tested separately, in workerd
+// (see site-worker.js).
+  execSync('npm run build', { cwd: ROOT, stdio: 'pipe', env: { ...process.env, PHOTOS_SNAPSHOT: '1' } });
 });

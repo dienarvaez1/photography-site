@@ -6,7 +6,8 @@ import { parse } from 'node-html-parser';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const ROOT = join(__dirname, '..', '..');
-export const CONTENT_DIR = join(ROOT, 'src/content/photos');
+// The sample library the tests build the site from (`PHOTOS_SNAPSHOT=1`); the site's real entries live in R2.
+export const CONTENT_DIR = join(ROOT, 'test-fixtures/photos');
 export const DIST_DIR = join(ROOT, 'dist/client');
 
 const ALLOWED_FRONTMATTER_FIELDS = new Set([
@@ -87,7 +88,7 @@ export function allowedFrontmatterFields() {
   return ALLOWED_FRONTMATTER_FIELDS;
 }
 
-/** Category folders that exist under src/content/photos (excluding "images"). */
+/** Category folders that exist in the sample library (excluding "images"). */
 export function contentCategoryFolders() {
   return readdirSync(CONTENT_DIR).filter((name) => {
     const full = join(CONTENT_DIR, name);

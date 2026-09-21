@@ -1,16 +1,19 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getLocale, getLocalizedCategory, getPhotoTitle, localeStaticParams, useTranslations } from '../../i18n';
+import { getLocale, getLocalizedCategory, getPhotoTitle, isLangParam, localeStaticParams, useTranslations } from '../../i18n';
 import { RESULTS_API_URL } from '../../config/results';
 import { CATEGORIES } from '../../config/categories';
 import { photoVariant } from '../../config/photos';
+import { notFound } from '../../lib/not-found';
+import { getPhotos } from '../../lib/photo-entries';
 import en from '../../i18n/en.json';
 import es from '../../i18n/es.json';
 
+// Rendered when requested (the photos' titles come from R2); the tests' snapshot build makes it static.
 export const getStaticPaths = localeStaticParams;
 
 const locale = getLocale(Astro);
+if (!isLangParam(Astro.params.lang)) return notFound();
 const t = useTranslations(locale);
 
 // The two sections of the page, left to right. Each tab shows its panel.
@@ -31,7 +34,7 @@ const formCategories = CATEGORIES.map(({ slug }) => ({ slug, label: getLocalized
 
 // What the site knows about each photo (public information), so the list can say "Orion Nebula" rather than a hash.
 const knownPhotos = Object.fromEntries(
-  (await getCollection('photos')).map((entry) => [
+  (await getPhotos()).map((entry) => [
     entry.data.photo.id,
     { title: getPhotoTitle(entry.data, locale), category: getLocalizedCategory(entry.data.category, locale)?.label ?? entry.data.category, thumb: photoVariant(entry.data.photo, 'w400') },
   ])

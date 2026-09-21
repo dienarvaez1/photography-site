@@ -1,10 +1,10 @@
 ---
-import type { CollectionEntry } from 'astro:content';
+import type { PhotoEntry } from '../config/photo-manifest';
 import { THUMB_SRCSET, photoSrcSet, photoVariant } from '../config/photos';
 import { getLocale, getPhotoTitle, useTranslations } from '../i18n';
 
 interface Props {
-  photos: CollectionEntry<'photos'>[];
+  photos: PhotoEntry[];
 }
 
 const { photos } = Astro.props;

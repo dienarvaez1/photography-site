@@ -8,13 +8,16 @@ export function createMemoryStorage() {
   const originals = new Map();
   const web = new Map();
   const faults = { failPutMatching: null, corruptOriginals: false };
+  // Every change, in order, as "<bucket>: put <key>" / "<bucket>: delete <key>" (tests check what happens first).
+  const events = [];
 
-  const bucket = (map, { corruptible }) => ({
+  const bucket = (map, { corruptible, name }) => ({
     async put(key, file, contentType, cacheControl) {
       if (faults.failPutMatching && key.includes(faults.failPutMatching)) {
         throw new Error(`simulated upload failure for ${key}`);
       }
       map.set(key, { body: await readFile(file), contentType, cacheControl });
+      events.push(`${name}: put ${key}`);
     },
     async get(key) {
       const object = map.get(key);
@@ -23,6 +26,7 @@ export function createMemoryStorage() {
     },
     async delete(key) {
       map.delete(key);
+      events.push(`${name}: delete ${key}`);
     },
     async exists(key) {
       return map.has(key);
@@ -30,9 +34,10 @@ export function createMemoryStorage() {
   });
 
   return {
-    originals: bucket(originals, { corruptible: true }),
-    web: bucket(web, { corruptible: false }),
+    originals: bucket(originals, { corruptible: true, name: 'originals' }),
+    web: bucket(web, { corruptible: false, name: 'web' }),
     objects: { originals, web },
+    events,
     faults,
   };
 }

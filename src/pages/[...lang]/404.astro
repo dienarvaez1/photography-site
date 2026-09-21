@@ -4,6 +4,8 @@ import { getLocale, localeStaticParams, localizePath, useTranslations } from '..
 
 // Built as /404.html and /es/404.html. Cloudflare serves the nearest 404.html for an unknown URL
 // (`assets.not_found_handling: "404-page"` in wrangler.jsonc), so a mistyped Spanish URL gets Spanish.
+// Built once, as a static file (the site's default is to render on request; see astro.config.mjs).
+export const prerender = true;
 export const getStaticPaths = localeStaticParams;
 
 const locale = getLocale(Astro);

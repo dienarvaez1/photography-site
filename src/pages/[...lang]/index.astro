@@ -1,21 +1,26 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Gallery from '../../components/Gallery.astro';
 import CategoryCard from '../../components/CategoryCard.astro';
 import GeoRedirect from '../../components/GeoRedirect.astro';
 import { VISIBLE_CATEGORIES } from '../../config/categories';
 import { SITE } from '../../config/site';
+import { notFound } from '../../lib/not-found';
+import { getPhotos } from '../../lib/photo-entries';
 import {
   DEFAULT_LOCALE,
   getLocale,
   getSortedVisibleCategories,
+  isLangParam,
   localeStaticParams,
   localizePath,
   useTranslations,
 } from '../../i18n';
 
+// Rendered when requested, from the entries in R2 (`output: 'server'`, see astro.config.mjs); the tests' snapshot build makes it static.
 export const getStaticPaths = localeStaticParams;
+
+if (!isLangParam(Astro.params.lang)) return notFound();
 
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
@@ -57,7 +62,7 @@ const jsonLd = [
 
 const visibleSlugs = new Set(VISIBLE_CATEGORIES.map((c) => c.slug));
 
-const allPhotos = await getCollection('photos');
+const allPhotos = await getPhotos();
 const featured = allPhotos
   .filter((p) => p.data.featured && visibleSlugs.has(p.data.category))
   .sort((a, b) => a.data.order - b.data.order)

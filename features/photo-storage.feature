@@ -4,8 +4,9 @@ Feature: Photo storage in R2 stays in sync with the photo entries
   So that adding, replacing or removing a photo keeps each entry and its R2 files in step,
   and nothing (an entry, or my only copy of a file) is lost when something fails
 
-  Each entry is one file, src/content/photos/<category>/images/<photo id>.md, named after the id
-  of its photo so it maps 1:1 to its objects in R2 (photos/<photo id>/...).
+  Each entry is one file, <category>/images/<photo id>.md in the local mirror of the entries (which live in R2
+  as photos/<category>/<photo id>.md; see entry-sync.feature), named after the id of its photo so it maps 1:1
+  to its objects in R2 (photos/<photo id>/...).
   These scenarios run against an in-memory fake of R2: no network is used.
   Entries are referred to below as "<category>/<title>", since their file names are ids.
 

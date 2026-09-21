@@ -10,6 +10,9 @@
 		// Unknown URLs get the nearest 404.html (/es/404.html under /es/), not an empty response.
 		"not_found_handling": "404-page"
 	},
+	// The public web bucket, read by the Worker to render the pages that show photos: `photos/index.json` lists
+	// every entry (see src/config/photo-manifest.ts). Read only in practice: the tools write it with `wrangler`.
+	"r2_buckets": [{ "binding": "WEB", "bucket_name": "photography-site-web" }],
 	"observability": {
 		"enabled": true
 	}

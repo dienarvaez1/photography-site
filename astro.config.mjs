@@ -5,7 +5,9 @@ import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
 import { existsSync, renameSync, rmdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { PHOTO_ENTRIES_DIR } from './scripts/lib/entries-dir.mjs';
 import { photoForm } from './scripts/lib/photo-form-server.mjs';
+import { CATEGORIES } from './src/config/categories.ts';
 import { SITE } from './src/config/site.ts';
 import { DEFAULT_LOCALE, LOCALES } from './src/i18n/config.ts';
 
@@ -31,9 +33,25 @@ const localizedNotFoundPages = {
   },
 };
 
+// The tests build the whole site as static HTML from a sample library (`PHOTOS_SNAPSHOT=1`, see
+// src/lib/photo-entries.ts). The real build leaves the pages that show photos to be rendered by the Worker
+// when they are requested, from the entries in R2, so a new photo needs no build and no deploy.
+const SNAPSHOT = process.env.PHOTOS_SNAPSHOT === '1';
+
+// Pages rendered on request are not in the sitemap unless listed: the home pages and every category's page.
+const requestPages = SNAPSHOT
+  ? []
+  : LOCALES.flatMap((locale) => {
+      const prefix = locale === DEFAULT_LOCALE ? '' : `/${locale}`;
+      return [`${prefix}/`, ...CATEGORIES.map((c) => `${prefix}/work/${c.slug}/`)].map((path) => new URL(path, SITE.url).href);
+    });
+
 // https://astro.build/config
 export default defineConfig({
   site: SITE.url,
+  // Pages are rendered when requested unless they say `export const prerender = true` (about, contact, the error
+  // pages). The snapshot build is the opposite: every page static.
+  output: SNAPSHOT ? 'static' : 'server',
   i18n: {
     defaultLocale: DEFAULT_LOCALE,
     locales: [...LOCALES],
@@ -45,17 +63,19 @@ export default defineConfig({
     sitemap({
       // Error pages and the admin page (noindex) don't belong in the sitemap.
       filter: (page) => !/\/(404|admin)\/?$/.test(page),
+      customPages: requestPages,
       i18n: {
         defaultLocale: DEFAULT_LOCALE,
         locales: Object.fromEntries(LOCALES.map((locale) => [locale, locale])),
       },
     }),
     localizedNotFoundPages,
-    // The Admin page's New Photo form: dev server only (it needs your Cloudflare login and writes into src/content).
-    photoForm({ contentDir: fileURLToPath(new URL('./src/content/photos', import.meta.url)) }),
+    // The Admin page's New Photo form: dev server only (it needs your Cloudflare login to upload).
+    photoForm({ contentDir: fileURLToPath(new URL(`./${PHOTO_ENTRIES_DIR}`, import.meta.url)) }),
   ],
   adapter: cloudflare(),
   vite: {
+    define: { 'import.meta.env.PHOTOS_SNAPSHOT': JSON.stringify(SNAPSHOT) },
     build: {
       // Never inline scripts into the HTML, so the Content-Security-Policy (public/_headers) can
       // say `script-src 'self'` without 'unsafe-inline'.

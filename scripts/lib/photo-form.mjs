@@ -4,24 +4,26 @@
 //   GET  /__photos/status    { categories: { <slug>: { count, max, next } } }   what the form needs to start
 //   POST /__photos/analyze   multipart `photo`        -> { id, width, height, camera, inCategories }
 //   POST /__photos/add       multipart `photo`, `title`, `titleEs`, `category`, `order`, `featured`, `camera`
-//                                                     -> { path, entry, id, width, height, camera, order }
-//   GET  /__photos/entry?category=&id=                the same description of an entry already written
-//                                                     (the dev server reloads the page when an entry appears,
-//                                                     and the page asks again to show what was added)
+//                                                     -> { path, key, entry, id, width, height, camera, order }
 //
 // The form never invents anything the photo can tell it: the id (a hash of the file), the size as displayed
 // and the camera line all come from the file, through the same code `npm run photos:add` uses (addPhoto),
 // so a photo added here and one added from the command line are indistinguishable.
 //
-// The endpoints write into the project and upload with the owner's Cloudflare login, so they are for the
-// owner's own machine only: they exist only in `astro dev`, answer only requests addressed to localhost,
-// and refuse a POST that does not come from the page itself (a web page open in another tab cannot use them).
+// The entries live in R2 (see entry-sync.mjs) and `contentDir` is their local mirror: with `sync`, every request
+// first brings the mirror up to date, and adding a photo publishes its entry, so it is on the site (which reads
+// the manifest when a page is requested) as soon as the answer arrives.
+//
+// The endpoints upload with the owner's Cloudflare login, so they are for the owner's own machine only: they
+// exist only in `astro dev`, answer only requests addressed to localhost, and refuse a POST that does not come
+// from the page itself (a web page open in another tab cannot use them).
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { CATEGORIES } from '../../src/config/categories.ts';
-import { PHOTO_ID_PATTERN } from '../../src/config/photos.ts';
+import { entryKey } from '../../src/config/photo-manifest.ts';
+import { pullEntries, pushEntries } from './entry-sync.mjs';
 import { addPhoto, analyzePhoto, entryPath, listEntries } from './photos.mjs';
 import { readCameraLine } from './exif.mjs';
 
@@ -111,30 +113,21 @@ async function analyze({ request, contentDir, categories }) {
   return json(200, { id, width, height, camera: (await readCameraLine(buffer)) ?? null, inCategories });
 }
 
-/** What the form shows about an entry: where it is, its text, and the values it was given. */
+/** What the form shows about an entry it wrote: where it is (in the mirror and in R2), its text, and its values. */
 async function describeEntry(contentDir, category, id) {
   const file = entryPath(contentDir, category, id);
   const entry = (await listEntries(contentDir)).find((e) => e.file === file);
-  if (!entry) return null;
   return {
-    path: entryPath('.', category, id), // relative to src/content/photos
+    path: entryPath('.', category, id), // relative to the mirror
+    key: entryKey(category, id), // in the web bucket
     entry: await readFile(file, 'utf-8'),
     id,
-    order: entry.data.order ?? 0,
-    camera: entry.data.camera ?? null,
+    order: entry?.data.order ?? 0,
+    camera: entry?.data.camera ?? null,
   };
 }
 
-async function existing({ url, contentDir, categories }) {
-  const category = url.searchParams.get('category') ?? '';
-  const id = url.searchParams.get('id') ?? '';
-  if (!categories.includes(category) || !PHOTO_ID_PATTERN.test(id)) throw new FormError(400, 'bad-request', 'Give a configured category and a 16-character photo id.');
-  const described = await describeEntry(contentDir, category, id);
-  if (!described) throw new FormError(404, 'not-found', `No entry for ${id} in ${category}.`);
-  return json(200, described);
-}
-
-async function add({ request, contentDir, storage, categories }) {
+async function add({ request, contentDir, storage, categories, publish, log }) {
   const { form, buffer } = await readForm(request);
   const title = text(form, 'title');
   const category = text(form, 'category');
@@ -150,7 +143,7 @@ async function add({ request, contentDir, storage, categories }) {
   // `camera` sent (even empty) is the owner's decision; not sent, the photo's own EXIF is used.
   const camera = form.has('camera') ? text(form, 'camera') : undefined;
   const result = await withFile(buffer, (source) =>
-    addPhoto({ source, category, title, titleEs: text(form, 'titleEs') || undefined, camera, order, featured: text(form, 'featured') === 'true', contentDir, storage, keepSource: true, categories })
+    addPhoto({ source, category, title, titleEs: text(form, 'titleEs') || undefined, camera, order, featured: text(form, 'featured') === 'true', contentDir, storage, keepSource: true, categories, publish, log })
   ).catch((error) => {
     if (/already exists/.test(error.message)) throw new FormError(409, 'duplicate', error.message);
     throw error;
@@ -162,13 +155,18 @@ async function add({ request, contentDir, storage, categories }) {
  * Answers a request for the New Photo form, or returns null when it is not one of its addresses.
  * One photo is added at a time, so two quick submissions can never be handed the same order.
  */
-export function createPhotoFormHandler({ contentDir, storage, categories = CATEGORIES.map((c) => c.slug), log = () => {} }) {
+export function createPhotoFormHandler({ contentDir, storage, sync = false, categories = CATEGORIES.map((c) => c.slug), log = () => {} }) {
   let queue = Promise.resolve();
   const inTurn = (work) => {
     const turn = queue.then(work, work);
     queue = turn.catch(() => {});
     return turn;
   };
+  // With `sync` the mirror is brought up to date before anything reads it, and a new entry is published.
+  const refresh = async () => {
+    if (sync) await pullEntries({ contentDir, storage, log });
+  };
+  const publish = sync ? () => pushEntries({ contentDir, storage, log }) : undefined;
 
   return async function handle(request) {
     const url = new URL(request.url);
@@ -178,13 +176,20 @@ export function createPhotoFormHandler({ contentDir, storage, categories = CATEG
       assertOwnPage(request, url);
       switch (route) {
         case 'GET status':
-          return json(200, { categories: await categoryOrders(contentDir, categories) });
-        case 'GET entry':
-          return await existing({ url, contentDir, categories });
+          return await inTurn(async () => {
+            await refresh();
+            return json(200, { categories: await categoryOrders(contentDir, categories) });
+          });
         case 'POST analyze':
-          return await analyze({ request, contentDir, categories });
+          return await inTurn(async () => {
+            await refresh();
+            return analyze({ request, contentDir, categories });
+          });
         case 'POST add':
-          return await inTurn(() => add({ request, contentDir, storage, categories, log }));
+          return await inTurn(async () => {
+            await refresh();
+            return add({ request, contentDir, storage, categories, publish, log });
+          });
         default:
           throw new FormError(404, 'not-found', 'Not found.');
       }

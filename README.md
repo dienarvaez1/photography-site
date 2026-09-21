@@ -41,12 +41,15 @@ The browser tests need Chromium once: `npx playwright install chromium`. They st
 network call — R2 photos, Web3Forms, Cloudflare's location lookup — so they never touch the
 internet and can never send you a real message. CI runs both suites on every push.
 
-`npm test` builds the site once (`npm run build`), then checks the actual built output — the
-same static files that get deployed — against twenty-two areas. **Every page-level check runs
+`npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
+(`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
+tests bake in sample photos instead), then checks that built output against twenty-four areas. The
+production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
 
-- **`content-integrity.feature`** — every entry is `<category>/images/<photo id>.md` (file name = its
+- **`content-integrity.feature`** — (on the sample library; the real entries are checked by `photos:verify`)
+  every entry is `<category>/images/<photo id>.md` (file name = its
   photo id), references its photo in R2 by a valid id and size, has no `exif`/`copyright` field (only
   `camera`), no GPS/serial data, and no photo files are stored in the repo; the site code never
   processes photos or calls R2 at build time; no duplicate photos within a category; frontmatter only
@@ -91,6 +94,14 @@ against every page in both English and Spanish**; expected text is read from
   `<category>/images/<photo id>.md` for every configured category, entries can be referred to by id,
   title or path, removed options (`--copyright`, `--slug`) are rejected, and bad input (e.g. an unknown
   category) is refused before anything is uploaded, created or deleted.
+- **`entry-sync.feature`** — the entries in R2 and their local mirror, through the real commands and a fake R2:
+  adding, replacing, removing and filling in a camera line publish the entry's `.md` and the manifest
+  (the `.md` first, the manifest last; on a removal or replacement the manifest changes *before* any photo file is
+  deleted, so the site never lists a photo whose files are gone); an unchanged library writes nothing; a manifest
+  that cannot be stored leaves the site as it was and keeps the local photo file; pulling gives a fresh folder every
+  entry as the same text the tools write, picks up entries added or removed elsewhere, and refuses to overwrite
+  changes never published (`--force` does); pushing publishes hand edits; `verify` also checks each entry's file;
+  a manifest with an unusable entry is refused rather than silently losing it; and the manifest's format.
 - **`photo-exif.feature`** — the camera line built from real JPEGs' EXIF: formatting rules, what is
   (and is never) stored, overrides, replace behaviour, and filling in missing camera lines.
 - **`localization.feature`** — locale files define identical keys, hreflang (`en`/`es`/`x-default`),
@@ -143,7 +154,7 @@ against every page in both English and Spanish**; expected text is read from
   and a temporary content folder: a photo is read for its id, its size as displayed (rotation applied) and its
   camera line, uploading and writing nothing; the order suggested is one past the highest in the category (not
   the count; 1 for an empty category), a typed order wins and two photos sent at once get different orders;
-  the entry is written exactly like the site's others (the same text, in `<category>/images/<photo id>.md`), the
+  the entry is written exactly like the site's others (the same text, in `<category>/images/<photo id>.md` in the local mirror, and published to R2), the
   original goes to the private bucket byte for byte and every web size to the public one; an edited or emptied
   camera line is respected; the same photo can join another category but not the same one twice; a PNG, a
   text file, a missing title, an unknown category, a bad order or an over-large upload is refused with
@@ -151,6 +162,15 @@ against every page in both English and Spanish**; expected text is read from
   it is added to the dev server only and never built into the site; the built pages offer every category in
   the page's language; the messages match in English and Spanish; and the form's code only talks to its own
   service, writes text (never HTML) and never sends the admin token.
+- **`site-render.feature`** — the production build in the real Workers runtime (workerd, via `wrangler dev`) over a
+  local copy of the web bucket that is changed while the site runs: the home, category and Admin pages are left to the
+  Worker (and listed in the sitemap) while about, contact and the error pages are built; category pages list the
+  bucket's photos in order, in the right language, from the public photo address; the home page shows featured photos
+  and a cover per category; **a photo published to the bucket is on the site at once, and gone once removed, with no
+  build and no deploy**; a missing, unreadable or wrong-version manifest is a 500, never an empty gallery; one unusable
+  entry is skipped; unknown addresses get the localized 404 page with a real 404 status; `/work/astro` redirects to
+  `/work/astro/`; and pages the Worker renders carry the security headers of `public/_headers` (Cloudflare applies that
+  file to files only), are never cached, and pass the same HTML, SEO and no-inline-script checks.
 - **Idle sign-out** — (in `admin.feature`) the timeout is 5 minutes, configured in one place and documented,
   which events count as being there, the reminder is translated with the minutes filled in from the
   configuration, and the built pages contain the timeout.
@@ -226,7 +246,8 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
 
 Add new scenarios in `features/*.feature` (or `features/browser/` with `@browser`) and their step
 definitions in `features/step_definitions/`; shared helpers live in `features/support/`
-(`lib.js` for built HTML, `static-server.js`, `browser.js`, `photo-helpers.js`, `memory-storage.js`).
+(`lib.js` for built HTML, `static-server.js`, `browser.js`, `site-worker.js` for the production site in workerd,
+`photo-helpers.js`, `memory-storage.js`).
 `test-fixtures/` holds the tiny suites the results tests run for real.
 
 ## Test results in R2
@@ -276,12 +297,18 @@ smoke check stores its result the same way.
 
 ## Photos (stored in Cloudflare R2)
 
-Photos are **not** stored in this repo or on your disk. Each photo is one small Markdown file in
-git that points at its photo in R2. The file is named after the photo's id, so it maps 1:1 to its
-objects in R2 (`photos/<id>/...`):
+Photos **and their entries** live in Cloudflare R2 — nothing about a photo is in git, and showing a new photo needs
+**no commit, no build and no deploy**. The site renders its home, category and Admin pages *when they are requested*,
+reading the entries from R2, so a photo is on the site as soon as its entry is published (within a few seconds:
+each running Worker keeps the entries for 10 seconds). Only the pages that show no photos (About, Contact, the error
+pages) are built as static files.
+
+Each photo has one small Markdown **entry** in the public web bucket, named after the photo's id, so it maps 1:1 to
+the photo's objects (`photos/<id>/...`); next to them is a **manifest** listing every entry, which is what the site reads:
 
 ```text
-src/content/photos/<category>/images/<photo id>.md      e.g. nature/images/b997ba44c64e5158.md
+photography-site-web/photos/<category>/<photo id>.md   e.g. nature/b997ba44c64e5158.md   (one per entry)
+photography-site-web/photos/index.json                 every entry's data in one sorted file (the site reads this)
 ```
 
 ```md
@@ -304,16 +331,33 @@ That is every field an entry has. There is no `exif:` block and no `copyright:` 
 line is the one piece of EXIF that is kept, because it is shown with each picture (see "Camera line"
 below).
 
-The `.md` holds no URL — the site builds URLs from `photo.id` and the base URL in
+The entry holds no URL — the site builds URLs from `photo.id` and the base URL in
 `src/config/photos.ts`, so moving to a custom domain later is a one-line change.
 
 | Bucket                       | Access  | Holds                                               |
 | :--------------------------- | :------ | :-------------------------------------------------- |
 | `photography-site-originals` | private | `photos/<id>/original.jpg` — your full-resolution file |
-| `photography-site-web`       | public (r2.dev) | `photos/<id>/{w400,thumb,cover,w1000,full}.webp` — the sizes the site shows (400 / 700 / 900 / 1000 / 2000 px wide) |
+| `photography-site-web`       | public (r2.dev) | `photos/<id>/{w400,thumb,cover,w1000,full}.webp` — the sizes the site shows (400 / 700 / 900 / 1000 / 2000 px wide); `photos/<category>/<id>.md` and `photos/index.json` — the entries |
 
 Keys are content-addressed, so a changed photo always gets a new id and web files are cached
-forever (`immutable`). Your originals are never publicly reachable.
+forever (`immutable`). Your originals are never publicly reachable. The entries and the manifest change, so they
+are stored with `Cache-Control: no-cache`. (The entries are public, like the pages that show them: title, category,
+order and camera line.)
+
+### How the site reads them
+
+`wrangler.jsonc` gives the Worker a binding, `WEB`, to the web bucket. A request for a page that shows photos makes
+the Worker read `photos/index.json` (one read; kept for 10 seconds by each running Worker) and render the page from it
+(`src/lib/photo-entries.ts`). Because Cloudflare's `_headers` file only applies to files, `src/middleware.ts` gives
+those pages the same security headers, redirects `/work/nature` to `/work/nature/`, and serves the localized 404 page.
+
+- **A missing or unreadable manifest is an error (a 500 page), never an empty gallery.** One entry the site cannot use
+  is skipped (and logged); the rest still show.
+- **In `npm run dev`** the pages read the same manifest over the bucket's public address, so you see your real photos.
+- **Adding a category:** the pages find its photos by `category`; nothing else to do (see "Adding a new category").
+- **The tests** build the site as static pages from the sample library in `test-fixtures/photos`
+  (`PHOTOS_SNAPSHOT=1`), and run the real production build in workerd against a local bucket
+  (`site-render.feature`).
 
 ### Workflow
 
@@ -321,36 +365,46 @@ All commands use your existing `wrangler login` — no extra keys. (You can also
 **New Photo form** while `npm run dev` is running: see *Admin page → Pics Viewer tab*.)
 
 ```sh
-# Add a photo: uploads it, checks it arrived, reads the camera line from its EXIF, writes
-# <category>/images/<photo id>.md, and deletes your local file.
+# Add a photo: uploads it, checks it arrived, reads the camera line from its EXIF, publishes its entry
+# (photos/<category>/<photo id>.md and the manifest), and deletes your local file. It is on the site now.
 # --category must be a slug from src/config/categories.ts (a typo is refused, nothing is created).
 npm run photos:add -- ~/Desktop/rockfish.jpg --category nature --title "Rockfish" --title-es "Pez roca" --order 3
 #   --camera "..." overrides the camera line built from EXIF
 
-npm run photos:replace -- rockfish ~/Desktop/rockfish-v2.jpg   # new photo; the file is renamed to the new id
+npm run photos:replace -- rockfish ~/Desktop/rockfish-v2.jpg   # new photo; the entry moves to the new id
 npm run photos:remove  -- rockfish                             # entry + its R2 files
 npm run photos:camera                                          # fill in camera lines that are missing
-npm run photos:verify                                          # is every entry's photo in R2?
+npm run photos:verify                                          # is every entry's photo and entry file in R2?
 npm run photos:verify -- --deep                                # also re-download originals and check hashes
 npm run photos:sync                                            # rebuild missing web sizes from the original in R2
+npm run photos:pull                                            # make the local mirror match R2 (--force discards local edits)
+npm run photos:push                                            # publish the mirror (after editing an entry by hand)
 ```
 
 An `<entry>` (in `replace`, `remove`, `camera`) is its photo id, its title, or the path to its `.md`.
 
-Then commit the `.md` (and deploy as usual). What keeps entry and R2 in sync:
+**The local mirror.** The commands work on a folder of `.md` files, `.photo-entries/` (git-ignored), which is only a
+mirror of R2: every command first makes it match R2 (`pull`) and, if it changes an entry, publishes it (`push`). To
+change an entry by hand, run `photos:pull`, edit the `.md` in `.photo-entries/<category>/images/`, then run
+`photos:push`. A pull refuses to overwrite edits that were never pushed (`--force` discards them). One machine at a
+time: two computers changing entries at once could overwrite each other's manifest.
+
+What keeps entry and R2 in sync:
 
 - **Order of operations:** upload → read the original back and compare its hash → confirm the web
-  sizes are served → *only then* write the `.md` → *only then* delete your local file. A failure at
-  any point leaves no `.md` pointing at missing files and never removes your only copy.
-- **Replace / remove** delete the old photo's R2 files, unless another entry uses the same photo.
-  Replace also renames the entry's file to the new photo id.
-- Adding the same photo to the same category twice is refused (the file name would be identical).
-- **`photos:verify`** is read-only and exits 1 if anything is missing — run it before deploying.
-  It needs network; `npm run build` and `npm test` never do.
+  sizes are served → *only then* publish the entry (its `.md`, then the manifest, which is what makes the photo
+  appear) → *only then* delete your local file. A failure at any point leaves no entry pointing at missing files
+  and never removes your only copy.
+- **Replace / remove** publish the change *first* and only then delete the old photo's R2 files (unless another entry
+  uses the same photo), so the live site never lists a photo whose files are gone.
+- Adding the same photo to the same category twice is refused (the entry's name would be identical).
+- **`photos:verify`** is read-only and exits 1 if anything is missing (including an entry's `.md`) — run it before
+  deploying. It needs network; `npm run build` and `npm test` never do.
 - **`photos:sync`** is the repair tool, e.g. after changing `PHOTO_VARIANTS` widths.
 - **`photos:camera`** fills in a *missing* camera line from the original in R2 (all entries, or one:
   `photos:camera rockfish`). An entry that already has a camera line is never touched.
 - The same file added twice gets the same id, so uploads are idempotent and shared safely.
+
 ### Camera line
 
 When a photo is added (or replaced), the camera line is built from its EXIF: camera, lens, focal
@@ -359,8 +413,8 @@ length, aperture, shutter speed and ISO — like
 when you hover a picture.
 
 - **Only the camera line is stored.** No `exif:` block, no `copyright:`, no dates. **GPS position,
-  serial numbers, the artist name and the copyright are never read**, because the `.md` files are
-  committed to git. The original in R2 keeps all of its EXIF untouched.
+  serial numbers, the artist name and the copyright are never read**, because the entries are public.
+  The original in R2 keeps all of its EXIF untouched.
 - **Overrides:** `--camera "..."` on `photos:add` / `photos:replace` sets the line by hand (say, to add
   `+ TC-2.0x`). On `replace` the line is `--camera`, else the new photo's EXIF, else the entry's
   existing line — a camera line is never lost.
@@ -368,13 +422,14 @@ when you hover a picture.
 
 ### Notes on R2
 
-- R2 can't be listed with wrangler, so the `.md` files are the source of truth. Files in R2 that no
-  `.md` references (only possible if you delete objects by hand) aren't detected; remove photos with
-  `photos:remove`, not the dashboard.
+- R2 can't be listed with wrangler, so the **manifest is the registry** of entries. Files in R2 that the manifest
+  doesn't list (only possible if you delete or add objects by hand) aren't detected; use the commands, not the dashboard.
+- **Back up the entries.** They are no longer in git history. `photos:pull` gives you a copy in `.photo-entries/`; copy
+  that folder somewhere safe now and then (the photos themselves are already in R2).
 
-Builds and `npm test` need **no network access to R2** (and no photo files): the build only reads
-the `.md` files and writes plain `<img>` URLs. The tests prove this by checking the site code never
-processes photos or calls R2, and `photo-storage.feature` runs the whole workflow against a fake R2.
+Builds and `npm test` need **no network access to R2** (and no photo files): the production build never reads an entry
+(it is the Worker that does, per request), and the tests use a fake R2 (`photo-storage.feature`, `entry-sync.feature`)
+or a local one (`site-render.feature`). The tests also prove the site code never processes photos at build time.
 
 Notes:
 
@@ -390,9 +445,9 @@ Notes:
 ### Adding a new category
 
 Add an entry to `CATEGORIES` in `src/config/categories.ts` (slug, optional `hidden`), add its
-`label` and `description` under `categories` in **every** locale file (`src/i18n/*.json`), then
-create a matching `src/content/photos/<slug>/` folder with photo entries. Navigation, routing
-(`/work/<slug>/`), and the homepage category grid all pick it up automatically.
+`label` and `description` under `categories` in **every** locale file (`src/i18n/*.json`), and deploy once
+(the category's page and menu entry are part of the site). Then add photos with it (`--category <slug>`). Navigation,
+routing (`/work/<slug>/`), and the homepage category grid all pick it up automatically.
 
 ## Languages (English / Spanish)
 
@@ -584,7 +639,8 @@ Press **Upload Photos** and a form opens above the list. It does what `npm run p
    category), and updated when you change the category. Type your own number to keep it. Lower numbers show first.
 
 **Add photo** uploads the original to the private originals bucket (`photos/<id>/original.jpg`) and the web
-sizes to the public bucket, checks they arrived, and writes `src/content/photos/<category>/images/<photo id>.md`, e.g.
+sizes to the public bucket, checks they arrived, and **publishes the entry to R2** (`photos/<category>/<photo id>.md`
+and the manifest), e.g.
 
 ```yaml
 ---
@@ -602,11 +658,13 @@ order: 3
 ---
 ```
 
-The form shows the entry it wrote. **Commit the new `.md` and deploy to publish the photo** (the photo is in R2 already).
+The form shows the entry it published. **The photo is on the site now** — nothing to commit or deploy (pages may take
+a few seconds to show it).
 The same photo can be in more than one category, but not twice in the same one; only JPEGs are accepted (up to 100 MB).
 
 **It only works on your own computer, in `npm run dev`.** Adding a photo needs your Cloudflare login (`wrangler login`,
-the same as `photos:add`) and writes into your project, so the form's service (`/__photos/`, in
+the same as `photos:add`), and it works on the local mirror of the entries (`.photo-entries/`, brought up to date from
+R2 before each request), so the form's service (`/__photos/`, in
 `scripts/lib/photo-form.mjs`) is added to the dev server only: the build never includes it, and on the deployed
 site the form says it only works while the site runs on your computer. Even in dev it answers only on `localhost`
 and only requests coming from its own page (a page open in another tab cannot use it).
@@ -656,8 +714,10 @@ viewer and are opened only by you, may have 30 KB of scripts). If you change `PH
 
 ## Deployment to Cloudflare Pages (free)
 
-This is a fully static site (`output: "static"`), which fits Cloudflare Pages' free tier:
-unlimited requests/bandwidth, 500 builds/month, no cost until you outgrow it.
+The site is deployed as a Cloudflare Worker with static assets (`npm run deploy`). Its About, Contact and error pages
+are static files; the home, category and Admin pages are rendered by the Worker when requested, from R2 (see
+"Photos"), which stays within Cloudflare's free tier for a portfolio's traffic (100,000 Worker requests a day).
+Adding photos never needs a deploy.
 
 **Recommended: connect the GitHub repo (auto-deploys on every push)**
 
@@ -705,14 +765,14 @@ src/
 ├── config/
 │   ├── categories.ts   # category taxonomy (add new categories here)
 │   ├── photos.ts       # R2 buckets, public photo URL, web sizes, srcset helper, key layout
+│   ├── photo-manifest.ts # where entries live in R2, the manifest format and its checks
 │   ├── results.ts      # the results API's address and the origins it accepts
 │   ├── site.ts         # language-independent site facts (URL, email, address)
 │   └── web3forms.ts    # which Web3Forms key each language's form uses
-├── content/
-│   └── photos/<category>/images/   # one <photo id>.md per photo (the photo itself is in R2)
-├── content.config.ts   # photo content collection schema
+├── content.config.ts   # the entry schema, and the sample-library collection the tests build from
+├── middleware.ts       # security headers, trailing slashes and the 404/500 pages for pages rendered on request
 ├── components/         # Header, Footer, Gallery (lightbox), SEO (+JSON-LD), CategoryCard, GeoRedirect
-├── lib/                # the Admin viewers: admin-common, results-view/-viewer, pics-view/-viewer; logging
+├── lib/                # photo-entries (reads the manifest from R2), the Admin viewers: admin-common, results-view/-viewer, pics-view/-viewer; logging
 ├── i18n/               # en.json, es.json, helpers, and geo.ts (location-based default language)
 ├── layouts/
 │   └── BaseLayout.astro

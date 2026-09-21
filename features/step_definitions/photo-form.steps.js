@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { parse } from 'node-html-parser';
-import { config, lib, readEntry, sourcePath, state } from '../support/photo-helpers.js';
+import { config, lib, sourcePath, state } from '../support/photo-helpers.js';
 import { DIST_DIR, ROOT } from '../support/lib.js';
 
 const form = await import(join(ROOT, 'scripts/lib/photo-form.mjs'));
@@ -22,7 +22,7 @@ const SITE = 'http://localhost:4321';
 /** The service, over this scenario's temporary content folder and fake R2. */
 function service(world) {
   const s = state(world);
-  s.service ??= form.createPhotoFormHandler({ contentDir: s.contentDir, storage: s.storage });
+  s.service ??= form.createPhotoFormHandler({ contentDir: s.contentDir, storage: s.storage, sync: Boolean(s.sync) });
   return s.service;
 }
 
@@ -161,19 +161,11 @@ Then("the form's message should mention {string}", function (fragment) {
   assert.ok(answer(this).body.message.includes(fragment), answer(this).body.message);
 });
 
-Then('the form should answer with the written entry, identical to the file, and its path under the content folder', async function () {
+Then('the form should answer with the written entry, identical to the file, and where it is', async function () {
   const { body } = answer(this);
   assert.equal(body.path, `astro/images/${body.id}.md`);
+  assert.equal(body.key, `photos/astro/${body.id}.md`, 'where the entry is in the web bucket');
   assert.equal(await readFile(join(state(this).contentDir, body.path), 'utf-8'), body.entry);
-});
-
-When('I ask the form for the entry written for {string}', async function (ref) {
-  const { category, photo } = await readEntry(this, ref);
-  await send(this, 'GET', `${SITE}/__photos/entry?category=${category}&id=${photo.id}`);
-});
-
-When('I ask the form for the entry of the category {string} and the photo id {string}', async function (category, id) {
-  await send(this, 'GET', `${SITE}/__photos/entry?category=${encodeURIComponent(category)}&id=${encodeURIComponent(id)}`);
 });
 
 Then('the stored original should be byte for byte the photo that was sent', function () {

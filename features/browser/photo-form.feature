@@ -197,48 +197,6 @@ Feature: The Admin page's New Photo form adds a photo from its own metadata, in 
     And the order hint should say "The highest order in Astrophotography is 5, so the next is 6."
     And the form should show no photo id
 
-  # The dev server reloads the page as soon as a new entry appears: what was added must still be on screen afterwards.
-
-  Scenario: After the dev server reloads the page, the form still shows what was added
-    When I open "/admin/#pics-viewer"
-    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I click the "Upload Photos" button
-    And I choose the photo "moon.jpg" in the form
-    And I fill in the form's "Title" with "Half Moon"
-    And I choose the category "Astrophotography" in the form
-    And I click the "Add photo" button
-    And the New Photo form should say "Added “Half Moon” to Astrophotography as number 5."
-    And I reload the page
-    Then the New Photo form should say "Added “Half Moon” to Astrophotography as number 5."
-    And the form should show the entry it wrote, as the site's other entries look
-    And the Pics Viewer should say "2 original photos"
-
-  Scenario: If the reload comes before the service's answer, the form still shows what was written
-    Given the photo "moon.jpg" was added as "Half Moon" to "astro" with order 5 without the page hearing back
-    When I open "/admin/#pics-viewer"
-    Then the New Photo form should say "Added “Half Moon” to Astrophotography as number 5."
-    And the form should show the entry it wrote, as the site's other entries look
-
-  Scenario: Closing the form forgets what was added
-    Given the photo "moon.jpg" was added as "Half Moon" to "astro" with order 5 without the page hearing back
-    When I open "/admin/#pics-viewer"
-    And I click the "Close" button
-    And I reload the page
-    Then there should be exactly 0 New Photo forms
-    And the tab should no longer remember a photo being added
-
-  Scenario Outline: A photo that was not really added, or long ago, is dropped without a word
-    Given the tab remembers <what>
-    When I open "/admin/#pics-viewer"
-    Then the Pics Viewer should say "2 original photos"
-    And there should be exactly 0 New Photo forms
-    And the tab should no longer remember a photo being added
-
-    Examples:
-      | what                                                                     |
-      | a photo "Ghost" that was just added to "astro" but has no entry          |
-      | a photo "Half Moon" that was added to "astro" 3 minutes ago              |
-
   Scenario: A photo that is already in the chosen category cannot be added again
     Given I have added "moon.jpg" to the category "astro" with the title "Half Moon" and order 3 and the option to keep the source
     When I open "/admin/#pics-viewer"

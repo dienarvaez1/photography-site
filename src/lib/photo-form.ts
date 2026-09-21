@@ -2,37 +2,19 @@
 // and the form reads what the photo itself knows (its id, size and camera line) through the local photo
 // service; they add a title, a category and an order (suggested as one past the highest in the category, and
 // updated when the category changes), and the service uploads the photo to R2 and writes its entry, exactly as
-// `npm run photos:add` does. See scripts/lib/photo-form.mjs.
+// `npm run photos:add` does, publishing its entry to R2 so the site shows it at once (no commit, no deploy).
+// See scripts/lib/photo-form.mjs.
 //
-// The service exists only in `astro dev` (it needs the owner's Cloudflare login and writes into the project),
-// so on the deployed page the form says so instead of failing. Every answer is put on the page as text.
-import { el, storage, type Reader } from './admin-common';
+// The service exists only in `astro dev` (it needs the owner's Cloudflare login to upload), so on the deployed
+// page the form says so instead of failing. Every answer is put on the page as text.
+import { el, type Reader } from './admin-common';
 
 export type FormCategory = { slug: string; label: string };
 type Order = { count: number; max: number; next: number };
 type Analysis = { id: string; width: number; height: number; camera: string | null; inCategories: string[] };
-type Added = { path: string; entry: string; id: string; order: number; camera: string | null };
+type Added = { path: string; key: string; entry: string; id: string; order: number; camera: string | null };
 
 const SERVICE = '/__photos';
-
-// The dev server reloads the page as soon as a new entry appears, which would wipe the confirmation (or even come
-// before the service's answer). So the form remembers, for this tab, that it is adding a photo, and after a reload
-// asks the service what was written and shows that.
-const JUST_ADDED_KEY = 'admin-photo-added';
-const JUST_ADDED_MS = 2 * 60 * 1000;
-export type JustAdded = { id: string; title: string; category: string; at: number };
-
-export function readJustAdded(): JustAdded | null {
-  try {
-    const found = JSON.parse(storage.get(JUST_ADDED_KEY) ?? 'null');
-    const fresh = found && Date.now() - found.at < JUST_ADDED_MS && Date.now() >= found.at;
-    return fresh && typeof found.id === 'string' && typeof found.title === 'string' && typeof found.category === 'string' ? found : null;
-  } catch {
-    return null;
-  }
-}
-
-export const forgetJustAdded = () => storage.set(JUST_ADDED_KEY, null);
 
 class ServiceError extends Error {
   constructor(readonly code: string, message = '') {
@@ -76,11 +58,8 @@ export function photoForm(options: {
   categories: FormCategory[];
   onAdded: () => void;
   onClose: () => void;
-  /** After a reload: show what was just added (`onGone` when the service knows of no such entry). */
-  resume?: JustAdded;
-  onGone?: () => void;
 }): HTMLElement {
-  const { m, categories, onAdded, onClose, resume, onGone } = options;
+  const { m, categories, onAdded, onClose } = options;
   const t = (key: string, values?: Record<string, string | number>) => m(`pics.form.${key}`, values);
   const labelOf = (slug: string) => categories.find((c) => c.slug === slug)?.label ?? slug;
 
@@ -92,10 +71,7 @@ export function photoForm(options: {
 
   const closeButton = () => {
     const button = el('button', { class: 'results-button', text: t('close'), attrs: { type: 'button', 'data-action': 'close-form' } });
-    button.addEventListener('click', () => {
-      forgetJustAdded();
-      onClose();
-    });
+    button.addEventListener('click', onClose);
     return button;
   };
 
@@ -117,20 +93,7 @@ export function photoForm(options: {
       }
     );
   }
-  /** After a reload: what the service wrote for the photo that was being added. */
-  function showAddedBeforeReload({ id, title, category }: JustAdded) {
-    body.replaceChildren(el('p', { class: 'results-loading', text: t('checking') }));
-    call<Added>(`/entry?category=${encodeURIComponent(category)}&id=${encodeURIComponent(id)}`).then(
-      (added) => renderDone(added, title, category),
-      () => {
-        forgetJustAdded();
-        (onGone ?? onClose)();
-      }
-    );
-  }
-
-  if (resume) showAddedBeforeReload(resume);
-  else start();
+  start();
 
   // --- The form ----------------------------------------------------------------------------------------------------------------
 
@@ -253,13 +216,11 @@ export function photoForm(options: {
       upload.set('camera', camera.value.trim());
       submit.disabled = true;
       status.textContent = t('submitting');
-      storage.set(JUST_ADDED_KEY, JSON.stringify({ id: analysis.id, title: title.value.trim(), category: category.value, at: Date.now() }));
       try {
         const added = await call<Added>('/add', { method: 'POST', body: upload });
         renderDone(added, title.value.trim(), category.value);
         onAdded();
       } catch (error) {
-        forgetJustAdded();
         status.textContent = '';
         submit.disabled = false;
         showProblem(problem, error, category.value);
@@ -274,16 +235,13 @@ export function photoForm(options: {
 
   function renderDone(added: Added, photoTitle: string, category: string) {
     const another = el('button', { class: 'results-button primary', text: t('another'), attrs: { type: 'button', 'data-action': 'add-another' } });
-    another.addEventListener('click', () => {
-      forgetJustAdded();
-      start(); // a fresh form, with the order suggestions read again
-    });
+    another.addEventListener('click', start); // a fresh form, with the order suggestions read again
     const done = el('div', { class: 'photo-form-done', attrs: { tabindex: '-1', role: 'status' } },
       el('p', { class: 'results-notice', text: t('added', { title: photoTitle, category: labelOf(category), order: added.order }) }),
-      el('p', { text: t('written', { path: `src/content/photos/${added.path}` }) }),
+      el('p', { text: t('published', { key: added.key }) }),
       // A scrollable region must be reachable by keyboard, and named.
       el('pre', { class: 'photo-form-entry', text: added.entry, attrs: { tabindex: '0', role: 'region', 'aria-label': t('entryLabel') } }),
-      el('p', { class: 'results-hint', text: t('commitNote') }),
+      el('p', { class: 'results-hint', text: t('liveNote') }),
       el('div', { class: 'photo-form-buttons' }, another, closeButton()));
     body.replaceChildren(done);
     done.focus();
