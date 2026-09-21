@@ -2,8 +2,10 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { entryFile, findEntry, lib, readEntry, state } from '../support/photo-helpers.js';
+import matter from 'gray-matter';
+import { config, entryFile, findEntry, lib, readEntry, sourcePath, state } from '../support/photo-helpers.js';
 import { ROOT } from '../support/lib.js';
+import { pushEntries } from '../../scripts/lib/entry-sync.mjs';
 import { join } from 'node:path';
 
 const manifestModule = await import(join(ROOT, 'src/config/photo-manifest.ts'));
@@ -77,12 +79,12 @@ Then('R2 should hold no manifest', function () {
 });
 
 Then('R2 should hold no entry file for {string}', function (category) {
-  assert.deepEqual([...web(this).keys()].filter((key) => key.startsWith(`photos/${category}/`)), []);
+  assert.deepEqual([...web(this).keys()].filter((key) => key.startsWith(`photos/categories/${category}/`)), []);
 });
 
 Then('the entry {string} should be in R2 as its own .md file, identical to the local file', async function (ref) {
   const { category, photo } = await readEntry(this, ref);
-  const object = web(this).get(`photos/${category}/${photo.id}.md`);
+  const object = web(this).get(`photos/categories/${category}/${photo.id}.md`);
   assert.ok(object, 'the entry file is in the web bucket');
   assert.equal(object.body.toString('utf-8'), await readFile(await entryFile(this, ref), 'utf-8'));
   assert.equal(object.contentType, 'text/markdown; charset=utf-8');
@@ -148,4 +150,122 @@ Then('the local entry {string} should read exactly what its R2 data serialises t
 Given('the local entry {string} is edited to have order {int}', async function (ref, order) {
   const entry = await findEntry(this, ref);
   await lib.writeEntry(entry.file, { ...entry.data, order }, entry.body);
+});
+
+// --- Where an uploaded photo's files end up ---------------------------------------------------------------------------------
+
+const originals = (world) => state(world).storage.objects.originals;
+const IMMUTABLE = 'public, max-age=31536000, immutable';
+const idOf = (bytes) => createHash('sha256').update(bytes).digest('hex').slice(0, 16);
+
+/** The entries named like "astro/half-moon" (category/title slug), as { category, id, data } from the local mirror. */
+async function entriesOf(world, list) {
+  return Promise.all(list.split(', ').map(async (ref) => {
+    const data = await readEntry(world, ref);
+    return { ref, category: data.category, id: data.photo.id, data };
+  }));
+}
+
+Given('I remember the bytes of the photo file {string}', async function (name) {
+  state(this).sent = await readFile(sourcePath(this, name));
+});
+
+Given('R2 works again', function () {
+  state(this).storage.faults.failPutMatching = null;
+});
+
+Then('the private originals bucket should hold exactly the originals of: {string}', async function (list) {
+  const entries = await entriesOf(this, list);
+  const expected = [...new Set(entries.map((e) => config.photoKey(e.id, 'original')))].sort();
+  assert.deepEqual([...originals(this).keys()].sort(), expected);
+  for (const object of originals(this).values()) {
+    assert.equal(object.contentType, 'image/jpeg');
+    assert.equal(object.cacheControl, IMMUTABLE);
+  }
+});
+
+Then('the public web bucket should hold exactly the web sizes, entry files and manifest of: {string}', async function (list) {
+  const entries = await entriesOf(this, list);
+  const expected = [
+    ...new Set(entries.flatMap((e) => config.photoKeys(e.id).web)),
+    ...entries.map((e) => entryKey(e.category, e.id)),
+    MANIFEST_KEY,
+  ].sort();
+  assert.deepEqual([...web(this).keys()].sort(), expected);
+  for (const [key, object] of web(this)) {
+    if (key.endsWith('.webp')) assert.deepEqual([object.contentType, object.cacheControl], ['image/webp', IMMUTABLE], key);
+    else if (key.endsWith('.md')) assert.deepEqual([object.contentType, object.cacheControl], ['text/markdown; charset=utf-8', 'no-cache'], key);
+    else assert.deepEqual([key, object.contentType, object.cacheControl], [MANIFEST_KEY, 'application/json; charset=utf-8', 'no-cache']);
+  }
+});
+
+Then('nothing but originals should be in the private originals bucket', function () {
+  for (const key of originals(this).keys()) assert.match(key, /^photos\/[0-9a-f]{16}\/original\.jpg$/, `${key} does not belong in the private bucket`);
+});
+
+Then('no original should be in the public web bucket', function () {
+  for (const key of web(this).keys()) assert.doesNotMatch(key, /original\./, `${key} must never be public`);
+});
+
+Then('every photo id in the manifest should be the hash of its original in R2', function () {
+  const { entries } = manifestIn(this);
+  assert.ok(entries.length > 0);
+  for (const entry of entries) {
+    const original = originals(this).get(config.photoKey(entry.id, 'original'));
+    assert.ok(original, `the original of ${entry.id} is in the originals bucket`);
+    assert.equal(idOf(original.body), entry.id);
+  }
+});
+
+Then('every manifest entry should equal the front matter of its entry file in R2', function () {
+  const { entries } = manifestIn(this);
+  assert.ok(entries.length > 0);
+  for (const entry of entries) {
+    const object = web(this).get(entryKey(entry.category, entry.id));
+    assert.ok(object, `${entryKey(entry.category, entry.id)} is in the web bucket`);
+    const text = object.body.toString('utf-8');
+    assert.deepEqual(matter(text).data, entry.data, `${entry.category}/${entry.id}`);
+    assert.equal(text, lib.serializeEntry(entry.data), 'the entry file is written the way the tools always write it');
+  }
+});
+
+Then('the manifest in R2 should hold exactly these entries:', function (table) {
+  const expected = table.hashes().map((row) => ({
+    title: row.title,
+    ...(row.titleEs ? { titles: { es: row.titleEs } } : {}),
+    category: row.category,
+    photo: { width: Number(row.width), height: Number(row.height) },
+    ...(row.camera ? { camera: row.camera } : {}),
+    featured: row.featured === 'true',
+    order: Number(row.order),
+  }));
+  const actual = manifestIn(this).entries.map((entry) => {
+    const { id, ...photo } = entry.data.photo;
+    assert.equal(id, entry.id, 'the entry names the photo it holds');
+    assert.equal(entry.category, entry.data.category);
+    return { ...entry.data, photo };
+  });
+  assert.deepEqual(actual, expected);
+});
+
+Then("the manifest's update time should be the time of this run", function () {
+  const { updatedAt, version } = manifestIn(this);
+  assert.equal(version, 1);
+  assert.equal(new Date(updatedAt).toISOString(), updatedAt, 'an ISO time');
+  assert.ok(Math.abs(Date.now() - Date.parse(updatedAt)) < 60_000, updatedAt);
+});
+
+Then('the public web bucket should hold no entry file and no manifest', function () {
+  assert.deepEqual([...web(this).keys()].filter((key) => key.endsWith('.md') || key === MANIFEST_KEY), []);
+});
+
+Given('the entries already in the library folder are published to R2, which the tools now work with', async function () {
+  await pushEntries({ contentDir: state(this).contentDir, storage: state(this).storage });
+  state(this).sync = true;
+});
+
+Then('the public web bucket should hold every web size of the photo of {string}, its entry file and the manifest', async function (ref) {
+  const [entry] = await entriesOf(this, ref);
+  for (const key of [...config.photoKeys(entry.id).web, entryKey(entry.category, entry.id), MANIFEST_KEY]) assert.ok(web(this).has(key), `${key} is in the web bucket`);
+  assert.equal(originals(this).has(entryKey(entry.category, entry.id)), false);
 });

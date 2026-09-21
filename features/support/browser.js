@@ -120,9 +120,9 @@ async function serveResults(b, siteOrigin, request, route) {
  * would. The browser's file uploads never reach Playwright's request interception, so the service answers
  * from the local test server itself.
  */
-export async function startPhotoService(world, { contentDir, storage }) {
+export async function startPhotoService(world, { contentDir, storage, sync = false }) {
   await shared();
-  world.b.photoService = { middleware: await photoFormMiddleware({ contentDir, storage }), requests: [] };
+  world.b.photoService = { middleware: await photoFormMiddleware({ contentDir, storage, sync }), requests: [] };
 }
 
 /** Answers /__photos/ for the scenario that is running (none: the site as deployed, which has no such service). */

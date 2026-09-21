@@ -1,7 +1,10 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"compatibility_date": "2026-09-17",
-	"compatibility_flags": ["global_fetch_strictly_public"],
+	// assets_navigation_has_no_effect: without it, when a person follows a link (a "navigation" request) to any address
+	// that is not a file, Cloudflare answers with the 404 page below and never runs the Worker, so every page the Worker
+	// renders (home, categories, Admin) showed "Page not found" in a browser while curl got the page.
+	"compatibility_flags": ["global_fetch_strictly_public", "assets_navigation_has_no_effect"],
 	"name": "photography-site",
 	"main": "@astrojs/cloudflare/entrypoints/server",
 	"assets": {

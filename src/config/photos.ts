@@ -30,7 +30,7 @@ export type PhotoVariant = keyof typeof PHOTO_VARIANTS;
 export const PHOTO_ID_PATTERN = /^[0-9a-f]{16}$/;
 
 /**
- * Where entries live: `src/content/photos/<category>/images/<photo id>.md`. Every
+ * Where entries live in the local mirror of the entries: `<category>/images/<photo id>.md`. Every
  * entry's file name is its photo id, so a file maps 1:1 to its R2 objects
  * (`photos/<id>/...`).
  */

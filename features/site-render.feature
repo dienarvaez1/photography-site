@@ -5,8 +5,9 @@ Feature: The site renders its photo pages from R2 when they are requested
 
   These scenarios build the site the way `npm run deploy` does and run it in the real Workers runtime
   (workerd, through `wrangler dev`) over a local copy of the web bucket. The bucket is changed while the site is
-  running, as the photo tools change the real one. (Every other feature tests the same pages as static HTML built
-  from the sample library in test-fixtures/photos.)
+  running, as the photo tools change the real one. Every request is made the way a browser makes it when a person
+  follows a link. (Every other feature tests the same pages as static HTML built from the sample library in
+  test-fixtures/photos.)
 
   Background:
     Given the production build of the site

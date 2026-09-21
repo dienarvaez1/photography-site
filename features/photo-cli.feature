@@ -186,7 +186,7 @@ Feature: Photo command line places entries consistently
     Then the command should succeed
     And the output should mention "photos:add"
     And the output should mention "photos:camera"
-    And the output should mention "photos/<category>/<photo id>.md"
+    And the output should mention "photos/categories/<category>/<photo id>.md"
     And the output should mention "photos:push"
     When I run the command: frobnicate
     Then the command should fail with exit code 1

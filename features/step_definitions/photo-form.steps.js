@@ -164,7 +164,7 @@ Then("the form's message should mention {string}", function (fragment) {
 Then('the form should answer with the written entry, identical to the file, and where it is', async function () {
   const { body } = answer(this);
   assert.equal(body.path, `astro/images/${body.id}.md`);
-  assert.equal(body.key, `photos/astro/${body.id}.md`, 'where the entry is in the web bucket');
+  assert.equal(body.key, `photos/categories/astro/${body.id}.md`, 'where the entry is in the web bucket');
   assert.equal(await readFile(join(state(this).contentDir, body.path), 'utf-8'), body.entry);
 });
 

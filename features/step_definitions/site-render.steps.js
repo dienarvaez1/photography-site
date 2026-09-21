@@ -1,6 +1,7 @@
 import { AfterAll, Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'node-html-parser';
@@ -77,9 +78,32 @@ Given('the bucket\'s manifest holds a good entry {string} and an entry with no t
 
 // --- Requests ---------------------------------------------------------------------------------------------------------------------
 
+// Sent as a browser sends it when a person follows a link or types an address. Cloudflare treats such
+// "navigation" requests differently from a plain fetch: with `not_found_handling` set it answers a navigation to
+// any address that is not a file with its 404 page and never runs the Worker (the pages the Worker renders were
+// all "Page not found" in browsers, and fine for curl). Node's fetch drops Sec-Fetch-* headers, so use http.
+const NAVIGATION = { Accept: 'text/html,application/xhtml+xml', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document', 'Sec-Fetch-Site': 'none', 'Sec-Fetch-User': '?1', 'Upgrade-Insecure-Requests': '1' };
+
+function get(path) {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(site.base + path, { headers: NAVIGATION }, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode, headers: new Headers(Object.entries(res.headers).map(([k, v]) => [k, String(v)])), text: Buffer.concat(chunks).toString('utf-8') }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 async function request(world, path, follow) {
-  const response = await fetch(site.base + path, { redirect: follow ? 'follow' : 'manual', headers: { Accept: 'text/html' } });
-  const text = await response.text();
+  let response = await get(path);
+  for (let hops = 0; follow && [301, 302, 307, 308].includes(response.status) && hops < 5; hops++) {
+    const target = new URL(response.headers.get('location'), site.base);
+    path = target.pathname + target.search;
+    response = await get(path);
+  }
+  const text = response.text;
   world.response = { status: response.status, headers: response.headers, text, doc: parse(text), path };
 }
 

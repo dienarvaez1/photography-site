@@ -6,7 +6,7 @@ import { parseArgs } from 'node:util';
 import { pullEntries, pushEntries } from './entry-sync.mjs';
 import { addPhoto, fillCameraLines, listEntries, removePhoto, replacePhoto, slugify, syncPhotos, verifyPhotos } from './photos.mjs';
 
-export const HELP = `Photo workflow — photos AND their entries live in Cloudflare R2 (the web bucket: photos/<category>/<id>.md
+export const HELP = `Photo workflow — photos AND their entries live in Cloudflare R2 (the web bucket: photos/categories/<category>/<id>.md
 and photos/index.json, which the site reads when a page is requested). Nothing is committed to git and nothing is
 deployed: a photo is on the site as soon as its entry is published, which every command below does for you.
 The folder .photo-entries/ is only a local mirror of those entries, kept in step automatically.
@@ -14,7 +14,7 @@ The folder .photo-entries/ is only a local mirror of those entries, kept in step
   npm run photos:add -- <file.jpg> --category <slug> --title "<title>" [options]
       Uploads the photo (original to the private bucket, web sizes to the public
       one), checks it arrived, and publishes its entry
-        photos/<category>/<photo id>.md   (and the manifest the site reads)
+        photos/categories/<category>/<photo id>.md   (and the manifest the site reads)
       then deletes the local file.
       <category> must be one of the slugs in src/config/categories.ts. Options:
         --title-es "<título>"   Spanish title
@@ -120,7 +120,7 @@ export async function run(args, { contentDir, storage, sync = false, log = conso
           order: values.order ? Number(values.order) : 0, featured: Boolean(values.featured),
           keepSource: Boolean(values['keep-source']), contentDir, storage, publish, log,
         });
-        log(sync ? `✓ ${photo.id} is on the site: photos/${values.category}/${photo.id}.md` : `✓ ${relative(file)} (${photo.id}).`);
+        log(sync ? `✓ ${photo.id} is on the site: photos/categories/${values.category}/${photo.id}.md` : `✓ ${relative(file)} (${photo.id}).`);
         break;
       }
       case 'replace': {

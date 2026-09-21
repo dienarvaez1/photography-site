@@ -197,6 +197,28 @@ Feature: The Admin page's New Photo form adds a photo from its own metadata, in 
     And the order hint should say "The highest order in Astrophotography is 5, so the next is 6."
     And the form should show no photo id
 
+  Scenario: With the entries in R2, adding a photo stores its original, its web sizes, its entry file and its manifest entry where they belong
+    Given the entries already in the library folder are published to R2, which the tools now work with
+    And the local photo service is running
+    And I remember the bytes of the photo file "moon.jpg"
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I click the "Upload Photos" button
+    And I choose the photo "moon.jpg" in the form
+    And I fill in the form's "Title" with "Half Moon"
+    And I choose the category "Astrophotography" in the form
+    And I click the "Add photo" button
+    Then the New Photo form should say "Added “Half Moon” to Astrophotography as number 5."
+    And the New Photo form should say "Published to R2 as photos/categories/astro/"
+    And the private originals bucket should hold exactly the originals of: "astro/half-moon"
+    And the stored original should be byte for byte the photo that was sent
+    And nothing but originals should be in the private originals bucket
+    And no original should be in the public web bucket
+    And the public web bucket should hold every web size of the photo of "astro/half-moon", its entry file and the manifest
+    And the manifest entry "astro/half-moon" should carry the same data as the local entry
+    And the manifest entry "astro/half-moon" should have order 5
+    And every manifest entry should equal the front matter of its entry file in R2
+
   Scenario: A photo that is already in the chosen category cannot be added again
     Given I have added "moon.jpg" to the category "astro" with the title "Half Moon" and order 3 and the option to keep the source
     When I open "/admin/#pics-viewer"

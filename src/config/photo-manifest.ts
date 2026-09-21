@@ -2,7 +2,7 @@
 // Worker that renders it and the photo tooling (scripts/photos.mjs) all read the same format.
 //
 // Entries live in the public web bucket next to the photos' pictures, in R2:
-//   photos/<category>/<photo id>.md   one Markdown file per entry (what the tools write; readable by people)
+//   photos/categories/<category>/<photo id>.md   one Markdown file per entry (what the tools write; readable by people)
 //   photos/index.json                 the manifest: every entry's data in one file, sorted, so the site reads
 //                                     the whole gallery with ONE request and never parses Markdown
 // The tools write an entry's .md first and the manifest last (it is what makes the entry appear on the site),
@@ -12,7 +12,7 @@ export const MANIFEST_KEY = 'photos/index.json';
 export const MANIFEST_VERSION = 1;
 
 /** Where an entry's Markdown file lives in the web bucket. */
-export const entryKey = (category: string, id: string): string => `photos/${category}/${id}.md`;
+export const entryKey = (category: string, id: string): string => `photos/categories/${category}/${id}.md`;
 
 /** What an entry's front matter holds (the same fields the .md files always had). */
 export interface PhotoData {

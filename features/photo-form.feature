@@ -318,3 +318,66 @@ Feature: The New Photo form adds a photo from what the photo itself says
     And I ask the form for the category orders
     Then the form should refuse it with status 500 and the code "failed"
     And the form's message should mention "never published"
+
+  Scenario: A photo added through the form lands in the right buckets and is listed in the manifest
+    Given the entries live in R2, with the library folder as their local mirror
+    And a photo file "moon.jpg" of 1200x700 with EXIF:
+      | Make            | NIKON CORPORATION |
+      | Model           | NIKON Z 8         |
+      | FocalLength     | 800               |
+      | FNumber         | 11                |
+      | ExposureTime    | 1/125             |
+      | ISOSpeedRatings | 640               |
+    And I remember the bytes of the photo file "moon.jpg"
+    When I submit the photo "moon.jpg" to the form with:
+      | title    | Half Moon  |
+      | titleEs  | Media luna |
+      | category | astro      |
+      | order    | 3          |
+      | featured | true       |
+    Then the form should answer with status 200
+    And the private originals bucket should hold exactly the originals of: "astro/half-moon"
+    And the stored original should be byte for byte the photo that was sent
+    And the public web bucket should hold exactly the web sizes, entry files and manifest of: "astro/half-moon"
+    And nothing but originals should be in the private originals bucket
+    And no original should be in the public web bucket
+    And the manifest in R2 should hold exactly these entries:
+      | category | title     | titleEs    | width | height | camera                                        | featured | order |
+      | astro    | Half Moon | Media luna | 1200  | 700    | Nikon Z 8 · 800mm · f/11 · 1/125s · ISO 640   | true     | 3     |
+    And the manifest's update time should be the time of this run
+    And every photo id in the manifest should be the hash of its original in R2
+    And every manifest entry should equal the front matter of its entry file in R2
+
+  Scenario: A photo added through the form joins the entries already in R2, which stay untouched
+    Given the entries live in R2, with the library folder as their local mirror
+    And R2 holds these entries:
+      | category | title       | order | camera |
+      | astro    | Half Moon   | 4     |        |
+      | nature   | Rockfish    | 1     |        |
+    And a photo file "orion.jpg" of 1100x700
+    When I submit the photo "orion.jpg" to the form with:
+      | title    | Orion Nebula |
+      | category | astro        |
+    Then the form should answer with status 200
+    And the manifest in R2 should hold exactly these entries:
+      | category | title        | titleEs | width | height | camera | featured | order |
+      | astro    | Half Moon    |         | 1200  | 800    |        | false    | 4     |
+      | astro    | Orion Nebula |         | 1100  | 700    |        | false    | 5     |
+      | nature   | Rockfish     |         | 1200  | 800    |        | false    | 1     |
+    And the private originals bucket should hold exactly the originals of: "astro/orion-nebula"
+    And every manifest entry should equal the front matter of its entry file in R2
+
+  Scenario: A photo the form could not fully upload is not listed in the manifest
+    Given the entries live in R2, with the library folder as their local mirror
+    And R2 holds these entries:
+      | category | title       | order | camera |
+      | astro    | Half Moon   | 4     |        |
+    And a photo file "orion.jpg" of 1100x700
+    And R2 will fail to store anything matching "full.webp"
+    When I submit the photo "orion.jpg" to the form with:
+      | title    | Orion Nebula |
+      | category | astro        |
+    Then the form should refuse it with status 500 and the code "failed"
+    And the manifest in R2 should hold exactly these entries:
+      | category | title     | titleEs | width | height | camera | featured | order |
+      | astro    | Half Moon |         | 1200  | 800    |        | false    | 4     |

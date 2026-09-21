@@ -102,6 +102,16 @@ against every page in both English and Spanish**; expected text is read from
   entry as the same text the tools write, picks up entries added or removed elsewhere, and refuses to overwrite
   changes never published (`--force` does); pushing publishes hand edits; `verify` also checks each entry's file;
   a manifest with an unusable entry is refused rather than silently losing it; and the manifest's format.
+  **Where an uploaded photo's files end up:** `original.jpg` only in the private originals bucket (byte for byte the
+  file sent, `image/jpeg`, cacheable forever), and the web sizes, the entry's `.md` (`photos/categories/<category>/<id>.md`,
+  `no-cache`) and `photos/index.json` only in the public web bucket — each bucket holds *exactly* that, with nothing
+  in the wrong one and no original ever public. `index.json` is checked for its exact content after one upload and
+  after several (every field of every entry, sorted, older entries kept, a rotated photo at its displayed size), that
+  each photo id is the hash of its original in R2, that each entry equals the front matter of its `.md` in R2, and
+  that an upload's files go up in the order original → web sizes → entry file → manifest. Failures leave R2 safe: no
+  original, a failed web size or a failed entry file publishes nothing, a failed manifest leaves the site as it was,
+  and publishing again completes it. (These tests were also checked by breaking the code on purpose: an entry file in
+  the wrong bucket, a manifest missing an entry and a manifest written first each fail them.)
 - **`photo-exif.feature`** — the camera line built from real JPEGs' EXIF: formatting rules, what is
   (and is never) stored, overrides, replace behaviour, and filling in missing camera lines.
 - **`localization.feature`** — locale files define identical keys, hreflang (`en`/`es`/`x-default`),
@@ -161,7 +171,10 @@ against every page in both English and Spanish**; expected text is read from
   nothing uploaded or written; a failed upload writes no entry; only the form's own page on localhost may use it;
   it is added to the dev server only and never built into the site; the built pages offer every category in
   the page's language; the messages match in English and Spanish; and the form's code only talks to its own
-  service, writes text (never HTML) and never sends the admin token.
+  service, writes text (never HTML) and never sends the admin token. With the entries in R2 the form is held to the
+  same guarantees as the command: the original, the web sizes, the entry file and `index.json` each in the right
+  bucket, the manifest exact (older entries untouched, the new one with its EXIF camera line), and a photo whose
+  upload fails part-way is not listed.
 - **`site-render.feature`** — the production build in the real Workers runtime (workerd, via `wrangler dev`) over a
   local copy of the web bucket that is changed while the site runs: the home, category and Admin pages are left to the
   Worker (and listed in the sitemap) while about, contact and the error pages are built; category pages list the
@@ -230,7 +243,7 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   it only works on your computer where there is no local service (the deployed site), choosing a photo shows
   its id, size and camera line, the order follows the category unless typed by hand, adding stores the photo and
   writes the entry (shown on screen), the camera line and order can be changed, a photo already in the category or a
-  failed upload is reported with what was typed kept, Spanish, every state passes the accessibility audit and
+  failed upload is reported with what was typed kept, a photo added with the entries in R2 ends up in the right buckets and the manifest, Spanish, every state passes the accessibility audit and
   fits a phone, and nothing but the site and the results API is requested.
 - **`admin-timeout.feature`** (browser) — with the page's clock under the test's control: still signed in at
   4:55 and signed out at 5:00 (both tabs, whichever is showing, header buttons gone, token forgotten, tooltip
@@ -307,7 +320,7 @@ Each photo has one small Markdown **entry** in the public web bucket, named afte
 the photo's objects (`photos/<id>/...`); next to them is a **manifest** listing every entry, which is what the site reads:
 
 ```text
-photography-site-web/photos/<category>/<photo id>.md   e.g. nature/b997ba44c64e5158.md   (one per entry)
+photography-site-web/photos/categories/<category>/<photo id>.md   e.g. nature/b997ba44c64e5158.md   (one per entry)
 photography-site-web/photos/index.json                 every entry's data in one sorted file (the site reads this)
 ```
 
@@ -337,7 +350,7 @@ The entry holds no URL — the site builds URLs from `photo.id` and the base URL
 | Bucket                       | Access  | Holds                                               |
 | :--------------------------- | :------ | :-------------------------------------------------- |
 | `photography-site-originals` | private | `photos/<id>/original.jpg` — your full-resolution file |
-| `photography-site-web`       | public (r2.dev) | `photos/<id>/{w400,thumb,cover,w1000,full}.webp` — the sizes the site shows (400 / 700 / 900 / 1000 / 2000 px wide); `photos/<category>/<id>.md` and `photos/index.json` — the entries |
+| `photography-site-web`       | public (r2.dev) | `photos/<id>/{w400,thumb,cover,w1000,full}.webp` — the sizes the site shows (400 / 700 / 900 / 1000 / 2000 px wide); `photos/categories/<category>/<id>.md` and `photos/index.json` — the entries |
 
 Keys are content-addressed, so a changed photo always gets a new id and web files are cached
 forever (`immutable`). Your originals are never publicly reachable. The entries and the manifest change, so they
@@ -366,7 +379,7 @@ All commands use your existing `wrangler login` — no extra keys. (You can also
 
 ```sh
 # Add a photo: uploads it, checks it arrived, reads the camera line from its EXIF, publishes its entry
-# (photos/<category>/<photo id>.md and the manifest), and deletes your local file. It is on the site now.
+# (photos/categories/<category>/<photo id>.md and the manifest), and deletes your local file. It is on the site now.
 # --category must be a slug from src/config/categories.ts (a typo is refused, nothing is created).
 npm run photos:add -- ~/Desktop/rockfish.jpg --category nature --title "Rockfish" --title-es "Pez roca" --order 3
 #   --camera "..." overrides the camera line built from EXIF
@@ -639,7 +652,7 @@ Press **Upload Photos** and a form opens above the list. It does what `npm run p
    category), and updated when you change the category. Type your own number to keep it. Lower numbers show first.
 
 **Add photo** uploads the original to the private originals bucket (`photos/<id>/original.jpg`) and the web
-sizes to the public bucket, checks they arrived, and **publishes the entry to R2** (`photos/<category>/<photo id>.md`
+sizes to the public bucket, checks they arrived, and **publishes the entry to R2** (`photos/categories/<category>/<photo id>.md`
 and the manifest), e.g.
 
 ```yaml

@@ -5,9 +5,11 @@ Feature: Photo storage in R2 stays in sync with the photo entries
   and nothing (an entry, or my only copy of a file) is lost when something fails
 
   Each entry is one file, <category>/images/<photo id>.md in the local mirror of the entries (which live in R2
-  as photos/<category>/<photo id>.md; see entry-sync.feature), named after the id of its photo so it maps 1:1
+  as photos/categories/<category>/<photo id>.md; see entry-sync.feature), named after the id of its photo so it maps 1:1
   to its objects in R2 (photos/<photo id>/...).
-  These scenarios run against an in-memory fake of R2: no network is used.
+  These scenarios run against an in-memory fake of R2: no network is used. They cover the photo's own files (the
+  original and the web sizes) and the local entry files; where the entry file and index.json end up in R2, and
+  what they hold, is in entry-sync.feature.
   Entries are referred to below as "<category>/<title>", since their file names are ids.
 
   Background:

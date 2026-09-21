@@ -1,7 +1,7 @@
 // Keeps the photo entries in R2 and a local mirror of them in step. Storage-agnostic, like photos.mjs:
 // `storage.web` is the public web bucket ({ get(key), put(key, file, type, cache), delete(key), exists(key) }).
 //
-// The entries live in R2 (see src/config/photo-manifest.ts): one `photos/<category>/<id>.md` per entry, and
+// The entries live in R2 (see src/config/photo-manifest.ts): one `photos/categories/<category>/<id>.md` per entry, and
 // `photos/index.json`, the manifest the site reads to render its pages. The photo commands work on a folder of
 // .md files (`contentDir`, git-ignored), which is only a mirror:
 //
