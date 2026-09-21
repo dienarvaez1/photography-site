@@ -10,7 +10,8 @@
     "work": "Trabajo",
     "about": "Sobre mí",
     "contact": "Contacto",
-    "language": "Idioma"
+    "language": "Idioma",
+    "admin": "Admin"
   },
   "footer": {
     "copyright": "© {year} {author} Fotografía. Todos los derechos reservados.",
@@ -117,5 +118,22 @@
     "home": "Volver al inicio",
     "work": "Ver el trabajo",
     "contact": "Ponte en contacto"
+  },
+  "admin": {
+    "title": "Administración",
+    "eyebrow": "Administración",
+    "heading": "Administración",
+    "description": "Administración del sitio.",
+    "tablistLabel": "Secciones de administración",
+    "tabs": {
+      "testResults": "Resultados de pruebas",
+      "tbd": "Por definir"
+    },
+    "testResults": {
+      "placeholder": "Los resultados de las pruebas aparecerán aquí."
+    },
+    "tbd": {
+      "placeholder": "Por definir."
+    }
   }
 }

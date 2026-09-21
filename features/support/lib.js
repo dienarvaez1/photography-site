@@ -191,6 +191,7 @@ export function listBaseRoutes() {
     '/',
     '/about/',
     '/contact/',
+    '/admin/',
     '/work/astro/',
     '/work/events/',
     '/work/landscape/',
@@ -200,6 +201,9 @@ export function listBaseRoutes() {
     '/work/real-estate/',
   ];
 }
+
+/** Pages that are built but deliberately kept out of search engines and the sitemap (noindex). */
+export const NOINDEX_ROUTES = ['/admin/', '/es/admin/'];
 
 /** The error pages Cloudflare serves for unknown URLs: /404.html and /es/404.html. */
 export async function listNotFoundRoutes() {

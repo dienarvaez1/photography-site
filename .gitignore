@@ -38,3 +38,6 @@ src/**/*.avif
 src/**/*.tif
 src/**/*.tiff
 src/**/*.heic
+
+# test reports, failure screenshots and traces: published to R2 (`npm run test:record`), never committed
+test-results/

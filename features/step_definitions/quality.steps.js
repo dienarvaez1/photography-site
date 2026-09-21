@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { HtmlValidate } from 'html-validate';
 import sharp from 'sharp';
-import { DIST_DIR, ROOT, listBuiltRoutes, listNotFoundRoutes, pageLocale, readBuiltPage } from '../support/lib.js';
+import { DIST_DIR, NOINDEX_ROUTES, ROOT, listBuiltRoutes, listNotFoundRoutes, pageLocale, readBuiltPage } from '../support/lib.js';
 
 const photos = await import(join(ROOT, 'src/config/photos.ts'));
 const site = (await import(join(ROOT, 'src/config/site.ts'))).SITE;
@@ -21,11 +21,14 @@ When('I load every built page and both error pages', async function () {
 
 // ---------------------------------------------------------------- SEO ---------------------------
 
+// Pages kept out of search engines (the admin page) carry no share image, so the share checks skip them.
+const indexable = (pages) => pages.filter((p) => !NOINDEX_ROUTES.includes(p.route));
+
 const meta = (root, selector) => root.querySelector(selector)?.getAttribute('content');
 const shown = (path) => new URL(path, site.url).href;
 
 Then('every page should declare an absolute og:image with its size and description, and a matching twitter:image', function () {
-  for (const { route, page } of this.data.pages) {
+  for (const { route, page } of indexable(this.data.pages)) {
     const { root } = page;
     const image = meta(root, 'meta[property="og:image"]');
     assert.match(image ?? '', /^https:\/\//, `${route}: og:image must be absolute`);
@@ -40,7 +43,7 @@ Then('every page should declare an absolute og:image with its size and descripti
 const isCategoryPage = (route) => /\/work\/[^/]+\/$/.test(route);
 
 Then('every page except the category pages should share {string} on the site\'s own domain', function (path) {
-  for (const { route, page } of this.data.pages.filter((p) => !isCategoryPage(p.route))) {
+  for (const { route, page } of indexable(this.data.pages).filter((p) => !isCategoryPage(p.route))) {
     assert.equal(meta(page.root, 'meta[property="og:image"]'), shown(path), `${route}: shares the wrong image`);
     assert.equal(meta(page.root, 'meta[property="og:image:width"]'), '1200');
     assert.equal(meta(page.root, 'meta[property="og:image:height"]'), '630');
@@ -336,10 +339,10 @@ Then('every external link should be https, and those opening a new tab should sa
   assert.deepEqual(problems, []);
 });
 
-Then('every sitemap URL should be a built page, and every built page except the error pages should be in the sitemap', async function () {
+Then('every sitemap URL should be a built page, and every built page except the error pages and the admin page should be in the sitemap', async function () {
   const xml = readdirSync(DIST_DIR).filter((f) => /^sitemap-\d+\.xml$/.test(f)).map((f) => readFileSync(join(DIST_DIR, f), 'utf-8')).join('');
   const listed = [...xml.matchAll(/<url>\s*<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname).sort();
-  const built = (await listBuiltRoutes()).sort();
+  const built = (await listBuiltRoutes()).filter((r) => !NOINDEX_ROUTES.includes(r)).sort();
   assert.deepEqual(listed, built);
   for (const m of xml.matchAll(/hreflang="[^"]+" href="([^"]+)"/g)) assert.ok(built.includes(new URL(m[1]).pathname), `${m[1]} is not a built page`);
 });

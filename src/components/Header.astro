@@ -59,6 +59,9 @@ const alternates = getAlternates(Astro.url.pathname);
       <a href={localizePath('/contact/', locale)} class:list={{ active: currentPath === '/contact' }}>
         {t('nav.contact')}
       </a>
+      <a href={localizePath('/admin/', locale)} class:list={{ active: currentPath === '/admin' }}>
+        {t('nav.admin')}
+      </a>
       <div class="lang-switcher" role="group" aria-label={t('nav.language')}>
         {alternates.map((alt) =>
           alt.current ? (

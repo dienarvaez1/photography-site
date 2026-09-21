@@ -29,4 +29,4 @@ Feature: The HTML is valid and every link goes somewhere
     Then every external link should be https, and those opening a new tab should say so to screen readers
 
   Scenario: The sitemap and the pages agree
-    Then every sitemap URL should be a built page, and every built page except the error pages should be in the sitemap
+    Then every sitemap URL should be a built page, and every built page except the error pages and the admin page should be in the sitemap

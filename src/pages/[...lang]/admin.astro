@@ -1,0 +1,144 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getLocale, localeStaticParams, useTranslations } from '../../i18n';
+
+export const getStaticPaths = localeStaticParams;
+
+const locale = getLocale(Astro);
+const t = useTranslations(locale);
+
+// The two sections of the page, left to right. Each tab shows its panel.
+const tabs = [
+  { id: 'test-results', label: t('admin.tabs.testResults'), body: t('admin.testResults.placeholder') },
+  { id: 'tbd', label: t('admin.tabs.tbd'), body: t('admin.tbd.placeholder') },
+];
+---
+
+<!-- Not for search engines, and not in the sitemap. It is public: put Cloudflare Access in front of it before it shows real data. -->
+<BaseLayout title={t('admin.title')} description={t('admin.description')} noindex>
+  <!-- Without JavaScript the tabs can't switch, so show every panel instead of hiding all but the first. -->
+  <noscript slot="head">
+    <style is:inline>
+      .tabpanel[hidden] {
+        display: block;
+      }
+    </style>
+  </noscript>
+  <section class="wrap admin">
+    <p class="eyebrow">{t('admin.eyebrow')}</p>
+    <h1>{t('admin.heading')}</h1>
+
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist" aria-label={t('admin.tablistLabel')}>
+        {tabs.map((tab, index) => (
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            id={`tab-${tab.id}`}
+            aria-controls={`panel-${tab.id}`}
+            aria-selected={index === 0 ? 'true' : 'false'}
+            tabindex={index === 0 ? 0 : -1}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {tabs.map((tab, index) => (
+        <div class="tabpanel" role="tabpanel" id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`} tabindex="0" hidden={index !== 0}>
+          <h2>{tab.label}</h2>
+          <p>{tab.body}</p>
+        </div>
+      ))}
+    </div>
+
+  </section>
+</BaseLayout>
+
+<style>
+  .admin {
+    padding-block: var(--space-5);
+    max-width: 900px;
+  }
+
+  .admin h1 {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+  }
+
+  .tablist {
+    display: flex;
+    flex-direction: row;
+    gap: var(--space-1);
+    margin-top: var(--space-3);
+    border-bottom: 1px solid var(--field-border);
+  }
+
+  .tab {
+    min-height: 44px;
+    padding: 0.6rem 1.1rem;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    color: var(--fg-muted);
+    font: inherit;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .tab:hover {
+    color: var(--fg);
+  }
+
+  .tab[aria-selected='true'] {
+    color: var(--fg);
+    border-bottom-color: var(--accent);
+  }
+
+  .tabpanel {
+    padding-block: var(--space-3);
+  }
+
+  .tabpanel h2 {
+    font-size: 1.3rem;
+    margin-bottom: var(--space-1);
+  }
+</style>
+
+<script>
+  // Tabs pattern (WAI-ARIA): one tab in the tab order at a time; arrow keys, Home and End move between
+  // tabs; the selected tab is shown in the URL (#tbd) so it can be linked to.
+  document.querySelectorAll<HTMLElement>('[data-tabs]').forEach((root) => {
+    const tabs = Array.from(root.querySelectorAll<HTMLElement>('[role="tab"]'));
+    const panels = tabs.map((tab) => document.getElementById(tab.getAttribute('aria-controls') ?? '') as HTMLElement);
+    const idOf = (tab: HTMLElement) => tab.id.replace(/^tab-/, '');
+
+    function select(index: number, { focus = false, updateHash = false } = {}) {
+      tabs.forEach((tab, i) => {
+        const selected = i === index;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        panels[i].hidden = !selected;
+      });
+      if (focus) tabs[index].focus();
+      if (updateHash) history.replaceState(null, '', `#${idOf(tabs[index])}`);
+    }
+
+    const fromHash = () => tabs.findIndex((tab) => `#${idOf(tab)}` === location.hash);
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => select(index, { updateHash: true }));
+      tab.addEventListener('keydown', (event) => {
+        const last = tabs.length - 1;
+        const target = { ArrowRight: index === last ? 0 : index + 1, ArrowLeft: index === 0 ? last : index - 1, Home: 0, End: last }[event.key];
+        if (target === undefined) return;
+        event.preventDefault();
+        select(target, { focus: true, updateHash: true });
+      });
+    });
+
+    if (fromHash() >= 0) select(fromHash());
+    window.addEventListener('hashchange', () => fromHash() >= 0 && select(fromHash()));
+  });
+</script>

@@ -39,6 +39,7 @@ const t = useTranslations(locale);
       jsonLd={jsonLd}
       noindex={noindex}
     />
+    <slot name="head" />
   </head>
   <body>
     <a href="#main-content" class="skip-link">{t('nav.skipToContent')}</a>

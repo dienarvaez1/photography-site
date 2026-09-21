@@ -1,4 +1,6 @@
-import { After, AfterAll, Before, setDefaultTimeout } from '@cucumber/cucumber';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { After, AfterAll, Before, Status, setDefaultTimeout } from '@cucumber/cucumber';
 import sharp from 'sharp';
 import { chromium } from 'playwright';
 import { startStaticServer } from './static-server.js';
@@ -124,6 +126,9 @@ export async function open(world) {
 
   for (const script of b.initScripts) await context.addInitScript(script);
 
+  // A trace of every scenario; kept (with a screenshot) only when the scenario fails.
+  await context.tracing.start({ screenshots: true, snapshots: true });
+
   const page = await context.newPage();
   if (b.viewportOverride) await page.setViewportSize(b.viewportOverride);
   const notFoundPages = new Set();
@@ -151,6 +156,40 @@ export async function open(world) {
   return page;
 }
 
-After({ tags: '@browser' }, async function () {
-  await this.b?.context?.close();
+/** Where failed scenarios leave their evidence; `npm run results:publish` uploads it to R2. */
+const artifactsDir = () => join(process.env.TEST_RESULTS_DIR ?? join(process.cwd(), 'test-results'), 'artifacts', 'browser');
+
+const slug = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70);
+
+After({ tags: '@browser' }, async function ({ result, pickle }) {
+  const b = this.b;
+  if (!b?.context) return;
+  const failed = result?.status === Status.FAILED || result?.status === Status.AMBIGUOUS || result?.status === Status.UNDEFINED;
+  if (failed) {
+    const dir = artifactsDir();
+    mkdirSync(dir, { recursive: true });
+    const name = `${slug(pickle.name)}-${pickle.id.slice(-6)}`;
+    await b.page?.screenshot({ path: join(dir, `${name}.png`), fullPage: true }).catch(() => {});
+    await b.context.tracing.stop({ path: join(dir, `${name}.zip`) }).catch(() => {});
+    writeFileSync(
+      join(dir, `${name}.txt`),
+      [
+        `Scenario: ${pickle.name}`,
+        `Feature file: ${pickle.uri}`,
+        `Status: ${result.status}`,
+        `Page: ${b.page?.url?.() ?? 'n/a'}`,
+        `Failure: ${String(result.message ?? '').split('\n').slice(0, 6).join('\n')}`,
+        `Console errors: ${JSON.stringify(b.consoleErrors)}`,
+        `CSP violations: ${JSON.stringify(b.csp)}`,
+        `Unexpected external requests: ${JSON.stringify(b.blocked)}`,
+        `Web3Forms requests: ${b.apiRequests.length}`,
+        `Photo requests: ${b.photoRequests.length}`,
+        `Open the trace with: npx playwright show-trace ${name}.zip`,
+        '',
+      ].join('\n')
+    );
+  } else {
+    await b.context.tracing.stop().catch(() => {});
+  }
+  await b.context.close();
 });

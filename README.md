@@ -20,6 +20,8 @@ paid backend.
 | `npm run test:browser`          | Run the real-browser tests in Chromium (see Testing)                |
 | `npm run deploy`                | **Guarded deploy**: keys + tests + photo check, build, deploy, live smoke check |
 | `npm run deploy:unchecked`      | Build and deploy without the checks (emergencies only)              |
+| `npm run test:record`           | Run both suites with reporters, then store the results in R2 (see Test results) |
+| `npm run results:publish`       | Upload `test-results/` to R2 as one run (also `results:list`, `results:show`, `results:trend`, `results:prune`, or `npm run results -- help`) |
 | `npm run smoke`                 | Check the live site (or `-- <url>`); `-- --wait` retries for 2 minutes |
 | `npm run photos -- help`        | Add / replace / remove / verify photos in R2 (see Photos)           |
 
@@ -38,7 +40,7 @@ network call — R2 photos, Web3Forms, Cloudflare's location lookup — so they 
 internet and can never send you a real message. CI runs both suites on every push.
 
 `npm test` builds the site once (`npm run build`), then checks the actual built output — the
-same static files that get deployed — against sixteen areas. **Every page-level check runs
+same static files that get deployed — against eighteen areas. **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
 
@@ -102,6 +104,15 @@ against every page in both English and Spanish**; expected text is read from
   new-tab links are safe, `<html lang>` matches the URL, **WCAG contrast ratios** (text 4.5:1,
   form-field borders and focus ring 3:1), reduced-motion CSS, and the contact form's no-JavaScript
   fallback.
+- **`test-results.feature`** — the R2 results store, checked against real Cucumber output from a small
+  fixture suite: accurate summaries (counts, per-feature results, each failure with its step and
+  reason, slowest scenarios), sortable run ids, what a published run contains and where (only under
+  `results/`, never cached), the index written last so it never names a missing file, retention and
+  pruning, flaky-scenario trends, the command line, the runner's plan, and the GitHub workflow steps.
+- **`admin.feature`** — a basic smoke test of the Admin page: it exists in both languages, "Admin" is
+  linked immediately to the right of "Contact" and marked active on its own page, it has exactly two
+  tabs ("Test Results", then "TBD") in a horizontal, labelled tab list wired to two panels with the
+  first selected, a no-JavaScript fallback, and it is `noindex` and out of the sitemap.
 - **`documentation.feature`** — the README lists every feature file (including the browser ones),
   states the right number of test areas, and documents every npm script and `photos:*` command.
 
@@ -129,12 +140,64 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   with no violations, errors or blocked requests; the policy is provably enforced (an injected inline
   script is blocked); the browser picks the right image size for phone, laptop and sharp screens;
   layout shift stays under 0.02 with slow images; the logos take their final space before loading.
+- **`admin.feature`** (browser) — the two tabs really sit side by side on laptop and phone; clicking,
+  arrow keys, Home/End (with wrap-around), deep links like `/admin/#tbd`, Spanish, no-JavaScript, and
+  the header link to the right of Contact all behave, with no errors or CSP violations.
+- **`failure-artifacts.feature`** — a browser scenario that fails (run for real, on purpose) leaves a
+  real screenshot, a replayable Playwright trace and notes; a passing one leaves nothing; and those
+  files are stored with the run in R2.
 - **`not-found.feature`** — unknown URLs get a real 404 status and the page in the right language,
   its links lead back, and its language switcher goes to the other home page.
 
 Add new scenarios in `features/*.feature` (or `features/browser/` with `@browser`) and their step
 definitions in `features/step_definitions/`; shared helpers live in `features/support/`
-(`lib.js` for built HTML, `static-server.js`, `browser.js`, `photo-helpers.js`).
+(`lib.js` for built HTML, `static-server.js`, `browser.js`, `photo-helpers.js`, `memory-storage.js`).
+`test-fixtures/` holds the tiny suites the results tests run for real.
+
+## Test results in R2
+
+Test reports are not kept in git or piled up on your disk: they go to a **private** R2 bucket,
+`photography-site-test`, under `results/`.
+
+```sh
+npm run test:record                  # run both suites with reporters, then publish
+npm run test:record -- --suite offline
+npm run test:record -- --no-publish  # just write test-results/ (git-ignored)
+npm run results:publish              # publish what is already in test-results/
+npm run results:list                 # recent runs, newest first, with pass counts
+npm run results:show                 # the latest run (or `-- <run id>`): failures with their step and reason
+npm run results:trend                # scenarios that failed recently, and which look flaky
+npm run results:prune -- --keep 50   # delete the oldest runs (the newest 100 are kept automatically)
+```
+
+What is stored for each run, at `results/runs/<run id>/` (the id is
+`2026-09-21T04-30-12Z-<commit>-local`, with `-dirty` when there were uncommitted changes, or `-ci`):
+
+- `offline.json` / `offline.html` and `browser.json` / `browser.html` — the Cucumber reports,
+  and `smoke.json` when the smoke check was saved (`npm run smoke -- --out test-results/smoke.json`);
+- `artifacts/browser/` — for every **failed** browser scenario, a full-page screenshot, a Playwright
+  trace (open it with `npx playwright show-trace <file>.zip`) and a notes file (page, status, reason,
+  console errors, CSP violations, blocked requests);
+- `summary.json` — what ran and how it went: commit, branch, source, per-feature results, each
+  failure with its step and reason, the slowest scenarios, and the list of files.
+
+`results/index.json` (the list of runs, written last so it never names something that isn't there) and
+`results/latest.json` sit beside `runs/`. Nothing is cached, so the newest results are always the ones read.
+
+Uploads use your existing `wrangler login`, so locally there is nothing to configure. The bucket has
+no public address and no page or header refers to it. View reports with `npx wrangler r2 object get
+photography-site-test/results/runs/<run id>/offline.html --file report.html --remote`.
+
+**Letting GitHub CI store results too (optional, needs you).** CI writes the reports either way; it
+uploads them only if these two repository secrets exist (Settings → Secrets and variables → Actions):
+
+1. `CLOUDFLARE_ACCOUNT_ID` — your account id (dashboard → Workers & Pages → right sidebar).
+2. `CLOUDFLARE_API_TOKEN` — create it at dashboard → My Profile → API Tokens → Create Token → custom,
+   with **Account · Workers R2 Storage · Edit**, ideally limited to this account. It can write to R2,
+   so treat it as a secret.
+
+Without them the "Store the test results in R2" step is skipped and CI behaves as before. The scheduled
+smoke check stores its result the same way.
 
 ## Photos (stored in Cloudflare R2)
 
@@ -368,6 +431,18 @@ forms only to Web3Forms, no plugins, no framing. Astro is configured not to inli
 (`assetsInlineLimit: 0`) so this stays strict; styles may be inline. If you change the R2 address in
 `src/config/photos.ts`, update the `img-src` host in `_headers` — a test fails if they disagree.
 
+## Admin page
+
+`/admin/` (and `/es/admin/`) is linked in the header, to the right of Contact, and has two tabs side
+by side: **Test Results** and **TBD** (in Spanish: *Resultados de pruebas* and *Por definir*). Both are
+placeholders for now. The tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between
+them, the selected tab is in the URL (`/admin/#tbd`), and without JavaScript both panels are shown.
+
+**It is a public page.** This is a static site with no login, so anyone who knows the address can open
+it. It is marked `noindex` and left out of the sitemap so search engines don't list it, but that is not
+protection. Before it shows anything private (for instance the results stored in R2), put it behind
+[Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) or another login.
+
 ## Error pages
 
 Unknown URLs get a real 404 status and a localized page (`src/pages/[...lang]/404.astro`, built as
@@ -466,7 +541,10 @@ scripts/
 ├── photos.mjs          # `npm run photos:*` entry point
 ├── check-build-env.mjs # release-build key guard (runs before `npm run build`)
 ├── smoke.mjs           # `npm run smoke`
-└── lib/                # cli, photos (workflow), exif, r2-storage, build-env, smoke
+├── run-tests.mjs       # `npm run test:record`
+├── results.mjs         # `npm run results:*`
+└── lib/                # cli, photos (workflow), exif, r2-storage, build-env, smoke, results, results-cli, test-runner
+test-fixtures/          # tiny suites the results tests run for real
 features/               # Gherkin tests; features/browser/ = real-Chromium tests; support/ = helpers
 .github/workflows/      # ci.yml (tests + live smoke on push), smoke.yml (every 6 hours)
 cucumber.js             # default profile skips @browser; `--profile browser` runs only those

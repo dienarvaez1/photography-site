@@ -14,12 +14,36 @@ const run = promisify(execFile);
 // Run the project's own wrangler with the current Node (faster than npx, and no PATH assumptions).
 const wranglerBin = fileURLToPath(new URL('../../node_modules/wrangler/bin/wrangler.js', import.meta.url));
 
+const ANSI = /\x1b\[[0-9;]*m/g;
+
+/**
+ * What went wrong in a failed wrangler call: `detail` is the short reason for humans (the ERROR
+ * lines and what follows them, else the last few lines) and `output` is everything, colour codes removed. Wrangler writes
+ * its ERROR to stderr, *before* stdout in the combined text, so taking only the last lines of the
+ * combined text loses it.
+ */
+export function describeWranglerFailure(error) {
+  const output = `${error.stderr ?? ''}\n${error.stdout ?? ''}`.replace(ANSI, '');
+  const lines = output.split('\n').map((l) => l.trim()).filter(Boolean);
+  // From the first ERROR line on (the real reason often follows it), without wrangler's log-file footer.
+  const first = lines.findIndex((l) => /\bERROR\b/.test(l));
+  const relevant = first >= 0 ? lines.slice(first, first + 5).filter((l) => !/Logs were written/.test(l)) : lines.slice(-6);
+  return { detail: relevant.join('\n'), output };
+}
+
+/** Is this failure "the object isn't there" (as opposed to a real problem like a bad token or no network)? */
+export function isMissingObjectError(error) {
+  return /does not exist|no such key|NoSuchKey|10007|not found/i.test(error.output ?? error.message ?? '');
+}
+
 async function wrangler(args) {
   try {
     return await run(process.execPath, [wranglerBin, ...args], { maxBuffer: 16 * 1024 * 1024 });
   } catch (error) {
-    const detail = `${error.stderr ?? ''}${error.stdout ?? ''}`.trim().split('\n').slice(-6).join('\n');
-    throw new Error(`wrangler ${args.slice(0, 3).join(' ')} failed:\n${detail || error.message}`);
+    const { detail, output } = describeWranglerFailure(error);
+    const failure = new Error(`wrangler ${args.slice(0, 3).join(' ')} failed:\n${detail || error.message}`);
+    failure.output = output;
+    throw failure;
   }
 }
 
@@ -37,7 +61,7 @@ function privateBucket(bucket) {
         await wrangler(['r2', 'object', 'get', target(key), '--file', out, '--remote']);
         return await readFile(out);
       } catch (error) {
-        if (/does not exist|not found|10007|NoSuchKey/i.test(error.message)) return null;
+        if (isMissingObjectError(error)) return null;
         throw error;
       } finally {
         await rm(dir, { recursive: true, force: true });
@@ -47,6 +71,11 @@ function privateBucket(bucket) {
       await wrangler(['r2', 'object', 'delete', target(key), '--remote']);
     },
   };
+}
+
+/** Read/write access to any private bucket by name (used for the test-results bucket). */
+export function createBucketStorage(bucketName) {
+  return privateBucket(bucketName);
 }
 
 export function createR2Storage({ baseUrl = PHOTOS_BASE_URL } = {}) {

@@ -42,8 +42,8 @@ export default defineConfig({
   integrations: [
     // Adds <xhtml:link rel="alternate" hreflang> entries for each page's translations.
     sitemap({
-      // Error pages don't belong in the sitemap.
-      filter: (page) => !/\/404\/?$/.test(page),
+      // Error pages and the admin page (noindex) don't belong in the sitemap.
+      filter: (page) => !/\/(404|admin)\/?$/.test(page),
       i18n: {
         defaultLocale: DEFAULT_LOCALE,
         locales: Object.fromEntries(LOCALES.map((locale) => [locale, locale])),

@@ -96,7 +96,7 @@ Then("every page should show its language's skip link, navigation labels and cop
     assert.equal(root.querySelector('.skip-link')?.text.trim(), m.nav.skipToContent, `${route}: skip link is not in ${locale}`);
     assert.equal(root.querySelector('#nav-work-toggle')?.text.trim(), m.nav.work, `${route}: "Work" label is not in ${locale}`);
     const topLinks = root.querySelectorAll('#primary-nav > a').map((a) => a.text.trim());
-    assert.deepEqual(topLinks, [m.nav.about, m.nav.contact], `${route}: About/Contact nav labels are not in ${locale}`);
+    assert.deepEqual(topLinks, [m.nav.about, m.nav.contact, m.nav.admin], `${route}: About/Contact/Admin nav labels are not in ${locale}`);
     const footer = root.querySelector('.site-footer')?.text ?? '';
     const expected = m.footer.copyright.replace('{year}', String(new Date().getFullYear())).replace('{author}', 'Diego Narvaez');
     assert.ok(footer.includes(expected), `${route}: footer copyright is not "${expected}"`);

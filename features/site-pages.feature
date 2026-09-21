@@ -13,6 +13,7 @@ Feature: Site pages render correctly (English and Spanish)
       | /                     |
       | /about/               |
       | /contact/             |
+      | /admin/               |
       | /work/astro/          |
       | /work/events/         |
       | /work/landscape/      |
@@ -23,6 +24,7 @@ Feature: Site pages render correctly (English and Spanish)
       | /es/                  |
       | /es/about/            |
       | /es/contact/          |
+      | /es/admin/            |
       | /es/work/astro/       |
       | /es/work/events/      |
       | /es/work/landscape/   |

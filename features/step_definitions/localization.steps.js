@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   DIST_DIR,
+  NOINDEX_ROUTES,
   loadLocaleConfig,
   loadMessages,
   localizedRoute,
@@ -17,6 +18,9 @@ function flatten(value, prefix = '') {
     return acc;
   }, {});
 }
+
+// Pages kept out of search engines (the admin page) deliberately declare no canonical, hreflang or share metadata.
+const indexable = (pages) => pages.filter((p) => !NOINDEX_ROUTES.includes(p.route));
 
 const pathOf = (href) => new URL(href, 'https://example.test').pathname;
 
@@ -69,7 +73,7 @@ Then(
     const { LOCALES, DEFAULT_LOCALE } = await loadLocaleConfig();
     assert.deepEqual([a, b].sort(), [...LOCALES].sort(), 'Step should name every configured locale');
     assert.equal(c, 'x-default');
-    for (const { route, page } of this.data.pages) {
+    for (const { route, page } of indexable(this.data.pages)) {
       const found = alternates(page.root);
       for (const hreflang of [...LOCALES, 'x-default']) {
         assert.ok(/^https:\/\//.test(found[hreflang] ?? ''), `${route}: missing or non-absolute hreflang="${hreflang}"`);
@@ -83,7 +87,7 @@ Then(
 );
 
 Then("every page's canonical URL should equal its own hreflang alternate", function () {
-  for (const { route, locale, page } of this.data.pages) {
+  for (const { route, locale, page } of indexable(this.data.pages)) {
     const canonical = page.root.querySelector('link[rel="canonical"]')?.getAttribute('href');
     assert.ok(canonical, `${route}: no canonical link`);
     assert.equal(alternates(page.root)[locale], canonical, `${route}: canonical differs from the hreflang alternate for its own language`);
@@ -92,7 +96,7 @@ Then("every page's canonical URL should equal its own hreflang alternate", funct
 
 Then('every page should declare og:locale for its own language', async function () {
   const { LOCALE_INFO } = await loadLocaleConfig();
-  for (const { route, locale, page } of this.data.pages) {
+  for (const { route, locale, page } of indexable(this.data.pages)) {
     assert.equal(
       page.root.querySelector('meta[property="og:locale"]')?.getAttribute('content'),
       LOCALE_INFO[locale].ogLocale,

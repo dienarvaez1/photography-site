@@ -10,9 +10,20 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    env:
+      # Optional: with these two secrets set, each check's result is stored in R2 (bucket
+      # photography-site-test, under results/). Without them that step is skipped.
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node scripts/smoke.mjs
+      - run: node scripts/smoke.mjs --out test-results/smoke.json
+      - name: Install wrangler to store the result (only when the R2 secrets are configured)
+        if: ${{ always() && env.CLOUDFLARE_API_TOKEN != '' }}
+        run: npm ci
+      - name: Store the result in R2 (only when the R2 secrets are configured)
+        if: ${{ always() && env.CLOUDFLARE_API_TOKEN != '' }}
+        run: node scripts/results.mjs publish --source ci

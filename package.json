@@ -24,7 +24,14 @@
     "predeploy": "node scripts/check-build-env.mjs --require && npm test && npm run photos:verify",
     "deploy:unchecked": "npm run build && wrangler deploy",
     "smoke": "node scripts/smoke.mjs",
-    "test:browser": "cucumber-js --profile browser"
+    "test:browser": "cucumber-js --profile browser",
+    "test:record": "node scripts/run-tests.mjs",
+    "results": "node scripts/results.mjs",
+    "results:publish": "node scripts/results.mjs publish",
+    "results:list": "node scripts/results.mjs list",
+    "results:show": "node scripts/results.mjs show",
+    "results:trend": "node scripts/results.mjs trend",
+    "results:prune": "node scripts/results.mjs prune"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.2",
