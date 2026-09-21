@@ -44,7 +44,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
   Scenario: Signing out of the Pics Viewer signs out of the Test Results tab too
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I click "Sign out" in the Pics Viewer
+    And I click "Sign out" at the top of the page
     Then the Pics Viewer should ask for the admin token
     When I click the "Test Results" tab
     Then the Test Results tab should ask for the admin token
@@ -158,6 +158,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
       | Copyright | Copyright 2026 Diego Narvaez |
     And the tooltip should be entirely inside the screen
     And the page should not scroll sideways
+    And both action buttons should be entirely inside the screen
     When I tap somewhere else on the page
     Then no tooltip should be showing
 
@@ -169,6 +170,129 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And I hover over the file "Orion Nebula"
     And I hover over the file "Half Moon"
     Then the results API should have been asked for photo "22d56df0b2da3a99" 1 time and for photo "4c4f46c18b70c4b5" 1 time
+
+  # --- Refresh and Sign out, at the top of the page ------------------------------------------------------------------------------
+
+  Scenario: Refresh and Sign out sit across from the "Admin" title, at the right, and not inside the tabs
+    When I open "/admin/"
+    And I sign in with the token "browser-test-admin-token"
+    Then "Refresh" then "Sign out" should sit on the same line as the "Admin" title, at the right of the page
+    And neither tab's panel should hold a "Refresh" or "Sign out" button
+
+  Scenario: The buttons are only there while signed in
+    When I open "/admin/"
+    Then there should be no "Refresh" or "Sign out" button at the top of the page
+    When I sign in with the token "browser-test-admin-token"
+    Then "Refresh" then "Sign out" should sit on the same line as the "Admin" title, at the right of the page
+    When I click "Sign out" at the top of the page
+    Then there should be no "Refresh" or "Sign out" button at the top of the page
+
+  Scenario: A token that is not accepted takes the buttons away again
+    When I open "/admin/"
+    And I sign in with the token "definitely-the-wrong-one"
+    Then the Test Results tab should say "That token was not accepted."
+    And there should be no "Refresh" or "Sign out" button at the top of the page
+
+  Scenario: Refresh reloads the Test Results tab when that tab is showing, and nothing else
+    When I open "/admin/"
+    And I sign in with the token "browser-test-admin-token"
+    And I click the "Pics Viewer" tab
+    And I click the "Test Results" tab
+    And I note how many requests the results API has had
+    And I click "Refresh" at the top of the page
+    Then the results API should have been asked once more for "/latest" and "/index", and for nothing else
+
+  Scenario: Refresh reloads the Pics Viewer when that tab is showing, and nothing else
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I hover over the file "Orion Nebula"
+    And I note how many requests the results API has had
+    And I click "Refresh" at the top of the page
+    Then the results API should have been asked once more for "/pics", and for nothing else
+    When I hover over the file "Orion Nebula"
+    Then the results API should have been asked once more for "/pics" and "/pics/22d56df0b2da3a99", and for nothing else
+
+  Scenario: Signing out at the top signs out of both tabs
+    When I open "/admin/"
+    And I sign in with the token "browser-test-admin-token"
+    And I click the "Pics Viewer" tab
+    And I click "Sign out" at the top of the page
+    Then the Pics Viewer should ask for the admin token
+    And the browser should not remember any token
+    When I click the "Test Results" tab
+    Then the Test Results tab should ask for the admin token
+
+  Scenario: The buttons are reachable with the keyboard, before the tabs, and large enough to tap
+    When I open "/admin/"
+    And I sign in with the token "browser-test-admin-token"
+    Then both top buttons should be in the tab order, before the tabs, and at least 44 pixels tall
+
+  Scenario: The buttons speak Spanish
+    When I open "/es/admin/"
+    And I sign in with the token "browser-test-admin-token"
+    Then "Actualizar" then "Cerrar sesión" should sit on the same line as the "Administración" title, at the right of the page
+    When I click "Cerrar sesión" at the top of the page
+    Then the Test Results tab should ask for the token in Spanish
+
+  Scenario: On a phone the buttons stay on screen and the page does not scroll sideways
+    Given the visitor uses a phone
+    When I open "/admin/"
+    And I sign in with the token "browser-test-admin-token"
+    Then the two top buttons should be entirely inside the screen
+    And the page should not scroll sideways
+
+  Scenario: The way back from a run stays in the tab, without the top buttons being repeated
+    When I open "/admin/"
+    And I sign in with the token "browser-test-admin-token"
+    And I open the run with commit "ccccccc" from the list
+    Then there should be an "← All runs" link
+    And neither tab's panel should hold a "Refresh" or "Sign out" button
+
+  # --- The Upload Photos and Remove Photos buttons (Upload Photos opens the New Photo form: browser/photo-form.feature) -----------------------------------------------------------------------------
+
+  Scenario: Two buttons sit across from the photo counter, at the right
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then the photo counter should be at the left of its row, with "Upload Photos" then "Remove Photos" across from it at the right, all on one line
+
+  Scenario: The buttons carry an upload icon and a trash icon, and are named by their text alone
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then the "Upload Photos" button should show the "upload" icon and be named only by its text
+    And the "Remove Photos" button should show the "trash" icon and be named only by its text
+    And the two icons should be different drawings
+
+  Scenario: The buttons are reachable with the keyboard and large enough to tap
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then both action buttons should be in the tab order and at least 44 pixels tall
+
+  Scenario Outline: Pressing Remove Photos says it is not available yet, and asks the API for nothing
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I <how> the "<button>" button
+    Then the Pics Viewer should say "<message>"
+    And the results API should have been asked for the list only
+    And the Pics Viewer should list 4 original photos in this order: "Half Moon, Orion Nebula, Chimpanzee Portrait, ffffffffffffffff"
+
+    Examples:
+      | how                            | button        | message                                  |
+      | click                          | Remove Photos | Removing photos isn't available yet.     |
+      | focus and press Space on       | Remove Photos | Removing photos isn't available yet.     |
+      | focus and press Enter on       | Remove Photos | Removing photos isn't available yet.     |
+
+  Scenario: The buttons are also there when the bucket is empty
+    Given the originals bucket holds these files:
+      | photo id | metadata |
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then the Pics Viewer should say "0 original photos"
+    And the photo counter should be at the left of its row, with "Upload Photos" then "Remove Photos" across from it at the right, all on one line
+
+  Scenario: The buttons are not offered before signing in
+    When I open "/admin/#pics-viewer"
+    Then the Pics Viewer should ask for the admin token
+    And the Pics Viewer should offer no Upload Photos or Remove Photos button
 
   # --- The thumbnails in the list -----------------------------------------------------------------------------------------------
 
@@ -246,7 +370,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     Then the Pics Viewer should say "Could not reach the results service. Check your connection and try again."
     When the results API comes back
-    And I click "Refresh" in the Pics Viewer
+    And I click "Refresh" at the top of the page
     Then the Pics Viewer should list 4 original photos in this order: "Half Moon, Orion Nebula, Chimpanzee Portrait, ffffffffffffffff"
 
   Scenario: A Worker that is missing the originals bucket says something went wrong, and keeps the token
@@ -262,6 +386,9 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     When I open "/es/admin/#pics-viewer"
     Then the Pics Viewer should ask for the token in Spanish
     When I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then the photo counter should be at the left of its row, with "Subir fotos" then "Eliminar fotos" across from it at the right, all on one line
+    When I click the "Eliminar fotos" button
+    Then the Pics Viewer should say "Eliminar fotos aún no está disponible."
     Then the Pics Viewer should list 4 original photos in this order: "La Nebulosa de Orion, Media luna, Retrato de un chimpancé, ffffffffffffffff"
     Then the row for "ffffffffffffffff" should say "Sin miniatura" where the picture would be
     When I hover over the file "La Nebulosa de Orion"
@@ -298,7 +425,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I hover over the file "Orion Nebula"
     And I move the pointer away from the files
-    And I click "Sign out" in the Pics Viewer
+    And I click "Sign out" at the top of the page
     Then no script error should have been logged
     And no Content-Security-Policy violation should have been reported
     And nothing but the site and the results API should have been requested

@@ -2,7 +2,7 @@ import { Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DIST_DIR, pageLocale } from '../support/lib.js';
+import { DIST_DIR, ROOT, pageLocale } from '../support/lib.js';
 
 const text = (el) => el.text.replace(/\s+/g, ' ').trim();
 const root = (world) => world.data.page.root;
@@ -92,4 +92,40 @@ Then('the sitemap should not list {string}', function (route) {
   const xml = readdirSync(DIST_DIR).filter((f) => /^sitemap-\d+\.xml$/.test(f)).map((f) => readFileSync(join(DIST_DIR, f), 'utf-8')).join('');
   assert.ok(xml.includes('<loc>'), 'the sitemap lists pages');
   assert.ok(!xml.includes(route), `${route} must not be in the sitemap`);
+});
+
+// --- Signing out when left alone -----------------------------------------------------------------------------------------
+
+const adminConfig = await import(join(ROOT, 'src/config/admin.ts'));
+
+Then('the idle timeout in the site configuration should be {int} minutes', function (minutes) {
+  assert.equal(adminConfig.ADMIN_IDLE_TIMEOUT_MINUTES, minutes);
+});
+
+Then('the README should say the Admin page signs out after {int} minutes of inactivity', function (minutes) {
+  assert.match(readFileSync(join(ROOT, 'README.md'), 'utf-8'), new RegExp(`signs? out after ${minutes} minutes of inactivity`, 'i'));
+});
+
+Then('the idle timeout should be restarted by a click, pointer movement, key press, scroll and touch, and by nothing the page does by itself', function () {
+  const code = readFileSync(join(ROOT, 'src/lib/admin-session.ts'), 'utf-8');
+  const listed = /const ACTIVITY = \[([^\]]*)\]/.exec(code)[1].match(/'(\w+)'/g).map((s) => s.slice(1, -1));
+  for (const type of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'scroll', 'touchstart']) assert.ok(listed.includes(type), `${type} counts as being there`);
+  assert.doesNotMatch(code, /fetch\(|setTimeout\([^)]*touch|AUTH_EVENT|REFRESH_EVENT/, 'requests and the page\'s own events do not count');
+  const common = readFileSync(join(ROOT, 'src/lib/admin-common.ts'), 'utf-8');
+  assert.equal([...common.matchAll(/remembered\.touch\(\)/g)].length, 0, 'only the session module touches the clock');
+  assert.match(common, /IDLE_LIMIT_MS = ADMIN_IDLE_TIMEOUT_MINUTES \* 60 \* 1000/);
+});
+
+Then('the {string} reminder shown after an idle sign-out should contain the placeholder for the minutes and no fixed number', function (locale) {
+  const message = JSON.parse(readFileSync(join(ROOT, 'src/i18n', `${locale}.json`), 'utf-8')).admin.results.gate.timedOut;
+  assert.match(message, /\{minutes\}/);
+  assert.doesNotMatch(message, /\d/);
+});
+
+Then('the scripts of the built page {string} should contain the idle sign-out', function (_page) {
+  const dir = join(DIST_DIR, '_astro');
+  const scripts = readdirSync(dir).filter((f) => f.endsWith('.js')).map((f) => readFileSync(join(dir, f), 'utf-8')).join('\n');
+  assert.match(scripts, /admin-token-seen/);
+  assert.match(scripts, /visibilitychange/);
+  assert.match(scripts, /admin-timed-out/);
 });

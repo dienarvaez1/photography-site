@@ -229,6 +229,9 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
   Scenario: The pages never name the private originals bucket
     Then no built page or script should contain the originals bucket's name
 
+  Scenario: Upload Photos opens the New Photo form, and Remove Photos changes nothing yet
+    Then the Pics Viewer's Upload Photos button should open the New Photo form, and Remove Photos should only show a message, and make no request to the API
+
   Scenario: The Pics Viewer only ever shows the site's own thumbnail, and never a picture the API names
     Then the Pics Viewer's code should create no image but the thumbnail taken from the page's own photo data, and should only ask the API for the list and for one photo by its id
     And no answer of the API should be able to carry a picture or a picture address

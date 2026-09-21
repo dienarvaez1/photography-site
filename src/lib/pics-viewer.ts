@@ -3,7 +3,8 @@
 // its camera information, file size and copyright. Each row of the list shows a small thumbnail, the site's
 // own public web copy of the photo; the private originals are never fetched or shown: the API only ever
 // returns numbers and text. Everything from the API is put on the page as text.
-import { AUTH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, messageReader, remembered, type Child, type Messages } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, remembered, type Child, type Messages } from './admin-common';
+import { forgetJustAdded, photoForm, readJustAdded, type FormCategory, type JustAdded } from './photo-form';
 import { PICS_TAB, formatBytes, formatExactBytes, joinPhotos, thumbSize, type KnownPhoto, type Original } from './pics-view';
 import { resolveApiUrl } from './results-view';
 
@@ -20,6 +21,8 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   const root = container.querySelector<HTMLElement>('[data-pics-root]')!;
   const messages: Messages = JSON.parse(container.dataset.messages ?? '{}');
   const known: Record<string, KnownPhoto> = JSON.parse(container.dataset.photos ?? '{}');
+  const categories: FormCategory[] = JSON.parse(container.dataset.categories ?? '[]');
+  const formHost = container.querySelector<HTMLElement>('[data-pics-form]')!; // where the New Photo form opens
   const locale = container.dataset.locale ?? 'en';
   const apiUrl = resolveApiUrl(container.dataset.api ?? '', location.search, location.hostname);
   const m = messageReader(messages);
@@ -46,26 +49,6 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     show(form);
     if (problem) input.focus();
   }
-
-  function signOut() {
-    token = '';
-    displayed = false;
-    generation++;
-    details.clear();
-    remembered.set('');
-    renderGate();
-  }
-
-  const toolbar = () => {
-    const refresh = el('button', { class: 'results-button', text: m('refresh'), attrs: { type: 'button' } });
-    const out = el('button', { class: 'results-button', text: m('signOut'), attrs: { type: 'button' } });
-    refresh.addEventListener('click', () => {
-      details.clear();
-      void render();
-    });
-    out.addEventListener('click', signOut);
-    return el('div', { class: 'results-toolbar' }, refresh, out);
-  };
 
   // --- The tooltip -------------------------------------------------------------------------------------------------
 
@@ -123,14 +106,61 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     );
   }
 
+  // --- The count and the Upload / Remove buttons ---------------------------------------------------------------
+
+  /** Opens the New Photo form above the list (a second press just goes back to it). `resume`: after a reload, shows the photo just added. */
+  function openForm(resume?: JustAdded) {
+    const open = formHost.querySelector<HTMLElement>('input');
+    if (open) return open.focus();
+    formHost.append(
+      photoForm({
+        m,
+        categories,
+        resume,
+        onGone: () => formHost.replaceChildren(),
+        // The photo is now in the bucket: look at the list again (the form stays, showing what was written).
+        onAdded: () => {
+          details.clear();
+          void render();
+        },
+        onClose: closeForm,
+      })
+    );
+  }
+
+  function closeForm() {
+    formHost.replaceChildren();
+    container.querySelector<HTMLElement>('[data-action="upload"]')?.focus();
+  }
+
+  /** "<count> original photos" with the two action buttons across from it, at the right. */
+  function summary(count: number) {
+    const status = el('p', { class: 'pics-status', attrs: { role: 'status' } });
+    const button = (kind: 'upload' | 'remove', glyph: 'upload' | 'trash') => {
+      const node = el('button', { class: 'results-button pics-action', attrs: { type: 'button', 'data-action': kind } }, icon(glyph), el('span', { text: m(`pics.${kind}`) }));
+      // Upload Photos opens the New Photo form; nothing is removed yet, and Remove Photos says so.
+      node.addEventListener('click', () => {
+        if (kind === 'upload') {
+          status.textContent = '';
+          openForm();
+        } else {
+          status.textContent = m('pics.removeSoon');
+        }
+      });
+      return node;
+    };
+    const actions = el('div', { class: 'pics-actions' }, button('upload', 'upload'), button('remove', 'trash'));
+    return [el('div', { class: 'pics-summary' }, el('p', { class: 'results-count', text: m('pics.count', { count }) }), actions), status];
+  }
+
   // --- The list -------------------------------------------------------------------------------------------------------------
 
   async function renderList(run: number) {
     const listing = await api<{ photos: Original[]; complete: boolean }>('/pics');
     if (run !== generation) return;
-    const bar = toolbar();
     if (!listing.photos.length) {
-      show(bar, el('p', { class: 'results-empty', text: m('pics.empty') }));
+      show(...summary(0), el('p', { class: 'results-empty', text: m('pics.empty') }));
+      displayed = true;
       return;
     }
     const rows = joinPhotos(listing.photos, known, locale);
@@ -155,8 +185,7 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
       return item;
     });
     show(
-      bar,
-      el('p', { class: 'results-count', text: m('pics.count', { count: rows.length }) }),
+      ...summary(rows.length),
       listing.complete ? null : el('p', { class: 'results-error', text: m('pics.incomplete') }),
       el('ul', { class: 'pics-list' }, ...items)
     );
@@ -182,7 +211,7 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
         remembered.set('');
         renderGate(error);
       } else {
-        show(toolbar(), el('p', { class: 'results-error', text: errorMessage(m, error), attrs: { role: 'alert' } }));
+        show(el('p', { class: 'results-error', text: errorMessage(m, error), attrs: { role: 'alert' } }));
       }
     }
   }
@@ -191,6 +220,11 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   document.addEventListener('keydown', (event) => event.key === 'Escape' && tip && hideTip());
   // Clicking elsewhere closes a tooltip opened by a tap.
   document.addEventListener('click', (event) => tipOwner && !tipOwner.contains(event.target as Node) && hideTip());
+
+  // The dev server reloads the page when a photo has just been added: show what was added, again.
+  const justAdded = readJustAdded();
+  if (justAdded && token) openForm(justAdded);
+  else forgetJustAdded();
 
   // Nothing is requested while the tab is hidden; showing it loads the list once.
   const sync = () => {
@@ -205,8 +239,16 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     generation++;
     details.clear();
     hideTip();
+    formHost.replaceChildren(); // signing out (or in as someone else) closes the form
+    forgetJustAdded();
     if (!panel.hidden) void render();
     else root.replaceChildren();
+  });
+  // The page's Refresh button reloads the list (and looks every file up again) when this tab is showing.
+  window.addEventListener(REFRESH_EVENT, () => {
+    if (panel.hidden || !token) return;
+    details.clear();
+    void render();
   });
   new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
   // Look once the tabs have applied the address (a link to another tab must not load the list).

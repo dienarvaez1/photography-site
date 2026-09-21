@@ -14,6 +14,8 @@ import { fakeOriginals } from './originals-fixtures.js';
 const { handle: handleResultsRequest } = await import(join(ROOT, 'workers/results-api/src/index.mjs'));
 const { RESULTS_API_URL } = await import(join(ROOT, 'src/config/results.ts'));
 const RESULTS_ORIGIN = new URL(RESULTS_API_URL).origin;
+// The New Photo form's service is the real dev-server middleware too, over a temporary content folder and a fake R2.
+const { photoFormMiddleware } = await import(join(ROOT, 'scripts/lib/photo-form-server.mjs'));
 
 // Real-browser scenarios are slower than the rest: page loads, axe scans, animations.
 setDefaultTimeout(60_000);
@@ -21,11 +23,15 @@ setDefaultTimeout(60_000);
 let browser;
 let server;
 let imageBytes;
+let currentWorld = null; // the scenario now running (the shared test server answers /__photos/ on its behalf)
 
 /** One Chromium and one local copy of the built site, shared by every @browser scenario. */
 async function shared() {
   if (!browser) browser = await chromium.launch();
-  if (!server) server = await startStaticServer();
+  if (!server) {
+    server = await startStaticServer();
+    server.mount(servePhotoService);
+  }
   if (!imageBytes) imageBytes = await sharp({ create: { width: 16, height: 11, channels: 3, background: '#557' } }).webp().toBuffer();
   return { browser, server, imageBytes };
 }
@@ -39,6 +45,7 @@ const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isM
 const LAPTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 };
 
 Before({ tags: '@browser' }, function () {
+  currentWorld = this;
   // Everything a scenario can configure before the first page is opened.
   this.b = {
     device: LAPTOP,
@@ -49,6 +56,7 @@ Before({ tags: '@browser' }, function () {
     trace: 'not-found', // what /cdn-cgi/trace answers: 'not-found', 'unreachable', 'timeout' or a body like "loc=MX"
     api: 'success', // what Web3Forms answers: 'success', 'failure', 'unreachable', 'slow'
     imageDelayMs: 0,
+    clock: false, // true: the page's clock is Playwright's, so a scenario can let minutes pass at once
     remembered: null, // localStorage 'preferred-locale' to set before the first visit
     initScripts: [], // extra scripts to run in every page before its own (e.g. block localStorage)
     csp: [], // Content-Security-Policy violations, accumulated across navigations
@@ -58,6 +66,8 @@ Before({ tags: '@browser' }, function () {
     // What the results API is doing: 'ok' (answers), 'unreachable', or 'slow'; `env` is its Worker environment (no
     // admin token until a scenario sets one up), `requests` is everything the page asked it.
     results: { mode: 'ok', env: {}, delayMs: 0, requests: [] },
+    // The New Photo form's local service: null (as on the deployed site, which has none) or { middleware, requests }.
+    photoService: null,
     traceRequests: 0,
     photoRequests: [],
     blocked: [],
@@ -105,6 +115,24 @@ async function serveResults(b, siteOrigin, request, route) {
   return route.fulfill({ status: answer.status, headers: Object.fromEntries(answer.headers), body });
 }
 
+/**
+ * Starts the New Photo form's service over this scenario's photo library (see photo-helpers.js), as `astro dev`
+ * would. The browser's file uploads never reach Playwright's request interception, so the service answers
+ * from the local test server itself.
+ */
+export async function startPhotoService(world, { contentDir, storage }) {
+  await shared();
+  world.b.photoService = { middleware: await photoFormMiddleware({ contentDir, storage }), requests: [] };
+}
+
+/** Answers /__photos/ for the scenario that is running (none: the site as deployed, which has no such service). */
+function servePhotoService(req, res, next) {
+  const service = currentWorld?.b.photoService;
+  if (!service) return next();
+  service.requests.push({ method: req.method, path: new URL(req.url, 'http://localhost').pathname.replace('/__photos/', '') });
+  return service.middleware(req, res, next);
+}
+
 /** Creates the browser context (once per scenario) with the stubs described above. */
 export async function open(world) {
   if (world.b.context) return world.b.page;
@@ -120,6 +148,8 @@ export async function open(world) {
     userAgent: b.userAgent ?? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
   });
   world.b.siteOrigin = site.url;
+  // Scenarios about time (the idle sign-out) take over the page's clock: it runs normally until they advance it.
+  if (b.clock) await context.clock.install({ time: new Date('2026-09-21T12:00:00Z') });
 
   await context.route('**/*', async (route) => {
     const request = route.request();
@@ -182,7 +212,8 @@ export async function open(world) {
     const url = message.location().url;
     // Expected, not errors: the local server has no /cdn-cgi/trace (Cloudflare provides it), and Chrome
     // logs a line whenever a page itself is a 404 - which is exactly what the 404 scenarios visit.
-    if (message.type() === 'error' && !url.endsWith('/cdn-cgi/trace') && !notFoundPages.has(url)) b.consoleErrors.push(message.text());
+    // The same goes for the New Photo form's service, which the deployed site (and so this test server) does not have.
+    if (message.type() === 'error' && !url.endsWith('/cdn-cgi/trace') && !url.includes('/__photos/') && !notFoundPages.has(url)) b.consoleErrors.push(message.text());
   });
   page.on('response', (response) => {
     if (response.request().isNavigationRequest() && response.frame() === page.mainFrame()) {

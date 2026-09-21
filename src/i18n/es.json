@@ -125,6 +125,7 @@
     "heading": "Administración",
     "description": "Administración del sitio.",
     "tablistLabel": "Secciones de administración",
+    "actionsLabel": "Acciones de la página",
     "tabs": {
       "testResults": "Resultados de pruebas",
       "picsViewer": "Visor de fotos"
@@ -135,7 +136,8 @@
         "intro": "Estos resultados son privados. Introduce el token de administrador para verlos.",
         "label": "Token de administrador",
         "submit": "Mostrar resultados",
-        "checking": "Comprobando…"
+        "checking": "Comprobando…",
+        "timedOut": "Se cerró tu sesión tras {minutes} minutos de inactividad. Introduce el token para continuar."
       },
       "errors": {
         "unauthorized": "No se aceptó ese token.",
@@ -231,7 +233,53 @@
       "artist": "Artista",
       "failed": "No se pudo leer la información de este archivo.",
       "needsJs": "El visor de fotos necesita JavaScript.",
-      "noThumbnail": "Sin miniatura"
+      "noThumbnail": "Sin miniatura",
+      "upload": "Subir fotos",
+      "remove": "Eliminar fotos",
+      "removeSoon": "Eliminar fotos aún no está disponible.",
+      "form": {
+        "heading": "Nueva foto",
+        "intro": "Elige un JPEG. Se sube a R2 (el original en privado, los tamaños web en público) y su entrada se escribe en src/content/photos, igual que con npm run photos:add. El id, el tamaño y la línea de la cámara se leen de la propia foto.",
+        "close": "Cerrar",
+        "checking": "Comprobando el servicio local de fotos…",
+        "file": "Foto (JPEG)",
+        "reading": "Leyendo la foto…",
+        "extracted": "Leído de la foto",
+        "id": "Id de la foto",
+        "size": "Tamaño",
+        "sizeValue": "{width} × {height} px",
+        "camera": "Línea de la cámara",
+        "cameraHint": "Leída del EXIF de la foto. Edítala, o bórrala para dejar la foto sin línea de cámara.",
+        "noCamera": "La foto no tiene información de la cámara. Escribe la línea de la cámara, o déjala vacía.",
+        "title": "Título",
+        "titleEs": "Título en español (opcional)",
+        "category": "Categoría",
+        "chooseCategory": "Elige una categoría…",
+        "order": "Orden",
+        "orderChoose": "Elige una categoría para ver el siguiente orden. Los números menores se muestran primero.",
+        "orderHint": "El orden más alto en {category} es {max}, así que el siguiente es {next}. Los números menores se muestran primero.",
+        "orderNone": "Aún no hay fotos en {category}, así que el primer orden es {next}.",
+        "featured": "Destacada",
+        "submit": "Añadir foto",
+        "submitting": "Subiendo a R2 y escribiendo la entrada. Esto puede tardar un poco…",
+        "added": "Se añadió «{title}» a {category} con el número {order}.",
+        "written": "La entrada se escribió en {path}.",
+        "entryLabel": "El contenido de la nueva entrada",
+        "commitNote": "Haz commit del nuevo archivo .md y despliega el sitio para publicar la foto.",
+        "another": "Añadir otra foto",
+        "errors": {
+          "unavailable": "El formulario de nueva foto solo funciona mientras el sitio se ejecuta en tu computadora (npm run dev): necesita tu sesión de Cloudflare para subir y escribe la entrada en tu proyecto. Inicia el servidor de desarrollo y abre esta página desde localhost:4321.",
+          "unreachable": "No se pudo contactar con el servicio local de fotos. ¿Sigue en marcha npm run dev?",
+          "notLocal": "El servicio local de fotos solo acepta peticiones de su propia página en localhost.",
+          "notJpeg": "Solo se aceptan fotos JPEG.",
+          "unreadable": "Ese archivo no es una imagen legible.",
+          "tooLarge": "Esa foto es demasiado grande (el límite es 100 MB).",
+          "duplicate": "Esta foto ya está en {category}.",
+          "needFile": "Elige primero una foto.",
+          "badOrder": "El orden debe ser un número entero, 0 o más.",
+          "failed": "No se pudo añadir la foto: {message}"
+        }
+      }
     }
   }
 }

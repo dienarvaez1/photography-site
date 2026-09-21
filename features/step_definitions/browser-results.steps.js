@@ -86,8 +86,8 @@ When('I reload the page', async function () {
   await page(this).reload();
 });
 
-When('I click {string} in the Test Results tab', async function (name) {
-  await panel(this).getByRole('button', { name, exact: true }).click();
+When('I click {string} at the top of the page', async function (name) {
+  await page(this).locator('[data-admin-actions]').getByRole('button', { name, exact: true }).click();
 });
 
 When('I open the run with commit {string} from the list', async function (commit) {

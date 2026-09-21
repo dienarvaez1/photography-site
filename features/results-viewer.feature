@@ -132,6 +132,17 @@ Feature: The Admin page's Test Results tab shows the stored test runs
   Scenario: Only the tab's own container is handed to the viewer, and the tab still shows without JavaScript
     Then the built page "/admin/index.html" should tell visitors without JavaScript that the viewer needs it
 
+  Scenario Outline: The built Admin pages hold Refresh and Sign out in the header, across from the title, hidden until a sign-in
+    Then the built page "<page>" should have "<refresh>" and "<sign out>" buttons in the header beside its title, hidden until script shows them, and none inside the tabs
+
+    Examples:
+      | page                 | refresh    | sign out      |
+      | /admin/index.html    | Refresh    | Sign out      |
+      | /es/admin/index.html | Actualizar | Cerrar sesión |
+
+  Scenario: Only the top buttons can refresh or sign out
+    Then no viewer should build a Refresh or Sign out button of its own, and the top buttons should only ask the viewers to reload or forget the token
+
   Scenario: The viewer only ever puts text on the page
     Then the viewer's code should never use innerHTML, outerHTML, insertAdjacentHTML, document.write, eval or new Function
 

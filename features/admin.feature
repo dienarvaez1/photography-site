@@ -73,3 +73,28 @@ Feature: Admin page smoke test
       | route      |
       | /admin/    |
       | /es/admin/ |
+
+  # --- Signing out when left alone ---------------------------------------------------------------------------------
+
+  Scenario: The Admin page signs out after 5 minutes of inactivity, as configured and documented
+    Then the idle timeout in the site configuration should be 5 minutes
+    And the README should say the Admin page signs out after 5 minutes of inactivity
+
+  Scenario: Any sign that the person is there restarts the clock, and the page's own requests do not
+    Then the idle timeout should be restarted by a click, pointer movement, key press, scroll and touch, and by nothing the page does by itself
+
+  Scenario Outline: The sign-out reminder is translated and takes the number of minutes from the configuration
+    Then the "<locale>" reminder shown after an idle sign-out should contain the placeholder for the minutes and no fixed number
+
+    Examples:
+      | locale |
+      | en     |
+      | es     |
+
+  Scenario Outline: The built Admin pages run the idle timeout
+    Then the scripts of the built page "<page>" should contain the idle sign-out
+
+    Examples:
+      | page                 |
+      | /admin/index.html    |
+      | /es/admin/index.html |

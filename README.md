@@ -42,7 +42,7 @@ network call — R2 photos, Web3Forms, Cloudflare's location lookup — so they 
 internet and can never send you a real message. CI runs both suites on every push.
 
 `npm test` builds the site once (`npm run build`), then checks the actual built output — the
-same static files that get deployed — against twenty-one areas. **Every page-level check runs
+same static files that get deployed — against twenty-two areas. **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
 
@@ -139,6 +139,24 @@ against every page in both English and Spanish**; expected text is read from
   Workers runtime over a local R2 bucket; file-size wording in both languages; how the list is joined with
   the site's photo entries; and that the built pages know every photo of the site, name the tab in both
   languages, and never name the originals bucket; thumbnails are the public web copies, scaled down, never up, and the viewer can make no image but that one.
+- **`photo-form.feature`** — the Admin page's New Photo form, through its real request handler with a fake R2
+  and a temporary content folder: a photo is read for its id, its size as displayed (rotation applied) and its
+  camera line, uploading and writing nothing; the order suggested is one past the highest in the category (not
+  the count; 1 for an empty category), a typed order wins and two photos sent at once get different orders;
+  the entry is written exactly like the site's others (the same text, in `<category>/images/<photo id>.md`), the
+  original goes to the private bucket byte for byte and every web size to the public one; an edited or emptied
+  camera line is respected; the same photo can join another category but not the same one twice; a PNG, a
+  text file, a missing title, an unknown category, a bad order or an over-large upload is refused with
+  nothing uploaded or written; a failed upload writes no entry; only the form's own page on localhost may use it;
+  it is added to the dev server only and never built into the site; the built pages offer every category in
+  the page's language; the messages match in English and Spanish; and the form's code only talks to its own
+  service, writes text (never HTML) and never sends the admin token.
+- **Idle sign-out** — (in `admin.feature`) the timeout is 5 minutes, configured in one place and documented,
+  which events count as being there, the reminder is translated with the minutes filled in from the
+  configuration, and the built pages contain the timeout.
+- **Header buttons** — (in `results-viewer.feature`) the built pages hold Refresh and Sign out in the header
+  beside the title, hidden until a sign-in and never inside a tab, in both languages; and only those buttons
+  can refresh or sign out.
 - **`documentation.feature`** — the README lists every feature file (including the browser ones),
   states the right number of test areas, and documents every npm script and `photos:*` command.
 
@@ -176,13 +194,30 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   (a failure message containing HTML stays text), reports opening in new tabs from the API, screenshot
   and trace evidence, empty store, unreachable API and recovery, no requests while another tab is
   showing, Spanish, an axe audit and no sideways scrolling in every state, no errors or CSP violations.
-- **`pics-viewer.feature`** (browser) — the Pics Viewer against the real API code and fake buckets: one
+- **`pics-viewer.feature`** (browser) — the Pics Viewer against the real API code and fake buckets: Refresh
+  and Sign out at the top of the page (across from the title, only while signed in, Refresh reloads only the
+  tab showing, Sign out signs out of both, keyboard, Spanish, phone); the
+  Upload Photos and Remove Photos buttons across from the counter (order, icons, size, keyboard, Remove Photos
+  showing a message and asking for nothing, also with an empty bucket, in Spanish and on a phone); one
   sign-in for both tabs (sign-in and sign-out apply to each other), nothing requested until the tab is
   shown, the list by category and title (files the site doesn't use last) with a small thumbnail at the start of each row ("No thumbnail" where the site has no copy), the tooltip on hover, keyboard
   focus and tap (camera, size, copyright and artist; missing values say so; no picture in the tooltip), one tooltip at a time,
   Escape, moving away and clicking elsewhere close it, the pointer can move onto it, each file looked up
   once, the only pictures requested are the public 400-pixel copies (never an original) and only file headers are read, an empty bucket, a vanished file, an
   unreachable API, Spanish, an axe audit and no sideways scrolling in every state.
+- **`photo-form.feature`** (browser) — the New Photo form in Chromium, with the dev server's real service behind
+  it: Upload Photos opens it above the list (once; Close returns focus to the button; signing out closes it), it says
+  it only works on your computer where there is no local service (the deployed site), choosing a photo shows
+  its id, size and camera line, the order follows the category unless typed by hand, adding stores the photo and
+  writes the entry (shown on screen), the camera line and order can be changed, a photo already in the category or a
+  failed upload is reported with what was typed kept, Spanish, every state passes the accessibility audit and
+  fits a phone, and nothing but the site and the results API is requested.
+- **`admin-timeout.feature`** (browser) — with the page's clock under the test's control: still signed in at
+  4:55 and signed out at 5:00 (both tabs, whichever is showing, header buttons gone, token forgotten, tooltip
+  closed, no more requests); a mouse move, key press, scroll, click or tap restarts the 5 minutes but the
+  page's own refresh does not; a tab left longer than 5 minutes and reloaded is signed out, one reloaded
+  sooner stays signed in; the reminder goes away on the next sign-in and never shows after a manual sign-out;
+  it works with storage blocked, in Spanish, is announced to screen readers and passes the accessibility audit.
 - **`failure-artifacts.feature`** — a browser scenario that fails (run for real, on purpose) leaves a
   real screenshot, a replayable Playwright trace and notes; a passing one leaves nothing; and those
   files are stored with the run in R2.
@@ -282,7 +317,8 @@ forever (`immutable`). Your originals are never publicly reachable.
 
 ### Workflow
 
-All commands use your existing `wrangler login` — no extra keys.
+All commands use your existing `wrangler login` — no extra keys. (You can also add a photo from the Admin page's
+**New Photo form** while `npm run dev` is running: see *Admin page → Pics Viewer tab*.)
 
 ```sh
 # Add a photo: uploads it, checks it arrived, reads the camera line from its EXIF, writes
@@ -481,6 +517,15 @@ by side: **Test Results** and **Pics Viewer** (in Spanish: *Resultados de prueba
 tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the selected tab is
 in the URL (`/admin/#pics-viewer`), and without JavaScript both panels are shown.
 
+**The Admin page signs out after 5 minutes of inactivity** (`src/config/admin.ts`): the token is forgotten,
+both tabs return to the token form, and the form says why. Moving the pointer, pressing a key, scrolling,
+clicking or touching the page counts as being there and restarts the 5 minutes; requests the page makes by
+itself do not. A tab left for longer than that and then reloaded is signed out too. (While the tab is in the
+background the browser slows timers down, so the sign-out happens when you come back to it at the latest.)
+
+**Refresh and Sign out** are at the top of the page, across from the "Admin" title (they appear only while
+you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for both tabs.
+
 ### Test Results tab
 
 It shows the runs stored in R2 (`photography-site-test`, under `results/`; see *Test results in R2*).
@@ -520,6 +565,51 @@ category, or "not on the site" for a file no entry uses) with its path. Each row
 keyboard, or tap it** and a tooltip shows the file's camera information (the same line as the gallery),
 its file size, and its copyright (and the artist, when the file has one); Escape, moving away or clicking
 elsewhere closes it. Where the file has no camera data or no copyright notice, the tooltip says so.
+
+Across from the photo counter ("20 original photos"), at the right, are two buttons: **Upload Photos**
+(upload icon) and **Remove Photos** (trash icon). Upload Photos opens the **New Photo form** (below). Remove
+Photos **does nothing yet**: it just says it isn't available (the API is read-only, so no removal can happen).
+
+#### New Photo form
+
+Press **Upload Photos** and a form opens above the list. It does what `npm run photos:add` does, from the browser:
+
+1. **Photo (JPEG)** — choose the file. The form reads what the photo itself knows and shows it: its **photo id**
+   (the first 16 characters of the file's SHA-256), its **size** as displayed (EXIF rotation applied) and its
+   **camera line** (`Nikon Z 8 · NIKKOR Z 100-400mm f/4.5-5.6 VR S + TC-2.0x · 800mm · f/11 · 1/125s · ISO 640`),
+   which you can edit or empty. Nothing else is kept from the EXIF (no copyright, dates, GPS or serial numbers).
+2. **Title**, and optionally the **Spanish title**, and **Featured**.
+3. **Category** — one of the slugs in `src/config/categories.ts`, named in the page's language.
+4. **Order** — filled in as **one past the highest order already in the chosen category** (1 for an empty
+   category), and updated when you change the category. Type your own number to keep it. Lower numbers show first.
+
+**Add photo** uploads the original to the private originals bucket (`photos/<id>/original.jpg`) and the web
+sizes to the public bucket, checks they arrived, and writes `src/content/photos/<category>/images/<photo id>.md`, e.g.
+
+```yaml
+---
+title: "Half Moon"
+titles:
+  es: "Media luna"
+category: "astro"
+photo:
+  id: "4c4f46c18b70c4b5"
+  width: 4505
+  height: 2608
+camera: "Nikon Z 8 · NIKKOR Z 100-400mm f/4.5-5.6 VR S + TC-2.0x · 800mm · f/11 · 1/125s · ISO 640"
+featured: false
+order: 3
+---
+```
+
+The form shows the entry it wrote. **Commit the new `.md` and deploy to publish the photo** (the photo is in R2 already).
+The same photo can be in more than one category, but not twice in the same one; only JPEGs are accepted (up to 100 MB).
+
+**It only works on your own computer, in `npm run dev`.** Adding a photo needs your Cloudflare login (`wrangler login`,
+the same as `photos:add`) and writes into your project, so the form's service (`/__photos/`, in
+`scripts/lib/photo-form.mjs`) is added to the dev server only: the build never includes it, and on the deployed
+site the form says it only works while the site runs on your computer. Even in dev it answers only on `localhost`
+and only requests coming from its own page (a page open in another tab cannot use it).
 
 **The private originals are never shown, or even sent to the page.** The thumbnails are the site's own
 public 400-pixel web copies of the photos (from the public photo host, the same files the gallery uses,
@@ -561,7 +651,7 @@ gallery photos load eagerly (the first with high priority); the rest lazily. Eve
 width and height so the page can't jump while loading; the header logos are right-sized (the small
 icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
 10 KB, styles 25 KB — current pages are about half that; the Admin pages, which carry the results
-viewer and are opened only by you, may have 20 KB of scripts). If you change `PHOTO_VARIANTS`, run
+viewer and are opened only by you, may have 30 KB of scripts). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 
 ## Deployment to Cloudflare Pages (free)

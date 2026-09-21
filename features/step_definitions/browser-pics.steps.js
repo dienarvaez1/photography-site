@@ -54,10 +54,6 @@ When('I sign in to the Pics Viewer with the token {string}', async function (tok
   await field.press('Enter');
 });
 
-When('I click {string} in the Pics Viewer', async function (name) {
-  await panel(this).getByRole('button', { name, exact: true }).click();
-});
-
 Then('the Pics Viewer should ask for the admin token', async function () {
   await panel(this).locator('#pics-token').waitFor({ state: 'visible', timeout: 8000 });
   await panel(this).getByLabel('Admin token').waitFor({ state: 'visible' });
@@ -294,3 +290,140 @@ When('I show the Pics Viewer in its {string} state', async function (state) {
     await tip(this).locator('dl').waitFor({ state: 'visible', timeout: 8000 });
   }
 });
+
+// --- The Upload Photos and Remove Photos buttons ----------------------------------------------------------------------------------
+
+const action = (world, name) => panel(world).getByRole('button', { name, exact: true });
+
+Then('the photo counter should be at the left of its row, with {string} then {string} across from it at the right, all on one line', async function (first, second) {
+  await eventually(async () => (await panel(this).locator('.pics-summary').count()) === 1, 'the summary row');
+  const boxes = await panel(this).locator('.pics-summary').evaluate((row) => ({
+    row: row.getBoundingClientRect().toJSON(),
+    counter: row.querySelector('.results-count').getBoundingClientRect().toJSON(),
+    buttons: [...row.querySelectorAll('button')].map((b) => ({ text: b.textContent.trim(), ...b.getBoundingClientRect().toJSON() })),
+  }));
+  assert.deepEqual(boxes.buttons.map((b) => b.text), [first, second], 'the two buttons, in this order');
+  const [a, b] = boxes.buttons;
+  assert.ok(Math.abs(a.y - boxes.counter.y) < boxes.counter.height + 40 && a.y < boxes.counter.y + boxes.counter.height + 40, 'across from the counter');
+  assert.ok(Math.abs(a.y - b.y) < 2, 'the buttons are on one line');
+  assert.ok(boxes.counter.x + boxes.counter.width <= a.x, 'the counter is at the left of the buttons');
+  assert.ok(a.x + a.width <= b.x, `${first} is left of ${second}`);
+  assert.ok(Math.abs(b.x + b.width - (boxes.row.x + boxes.row.width)) < 2, 'the buttons end at the right edge of the row');
+});
+
+Then('the {string} button should show the {string} icon and be named only by its text', async function (name, glyph) {
+  const button = action(this, name);
+  await button.waitFor({ state: 'visible', timeout: 8000 });
+  const parts = await button.evaluate((b) => ({ icons: [...b.querySelectorAll('svg')].map((s) => ({ icon: s.getAttribute('data-icon'), hidden: s.getAttribute('aria-hidden'), box: s.getBoundingClientRect().toJSON() })), text: b.textContent.trim(), label: b.getAttribute('aria-label'), rect: b.getBoundingClientRect().toJSON() }));
+  assert.equal(parts.icons.length, 1);
+  assert.equal(parts.icons[0].icon, glyph);
+  assert.equal(parts.icons[0].hidden, 'true');
+  assert.ok(parts.icons[0].box.width >= 16 && parts.icons[0].box.x < parts.rect.x + 20, 'the icon sits before the text');
+  assert.equal(parts.text, name);
+  assert.equal(parts.label, null);
+});
+
+Then('the two icons should be different drawings', async function () {
+  const drawings = await panel(this).locator('.pics-action svg').evaluateAll((svgs) => svgs.map((s) => [...s.querySelectorAll('path')].map((p) => p.getAttribute('d')).join('|')));
+  assert.equal(drawings.length, 2);
+  assert.notEqual(drawings[0], drawings[1]);
+  assert.ok(drawings.every((d) => d.length > 20));
+});
+
+Then('both action buttons should be in the tab order and at least 44 pixels tall', async function () {
+  await eventually(async () => (await panel(this).locator('.pics-action').count()) === 2, 'both buttons');
+  const buttons = await panel(this).locator('.pics-action').evaluateAll((bs) => bs.map((b) => ({ tabIndex: b.tabIndex, disabled: b.disabled, height: b.getBoundingClientRect().height, width: b.getBoundingClientRect().width })));
+  for (const b of buttons) {
+    assert.ok(b.tabIndex >= 0 && !b.disabled);
+    assert.ok(b.height >= 44 && b.width >= 44, JSON.stringify(b));
+  }
+});
+
+Then('both action buttons should be entirely inside the screen', async function () {
+  const viewport = page(this).viewportSize();
+  for (const box of await panel(this).locator('.pics-action').evaluateAll((bs) => bs.map((b) => b.getBoundingClientRect().toJSON()))) assert.ok(box.x >= 0 && box.x + box.width <= viewport.width, JSON.stringify(box));
+});
+
+When(/^I (click|focus and press Enter on|focus and press Space on) the "([^"]+)" button$/, async function (how, name) {
+  const button = action(this, name);
+  await button.waitFor({ state: 'visible', timeout: 8000 });
+  if (how === 'click') return button.click();
+  await button.focus();
+  await page(this).keyboard.press(how.endsWith('Enter on') ? 'Enter' : 'Space');
+});
+
+Then('the Pics Viewer should offer no Upload Photos or Remove Photos button', async function () {
+  assert.equal(await panel(this).locator('.pics-action').count(), 0);
+});
+
+// --- Refresh and Sign out at the top of the page ----------------------------------------------------------------------------------
+
+const topButtons = (world) => page(world).locator('[data-admin-actions]');
+
+async function topLayout(world) {
+  await topButtons(world).waitFor({ state: 'visible', timeout: 8000 });
+  return page(world).evaluate(() => {
+    const box = (el) => el.getBoundingClientRect().toJSON();
+    const actions = document.querySelector('[data-admin-actions]');
+    const content = document.querySelector('.admin');
+    return {
+      title: box(document.querySelector('.admin h1')),
+      content: box(content),
+      contentPadding: parseFloat(getComputedStyle(content).paddingRight),
+      buttons: [...actions.querySelectorAll('button')].map((b) => ({ text: b.textContent.trim(), ...box(b) })),
+    };
+  });
+}
+
+Then('{string} then {string} should sit on the same line as the {string} title, at the right of the page', async function (first, second, title) {
+  const layout = await topLayout(this);
+  assert.equal(await page(this).locator('.admin h1').innerText(), title);
+  assert.deepEqual(layout.buttons.map((b) => b.text), [first, second]);
+  const [a, b] = layout.buttons;
+  const middleOfTitle = layout.title.y + layout.title.height / 2;
+  for (const button of layout.buttons) assert.ok(button.y <= middleOfTitle && button.y + button.height >= middleOfTitle, `${button.text} is across from the title: ${JSON.stringify({ title: layout.title, button })}`);
+  assert.ok(layout.title.x + layout.title.width <= a.x, 'the title is at the left of the buttons');
+  assert.ok(a.x + a.width <= b.x, 'Refresh comes first');
+  const rightEdge = layout.content.x + layout.content.width - layout.contentPadding;
+  assert.ok(Math.abs(b.x + b.width - rightEdge) < 2, `the buttons end at the right of the page: ${b.x + b.width} vs ${rightEdge}`);
+});
+
+Then('neither tab\'s panel should hold a {string} or {string} button', async function (a, b) {
+  for (const name of [a, b]) assert.equal(await page(this).locator('[role="tabpanel"]').getByRole('button', { name, exact: true }).count(), 0, `a ${name} button is inside a panel`);
+});
+
+Then('there should be no {string} or {string} button at the top of the page', async function (_first, _second) {
+  await eventually(async () => (await topButtons(this).isVisible()) === false, 'the top buttons are hidden');
+});
+
+When('I note how many requests the results API has had', async function () {
+  await settle(700);
+  this.b.results.mark = this.b.results.requests.length;
+});
+
+Then(/^the results API should have been asked once more for (.+), and for nothing else$/, async function (list) {
+  const paths = [...list.matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
+  await eventually(async () => this.b.results.requests.slice(this.b.results.mark).filter((r) => r.method === 'GET').length >= paths.length, 'the requests');
+  await settle(500);
+  assert.deepEqual(this.b.results.requests.slice(this.b.results.mark).filter((r) => r.method === 'GET').map((r) => r.path).sort(), paths);
+});
+
+Then('both top buttons should be in the tab order, before the tabs, and at least 44 pixels tall', async function () {
+  await topButtons(this).waitFor({ state: 'visible' });
+  const info = await page(this).evaluate(() => {
+    const focusable = [...document.querySelectorAll('a[href], button:not([disabled]), input, [tabindex="0"]')].filter((e) => e.offsetParent !== null && e.tabIndex >= 0);
+    const index = (e) => focusable.indexOf(e);
+    const [refresh, out] = document.querySelectorAll('[data-admin-actions] button');
+    const firstTab = document.querySelector('[role="tab"]');
+    return { refresh: index(refresh), out: index(out), tab: index(firstTab), heights: [refresh, out].map((b) => b.getBoundingClientRect().height) };
+  });
+  assert.ok(info.refresh >= 0 && info.out === info.refresh + 1 && info.tab > info.out, JSON.stringify(info));
+  for (const height of info.heights) assert.ok(height >= 44, `${height}px tall`);
+});
+
+Then('the two top buttons should be entirely inside the screen', async function () {
+  const layout = await topLayout(this);
+  const viewport = page(this).viewportSize();
+  for (const b of layout.buttons) assert.ok(b.x >= 0 && b.x + b.width <= viewport.width, JSON.stringify(b));
+});
+

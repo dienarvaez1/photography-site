@@ -44,7 +44,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
   Scenario: Signing out forgets the token
     When I open "/admin/"
     And I sign in with the token "browser-test-admin-token"
-    And I click "Sign out" in the Test Results tab
+    And I click "Sign out" at the top of the page
     Then the Test Results tab should ask for the admin token
     And the browser should not remember any token
     When I reload the page
@@ -61,7 +61,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     When I open "/admin/"
     And I sign in with the token "browser-test-admin-token"
     And the results API's admin token is changed to "a-completely-new-admin-token"
-    And I click "Refresh" in the Test Results tab
+    And I click "Refresh" at the top of the page
     Then the Test Results tab should say "That token was not accepted."
     And the Test Results tab should ask for the admin token
 
@@ -205,7 +205,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And I sign in with the token "browser-test-admin-token"
     Then the Test Results tab should say "Could not reach the results service. Check your connection and try again."
     When the results API comes back
-    And I click "Refresh" in the Test Results tab
+    And I click "Refresh" at the top of the page
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
 
   Scenario: No test results are asked for while the other tab is showing

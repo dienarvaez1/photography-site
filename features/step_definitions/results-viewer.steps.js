@@ -104,6 +104,31 @@ Then('the built page {string} should tell visitors without JavaScript that the v
   assert.match(message.text, new RegExp(loadMessages('en').admin.results.needsJs.slice(0, 30)));
 });
 
+Then('the built page {string} should have {string} and {string} buttons in the header beside its title, hidden until script shows them, and none inside the tabs', function (page, refresh, signOut) {
+  const { root } = readBuiltPage(page);
+  const head = root.querySelector('.admin-head');
+  assert.ok(head?.querySelector('h1'), 'the header holds the title');
+  const actions = head.querySelector('[data-admin-actions]');
+  assert.ok(actions, 'and the buttons');
+  assert.ok(actions.hasAttribute('hidden'), 'hidden until script shows them');
+  assert.deepEqual(actions.querySelectorAll('button').map((b) => b.text.trim()), [refresh, signOut]);
+  assert.equal(actions.getAttribute('role'), 'group');
+  assert.ok(actions.getAttribute('aria-label'));
+  for (const panel of root.querySelectorAll('[role="tabpanel"]')) assert.equal(panel.querySelectorAll('button').length, 0, 'no button is built into a panel');
+});
+
+Then('no viewer should build a Refresh or Sign out button of its own, and the top buttons should only ask the viewers to reload or forget the token', function () {
+  for (const file of ['results-viewer.ts', 'pics-viewer.ts']) {
+    const code = readFileSync(join(ROOT, 'src/lib', file), 'utf-8');
+    assert.doesNotMatch(code, /m\('refresh'\)|m\('signOut'\)/, `${file} builds its own button`);
+    assert.match(code, /REFRESH_EVENT/, `${file} answers the page's Refresh`);
+  }
+  const actions = readFileSync(join(ROOT, 'src/lib/admin-actions.ts'), 'utf-8');
+  assert.match(actions, /dispatchEvent\(new Event\(REFRESH_EVENT\)\)/);
+  assert.match(actions, /remembered\.set\(''\)/);
+  assert.doesNotMatch(actions, /fetch\(|api</);
+});
+
 const viewerCode = () => ['results-viewer.ts', 'admin-common.ts', 'pics-viewer.ts'].map((f) => readFileSync(join(ROOT, 'src/lib', f), 'utf-8')).join('\n');
 
 Then("the viewer's code should never use innerHTML, outerHTML, insertAdjacentHTML, document.write, eval or new Function", function () {

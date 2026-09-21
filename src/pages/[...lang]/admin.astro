@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getLocale, getLocalizedCategory, getPhotoTitle, localeStaticParams, useTranslations } from '../../i18n';
 import { RESULTS_API_URL } from '../../config/results';
+import { CATEGORIES } from '../../config/categories';
 import { photoVariant } from '../../config/photos';
 import en from '../../i18n/en.json';
 import es from '../../i18n/es.json';
@@ -25,6 +26,9 @@ const resultsMessages = adminMessages.results;
 const { gate, errors, signOut, refresh, loading } = adminMessages.results;
 const picsMessages = { pics: adminMessages.pics, gate, errors, signOut, refresh, loading };
 
+// The categories the New Photo form offers (every configured one, hidden or not), in the page's language.
+const formCategories = CATEGORIES.map(({ slug }) => ({ slug, label: getLocalizedCategory(slug, locale)?.label ?? slug }));
+
 // What the site knows about each photo (public information), so the list can say "Orion Nebula" rather than a hash.
 const knownPhotos = Object.fromEntries(
   (await getCollection('photos')).map((entry) => [
@@ -45,8 +49,17 @@ const knownPhotos = Object.fromEntries(
     </style>
   </noscript>
   <section class="wrap admin">
-    <p class="eyebrow">{t('admin.eyebrow')}</p>
-    <h1>{t('admin.heading')}</h1>
+    <div class="admin-head">
+      <div>
+        <p class="eyebrow">{t('admin.eyebrow')}</p>
+        <h1>{t('admin.heading')}</h1>
+      </div>
+      <!-- Shown by script only while signed in; they act on whichever tab is showing. -->
+      <div class="admin-actions" role="group" aria-label={t('admin.actionsLabel')} data-admin-actions hidden>
+        <button type="button" class="results-button" data-action="refresh">{t('admin.results.refresh')}</button>
+        <button type="button" class="results-button" data-action="sign-out">{t('admin.results.signOut')}</button>
+      </div>
+    </div>
 
     <div class="tabs" data-tabs>
       <div class="tablist" role="tablist" aria-label={t('admin.tablistLabel')}>
@@ -77,8 +90,10 @@ const knownPhotos = Object.fromEntries(
               <noscript><p>{t('admin.results.needsJs')}</p></noscript>
             </div>
           ) : (
-            <div class="results pics" data-pics data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(picsMessages)} data-photos={JSON.stringify(knownPhotos)}>
+            <div class="results pics" data-pics data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(picsMessages)} data-photos={JSON.stringify(knownPhotos)} data-categories={JSON.stringify(formCategories)}>
               <p class="results-intro">{t('admin.pics.intro')}</p>
+              <!-- The New Photo form opens here, above the list. -->
+              <div data-pics-form></div>
               <div data-pics-root aria-live="polite">
                 <p>{t('admin.results.loading')}</p>
               </div>
@@ -98,6 +113,9 @@ const knownPhotos = Object.fromEntries(
     max-width: 900px;
   }
 
+  .admin-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-1) var(--space-2); }
+  .admin-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-left: auto; }
+  .admin-actions[hidden] { display: none; }
   .admin h1 {
     font-size: clamp(1.8rem, 4vw, 2.6rem);
   }
@@ -156,6 +174,7 @@ const knownPhotos = Object.fromEntries(
   .results-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); justify-content: flex-end; margin-bottom: var(--space-2); }
   .results-back { margin-right: auto; display: inline-flex; align-items: center; min-height: 44px; }
   .results-error { color: var(--bad); }
+  .results-notice { margin: 0; padding: 0.6rem 0.9rem; border: 1px solid var(--accent); border-radius: var(--radius); color: var(--fg); }
   .results-badge { display: inline-block; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid currentColor; font-size: 0.85rem; }
   .results-badge.ok { color: var(--ok); }
   .results-badge.bad { color: var(--bad); }
@@ -180,6 +199,11 @@ const knownPhotos = Object.fromEntries(
   .results-features summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
   .results-features .has-failures th, .results-features .has-failures td { color: var(--bad); }
   .results-slowest { padding-left: 1.4rem; margin: 0; color: var(--fg-muted); }
+  .pics-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); margin-bottom: var(--space-1); }
+  .pics-summary .results-count { margin: 0; }
+  .pics-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-left: auto; }
+  .pics-action { display: inline-flex; align-items: center; gap: 0.5rem; }
+  .pics-status { min-height: 1.4em; margin: 0 0 var(--space-1); color: var(--fg-muted); font-size: 0.9rem; }
   .pics-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.25rem; }
   .pic { position: relative; }
   .pic-link { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 0 var(--space-2); align-items: center; padding: 0.6rem 1rem; min-height: 44px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); color: var(--fg); text-decoration: none; }
@@ -195,6 +219,23 @@ const knownPhotos = Object.fromEntries(
   .pic-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; margin: 0; }
   .pic-facts dt { color: var(--fg-muted); }
   .pic-facts dd { margin: 0; overflow-wrap: anywhere; }
+  .photo-form { margin: var(--space-2) 0 var(--space-3); padding: var(--space-2) var(--space-3); background: var(--bg-elevated); border: 1px solid var(--accent); border-radius: var(--radius); }
+  .photo-form { overflow-wrap: anywhere; } /* the written path is one long word */
+  .photo-form h3 { margin-top: 0; }
+  .photo-form > .results-hint { margin-bottom: var(--space-2); }
+  .photo-form-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); max-width: 34rem; }
+  .photo-form-field { display: grid; gap: 0.25rem; min-width: 0; }
+  .photo-form-field .results-hint, .photo-form .results-hint { margin: 0; font-size: 0.9rem; }
+  .photo-form input:not([type='checkbox']), .photo-form select { min-height: 44px; padding: 0.5rem 0.75rem; background: var(--bg); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; width: 100%; box-sizing: border-box; }
+  .photo-form input[type='file'] { padding: 0.4rem 0.5rem; }
+  .photo-form-check { display: flex; align-items: center; gap: 0.5rem; min-height: 44px; }
+  .photo-form-check input { width: 1.25rem; height: 1.25rem; accent-color: var(--accent); }
+  .photo-form-extracted { padding: var(--space-1) var(--space-2); border: 1px solid var(--border); border-radius: var(--radius); display: grid; gap: var(--space-1); }
+  .photo-form-extracted[hidden] { display: none; }
+  .photo-form-extracted h4 { margin: 0; }
+  .photo-form-buttons { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+  .photo-form-entry { margin: 0; padding: var(--space-1) var(--space-2); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; font-size: 0.85rem; }
+  .photo-form-done:focus { outline: none; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
 
@@ -202,9 +243,14 @@ const knownPhotos = Object.fromEntries(
   import { mountResultsViewer } from '../../lib/results-viewer';
 
   import { mountPicsViewer } from '../../lib/pics-viewer';
+  import { mountAdminActions } from '../../lib/admin-actions';
+  import { mountIdleTimeout } from '../../lib/admin-session';
 
   const viewer = document.querySelector<HTMLElement>('[data-results]');
   if (viewer) mountResultsViewer(viewer, viewer.closest<HTMLElement>('[role="tabpanel"]')!);
+  mountIdleTimeout();
+  const actions = document.querySelector<HTMLElement>('[data-admin-actions]');
+  if (actions) mountAdminActions(actions);
   const pics = document.querySelector<HTMLElement>('[data-pics]');
   if (pics) mountPicsViewer(pics, pics.closest<HTMLElement>('[role="tabpanel"]')!);
 

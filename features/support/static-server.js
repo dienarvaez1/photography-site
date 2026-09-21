@@ -54,9 +54,18 @@ export async function startStaticServer({ root = DIST_DIR, transform, blank404 =
     return { none: true };
   };
 
+  // A scenario can mount an extra handler (the New Photo form's service, which `astro dev` adds to the dev server).
+  let mounted = null;
+  const PREFIX = '/__photos/';
+
   const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
     requests.push(url.pathname + url.search);
+    if (mounted && url.pathname.startsWith(PREFIX)) return mounted(req, res, () => respond(req, res, url));
+    respond(req, res, url);
+  });
+
+  function respond(req, res, url) {
     const found = fileFor(url.pathname);
     if (found.redirect) {
       res.writeHead(308, { Location: found.redirect + url.search });
@@ -76,13 +85,17 @@ export async function startStaticServer({ root = DIST_DIR, transform, blank404 =
     }
     res.writeHead(found.status, headers);
     res.end(req.method === 'HEAD' ? undefined : body);
-  });
+  }
 
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address();
   return {
     url: `http://127.0.0.1:${port}`,
     requests,
+    /** Handles the requests under /__photos/ with `handler(req, res, next)`; `next` answers as an ordinary unknown address. */
+    mount: (handler) => {
+      mounted = handler;
+    },
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 }

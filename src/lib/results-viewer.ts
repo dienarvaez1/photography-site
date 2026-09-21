@@ -15,7 +15,7 @@ import {
   type Route,
   type Totals,
 } from './results-view';
-import { AUTH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, messageReader, remembered, type Child, type Messages } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, messageReader, remembered, type Child, type Messages } from './admin-common';
 
 type Failure = { feature?: string; scenario?: string; step?: string; message?: string; name?: string; detail?: string };
 type Suite = { scenarios?: number; passed: number; failed: number; skipped?: number; steps?: { total: number }; durationMs?: number; features?: { name: string; scenarios: number; passed: number; failed: number }[]; failures?: Failure[]; slowest?: { feature: string; scenario: string; ms: number }[]; checks?: number; baseUrl?: string };
@@ -51,22 +51,8 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
     if (problem) input.focus();
   }
 
-  function signOut() {
-    token = '';
-    displayed = null;
-    remembered.set('');
-    generation++;
-    renderGate();
-  }
-
-  const toolbar = (...extra: Child[]) =>
-    el('div', { class: 'results-toolbar' }, ...extra, el('button', { class: 'results-button', text: m('refresh'), attrs: { type: 'button' } }), el('button', { class: 'results-button', text: m('signOut'), attrs: { type: 'button', 'data-sign-out': '' } }));
-
-  function wireToolbar(bar: HTMLElement) {
-    const [refresh, out] = Array.from(bar.querySelectorAll('button'));
-    refresh.addEventListener('click', () => void render());
-    out.addEventListener('click', signOut);
-  }
+  // Refresh and Sign out are buttons at the top of the page (admin-actions.ts); here only the way back from a run.
+  const backBar = () => el('div', { class: 'results-toolbar' }, el('a', { class: 'results-back', text: m('back'), attrs: { href: LIST_HASH } }));
 
   // --- Small building blocks --------------------------------------------------------------------------------
 
@@ -93,13 +79,11 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   async function renderList(run: number) {
     const [latest, index] = await Promise.all([api<Summary>('/latest').catch((e) => (e instanceof ApiError && e.kind === 'notFound' ? null : Promise.reject(e))), api<{ runs: IndexEntry[] }>('/index')]);
     if (run !== generation) return;
-    const bar = toolbar();
-    wireToolbar(bar);
     if (!index.runs.length && !latest) {
-      show(bar, el('p', { class: 'results-empty', text: m('empty') }));
+      show(el('p', { class: 'results-empty', text: m('empty') }));
       return;
     }
-    const nodes: Child[] = [bar];
+    const nodes: Child[] = [];
     if (latest) {
       nodes.push(
         el('section', { class: 'results-latest', attrs: { 'aria-labelledby': 'results-latest-heading' } },
@@ -200,11 +184,9 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   async function renderRun(run: number, runId: string) {
     const { summary, links, linksExpireInSeconds } = await api<{ summary: Summary; links: Record<string, string>; linksExpireInSeconds: number }>(`/runs/${encodeURIComponent(runId)}`);
     if (run !== generation) return;
-    const bar = toolbar(el('a', { class: 'results-back', text: m('back'), attrs: { href: LIST_HASH } }));
-    wireToolbar(bar);
     const heading = el('h3', { class: 'results-run-heading', attrs: { tabindex: '-1' } }, `${formatDate(summary.startedAt, locale)} `, badge(summary.ok));
     show(
-      bar,
+      backBar(),
       heading,
       el('p', { class: 'results-totals', text: totalsText(summary.totals) }),
       dl([
@@ -251,9 +233,7 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
         remembered.set('');
         renderGate(error);
       } else {
-        const bar = toolbar(route.view === 'run' ? el('a', { class: 'results-back', text: m('back'), attrs: { href: LIST_HASH } }) : null);
-        wireToolbar(bar);
-        show(bar, errorBox(error));
+        show(route.view === 'run' ? backBar() : null, errorBox(error));
       }
     }
   }
@@ -271,6 +251,10 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
     displayed = null;
     generation++;
     sync();
+  });
+  // The page's Refresh button reloads whichever tab is showing.
+  window.addEventListener(REFRESH_EVENT, () => {
+    if (!panel.hidden && token) void render();
   });
   new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
   // The tabs' own handlers run first; look afterwards.

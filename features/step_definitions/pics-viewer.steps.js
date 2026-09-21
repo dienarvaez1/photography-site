@@ -191,6 +191,20 @@ Then('every original should appear exactly once', function () {
   assert.deepEqual(this.data.pics.rows.map((r) => r.id).sort(), [...this.data.pics.ids].sort());
 });
 
+Then("the Pics Viewer's Upload Photos button should open the New Photo form, and Remove Photos should only show a message, and make no request to the API", function () {
+  const code = readFileSync(join(ROOT, 'src/lib/pics-viewer.ts'), 'utf-8');
+  const body = code.slice(code.indexOf('function summary('), code.indexOf('// --- The list'));
+  assert.match(body, /icon\('upload'\)|button\('upload', 'upload'\)/);
+  assert.match(body, /button\('remove', 'trash'\)/);
+  // The buttons themselves ask for nothing: Upload opens the form (which has its own service), Remove says it is not available.
+  assert.doesNotMatch(body, /api<|api\(|fetch\(|\.put\(|\.delete\(|method:/);
+  assert.match(body, /if \(kind === 'upload'\) \{[^}]*openForm\(\);/);
+  assert.match(body, /status\.textContent = m\('pics\.removeSoon'\)/);
+  assert.match(code, /photoForm\(\{/);
+  // ...and the API still only knows GET.
+  assert.match(readFileSync(join(ROOT, 'workers/results-api/src/index.mjs'), 'utf-8'), /request\.method !== 'GET'/);
+});
+
 Then('a {int} by {int} picture should be shown at {int} by {int}', function (width, height, shownWidth, shownHeight) {
   assert.deepEqual(view.thumbSize(width, height), { width: shownWidth, height: shownHeight });
 });

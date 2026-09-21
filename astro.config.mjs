@@ -5,6 +5,7 @@ import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
 import { existsSync, renameSync, rmdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { photoForm } from './scripts/lib/photo-form-server.mjs';
 import { SITE } from './src/config/site.ts';
 import { DEFAULT_LOCALE, LOCALES } from './src/i18n/config.ts';
 
@@ -50,6 +51,8 @@ export default defineConfig({
       },
     }),
     localizedNotFoundPages,
+    // The Admin page's New Photo form: dev server only (it needs your Cloudflare login and writes into src/content).
+    photoForm({ contentDir: fileURLToPath(new URL('./src/content/photos', import.meta.url)) }),
   ],
   adapter: cloudflare(),
   vite: {
