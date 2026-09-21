@@ -5,6 +5,10 @@
 //   2. Their country, from Cloudflare's IP geolocation (see LOCALE_COUNTRIES below).
 //   3. Only when the country can't be determined: the browser's language settings.
 //   4. The default locale (English).
+// Detection is for visitors arriving at the site. Someone navigating within it (a same-site
+// referrer, e.g. clicking "EN" on the Spanish home page) already chose where to go, so steps 2-3 are
+// skipped for them; without this, a visitor whose browser can't store the choice would be bounced
+// straight back to Spanish. A remembered choice (step 1) still applies.
 // A known country always wins over the browser language, so a visitor in the USA gets English
 // even if their browser is set to Spanish; they can switch, and the switch is remembered.
 //
@@ -108,6 +112,16 @@ export function storeLocale(storage: StorageLike | null, locale: string): void {
   }
 }
 
+/** Did the visitor come from another page of this same site? (Unparseable or missing referrers mean "no".) */
+export function isSameSiteNavigation(referrer: string | undefined, origin: string | undefined): boolean {
+  if (!referrer || !origin) return false;
+  try {
+    return new URL(referrer).origin === origin;
+  } catch {
+    return false;
+  }
+}
+
 /** Home path for a locale: "/" for the default locale, "/es/" otherwise. */
 function homePath(locale: Locale): string {
   return locale === DEFAULT_LOCALE ? '/' : `/${locale}/`;
@@ -120,6 +134,9 @@ export interface GeoRedirectEnv {
   userAgent: string;
   /** The browser's preferred languages (navigator.languages), used only when the country is unknown. */
   languages?: readonly string[];
+  /** The page that linked here (document.referrer) and this site's origin; a same-site referrer means the visitor is navigating, not arriving. */
+  referrer?: string;
+  origin?: string;
   /** Development aid only (the page passes it in dev builds): pretend the visitor is in this country. */
   countryOverride?: string | null;
 }
@@ -135,6 +152,8 @@ export async function runGeoRedirect(env: GeoRedirectEnv): Promise<Locale | null
   if (location.pathname !== homePath(DEFAULT_LOCALE) || BOT_PATTERN.test(env.userAgent)) return null;
 
   const stored = readStoredLocale(env.storage);
+  if (!stored && isSameSiteNavigation(env.referrer, env.origin)) return null;
+
   let country: string | null = null;
   if (!stored) {
     country = env.countryOverride ? env.countryOverride.toUpperCase() : await fetchCountry(env.fetch);

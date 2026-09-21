@@ -46,6 +46,15 @@ Then(
   }
 );
 
+Given(/^the visitor came from "([^"]*)" on the site "([^"]*)"$/, function (referrer, origin) {
+  this.data.geo.env.referrer = orNull(referrer) ?? undefined;
+  this.data.geo.env.origin = origin;
+});
+
+Then(/^the referrer "([^"]*)" on the site "([^"]*)" should count as navigating within the site: "(yes|no)"$/, function (referrer, origin, same) {
+  assert.equal(geo.isSameSiteNavigation(orNull(referrer) ?? undefined, orNull(origin) ?? undefined), same === 'yes');
+});
+
 Given("the visitor's browser languages are {string}", function (languages) {
   this.data.geo.env.languages = list(languages);
 });

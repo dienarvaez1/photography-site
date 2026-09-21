@@ -285,6 +285,10 @@ Then('the {string} link should be the active one', async function (name) {
 
 // ---------------------------------------------------------------- language & location ---------------------------
 
+When('I click the header logo', async function () {
+  await page(this).locator('a.brand').click();
+});
+
 When('I click the language switcher link {string}', async function (text) {
   await page(this).locator('.lang-switcher a', { hasText: text }).click();
 });

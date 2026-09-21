@@ -353,6 +353,9 @@ Design notes:
   locale to `src/i18n/config.ts` and list its countries there.
 - Detection only runs on `/`. Deep links (`/about/`, `/work/pets/`), `/es/...` pages, and
   crawlers are never redirected, so shared links and SEO (hreflang) behave predictably.
+- Detection is for visitors *arriving* on `/`: someone navigating within the site (a same-site referrer, e.g.
+  clicking "EN" on the Spanish home page) is never guessed at, so they can't be bounced back even when
+  their browser can't remember a choice. A remembered choice still always applies.
 - It's a client-side check, so the site stays fully static; a first-time visitor in Mexico may
   briefly see the English page before being redirected. Returning visitors who chose a language
   skip the check entirely.

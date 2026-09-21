@@ -20,6 +20,8 @@
     location: window.location,
     userAgent: navigator.userAgent,
     languages: navigator.languages,
+    referrer: document.referrer,
+    origin: window.location.origin,
     // Dev only, e.g. http://localhost:4321/?geo=MX (Cloudflare's trace endpoint doesn't exist locally).
     countryOverride: import.meta.env.DEV ? new URLSearchParams(window.location.search).get('geo') : null,
   });

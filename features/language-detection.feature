@@ -162,3 +162,40 @@ Feature: Location-based default language
     And the visitor's browser languages are "es-MX"
     When the location detection runs
     Then the visitor should be redirected to "none"
+
+  # --- Arriving versus navigating: a same-site visitor is never guessed at ------------------------------------
+
+  Scenario Outline: Only visitors arriving from elsewhere are guessed at; someone clicking around the site is not
+    Given a visitor on the English home page with remembered choice "none", user agent "Mozilla/5.0" and a trace response of "loc=MX"
+    And the visitor came from "<referrer>" on the site "https://example.test"
+    When the location detection runs
+    Then the visitor should be redirected to "<target>"
+    And Cloudflare's trace endpoint should be asked "<asked>"
+
+    Examples:
+      | referrer                         | target | asked | why                                         |
+      | none                             | /es/   | yes   | typed the address or followed a bookmark    |
+      | https://www.google.com/          | /es/   | yes   | arrived from a search                       |
+      | https://example.test.evil.com/   | /es/   | yes   | a look-alike host is not the same site      |
+      | not a url                        | /es/   | yes   | an unusable referrer is treated as none     |
+      | https://example.test/es/         | none   | no    | clicked EN on the Spanish home page         |
+      | https://example.test/about/      | none   | no    | clicked the logo from another page          |
+
+  Scenario: A remembered choice still applies to a visitor navigating within the site
+    Given a visitor on the English home page with remembered choice "es", user agent "Mozilla/5.0" and a trace response of "loc=US"
+    And the visitor came from "https://example.test/about/" on the site "https://example.test"
+    When the location detection runs
+    Then the visitor should be redirected to "/es/"
+
+  Scenario Outline: The same-site rule is exact
+    Then the referrer "<referrer>" on the site "<origin>" should count as navigating within the site: "<same>"
+
+    Examples:
+      | referrer                       | origin                | same |
+      | https://example.test/es/       | https://example.test  | yes  |
+      | https://example.test           | https://example.test  | yes  |
+      | http://example.test/es/        | https://example.test  | no   |
+      | https://example.test:8443/es/  | https://example.test  | no   |
+      | https://other.test/es/         | https://example.test  | no   |
+      | none                           | https://example.test  | no   |
+      | https://example.test/es/       | none                  | no   |

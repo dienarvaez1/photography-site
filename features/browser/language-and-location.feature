@@ -119,4 +119,24 @@ Feature: Language switching and the location-based default, in a real browser
     Then the visitor should end up on "/es/"
     When I click the language switcher link "EN"
     Then the page path should be "/"
+    And the visitor should stay on "/" once location detection has had time to run
     And no script error should have been logged
+
+  # --- Navigating within the site is not arriving ----------------------------------------------------------------------
+
+  Scenario: Clicking EN on the Spanish home page keeps the visitor on English even when nothing can be remembered
+    Given Cloudflare says the visitor is in "MX"
+    And the browser blocks local storage
+    When I open "/es/"
+    And I click the language switcher link "EN"
+    Then the page path should be "/"
+    And the visitor should stay on "/" once location detection has had time to run
+    And Cloudflare's location should not have been asked
+
+  Scenario: Clicking the logo from an English page does not redirect a visitor in Mexico
+    Given Cloudflare says the visitor is in "MX"
+    When I open "/about/"
+    And I click the header logo
+    Then the page path should be "/"
+    And the visitor should stay on "/" once location detection has had time to run
+    And Cloudflare's location should not have been asked
