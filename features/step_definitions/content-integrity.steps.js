@@ -69,9 +69,9 @@ Then('the photo tooling should be the only code that contacts R2', function () {
     .map((f) => f.path);
   assert.deepEqual(offenders, [], 'Only src/config/photos.ts may name the R2 host');
   const fetchers = listSourceFiles()
-    .filter(({ text, path }) => /\bfetch\s*\(/.test(text) && !/GeoRedirect|geo\.ts|contact\.astro/.test(path))
+    .filter(({ text, path }) => /\bfetch\s*\(/.test(text) && !/GeoRedirect|geo\.ts|contact\.astro|results-viewer\.ts/.test(path))
     .map((f) => f.path);
-  assert.deepEqual(fetchers, [], 'Unexpected network calls in site source (only location detection and the contact form may fetch, at runtime in the browser)');
+  assert.deepEqual(fetchers, [], 'Unexpected network calls in site source (only location detection, the contact form and the Admin results viewer may fetch, at runtime in the browser)');
 });
 
 Then('each entry should only use the allowed frontmatter fields', function () {

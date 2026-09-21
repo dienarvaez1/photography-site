@@ -145,7 +145,7 @@ function referencedBytes(root, pattern, attribute, extraImports = false) {
   return total;
 }
 
-Then("no page's HTML should exceed 30 KB, its scripts 10 KB, or its styles 25 KB", function () {
+Then("no page's HTML should exceed 30 KB, its scripts 10 KB, or its styles 25 KB, except that the Admin pages' scripts may reach 20 KB", function () {
   const problems = [];
   for (const { route, page } of this.data.pages) {
     const html = Buffer.byteLength(page.html);
@@ -153,7 +153,8 @@ Then("no page's HTML should exceed 30 KB, its scripts 10 KB, or its styles 25 KB
     const inlineCss = page.root.querySelectorAll('style').reduce((n, s) => n + s.text.length, 0);
     const css = referencedBytes(page.root, 'link[rel="stylesheet"]', 'href') + inlineCss;
     if (kb(html) > 30) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
-    if (kb(js) > 10) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
+    // The Admin pages carry the results viewer; nobody but the owner loads them.
+    if (kb(js) > (/\/admin\/$/.test(route) ? 20 : 10)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
     if (kb(css) > 25) problems.push(`${route}: styles ${kb(css).toFixed(1)} KB`);
   }
   assert.deepEqual(problems, [], 'A page grew past its budget — check for an oversized script, style or inlined asset');

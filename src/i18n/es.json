@@ -134,6 +134,92 @@
     },
     "tbd": {
       "placeholder": "Por definir."
+    },
+    "results": {
+      "intro": "Resultados de las pruebas automáticas, leídos del almacén privado de resultados. Elige una ejecución para ver sus detalles.",
+      "gate": {
+        "intro": "Estos resultados son privados. Introduce el token de administrador para verlos.",
+        "label": "Token de administrador",
+        "submit": "Mostrar resultados",
+        "checking": "Comprobando…"
+      },
+      "errors": {
+        "unauthorized": "No se aceptó ese token.",
+        "notConfigured": "El servicio de resultados aún no tiene token de administrador. Define el secreto ADMIN_TOKEN en el Worker de resultados.",
+        "unreachable": "No se pudo conectar con el servicio de resultados. Revisa tu conexión e inténtalo de nuevo.",
+        "generic": "El servicio de resultados devolvió un error ({status}).",
+        "notFound": "No se encontró esa ejecución. Puede que se haya eliminado."
+      },
+      "signOut": "Cerrar sesión",
+      "refresh": "Actualizar",
+      "loading": "Cargando resultados…",
+      "empty": "Todavía no se han publicado resultados de pruebas. Ejecuta npm run test:record y después npm run results:publish.",
+      "latest": {
+        "heading": "Última ejecución"
+      },
+      "runs": {
+        "heading": "Todas las ejecuciones",
+        "count": "{count} ejecuciones",
+        "open": "Abrir la ejecución {id}"
+      },
+      "status": {
+        "passed": "Correcta",
+        "failed": "Con fallos"
+      },
+      "totals": {
+        "allPassed": "{passed} de {scenarios} correctos",
+        "someFailed": "{passed} de {scenarios} correctos, {failed} con fallos, {skipped} omitidos"
+      },
+      "back": "← Todas las ejecuciones",
+      "detail": {
+        "started": "Inicio",
+        "source": "Origen",
+        "commit": "Commit",
+        "branch": "Rama",
+        "node": "Node",
+        "dirty": "cambios sin confirmar",
+        "clean": "limpio",
+        "runId": "Ejecución"
+      },
+      "suites": {
+        "heading": "Conjuntos",
+        "suite": "Conjunto",
+        "scenarios": "Escenarios",
+        "passed": "Correctos",
+        "failed": "Con fallos",
+        "skipped": "Omitidos",
+        "steps": "Pasos",
+        "duration": "Duración",
+        "checks": "Comprobaciones",
+        "offline": "Sin conexión",
+        "browser": "Navegador",
+        "smoke": "Sitio en vivo (smoke)",
+        "features": "Funcionalidades"
+      },
+      "failures": {
+        "heading": "Fallos",
+        "none": "No hay fallos en esta ejecución.",
+        "scenario": "Escenario",
+        "step": "Paso",
+        "feature": "Funcionalidad"
+      },
+      "slowest": {
+        "heading": "Escenarios más lentos"
+      },
+      "files": {
+        "heading": "Informes y archivos",
+        "openHtml": "Abrir informe ({suite})",
+        "openJson": "Datos en bruto ({suite})",
+        "newTab": "(se abre en una pestaña nueva)",
+        "expiry": "Los enlaces son válidos durante {minutes} minutos. Recarga la ejecución para obtener nuevos."
+      },
+      "artifacts": {
+        "heading": "Evidencia de los fallos",
+        "screenshot": "Captura del escenario fallido {name}",
+        "trace": "Traza (zip)",
+        "log": "Registro"
+      },
+      "needsJs": "El visor de resultados necesita JavaScript. Sin él, consulta los informes con npm run results:list."
     }
   }
 }

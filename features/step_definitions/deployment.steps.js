@@ -10,6 +10,7 @@ import { DIST_DIR, ROOT, listBuiltRoutes, loadMessages, readBuiltPage } from '..
 const buildEnv = await import(join(ROOT, 'scripts/lib/build-env.mjs'));
 const site = (await import(join(ROOT, 'src/config/site.ts'))).SITE;
 const photos = await import(join(ROOT, 'src/config/photos.ts'));
+const resultsConfig = await import(join(ROOT, 'src/config/results.ts'));
 
 const GOOD = { GOOD_A: '11111111-1111-4111-8111-111111111111', GOOD_B: '22222222-2222-4222-8222-222222222222' };
 const value = (raw) => (raw === 'missing' ? undefined : GOOD[raw] ?? raw);
@@ -276,6 +277,18 @@ Then("the Content-Security-Policy should allow the contact form's API in connect
   const policy = csp();
   assert.ok(policy['connect-src'].includes('https://api.web3forms.com'));
   assert.ok(policy['form-action'].includes('https://api.web3forms.com'));
+});
+
+Then('the Content-Security-Policy should allow the results API configured in the site in connect-src and img-src, and nothing broader', function () {
+  const policy = csp();
+  const origin = new URL(resultsConfig.RESULTS_API_URL).origin;
+  assert.equal(origin, resultsConfig.RESULTS_API_URL, 'the configured address is a bare origin');
+  for (const directive of ['connect-src', 'img-src']) assert.ok(policy[directive].includes(origin), `${directive} must list the results API`);
+  // Only that exact origin: no wildcards, and not allowed to load scripts, frames or forms.
+  for (const [directive, sources] of Object.entries(policy)) {
+    assert.ok(!sources.some((source) => source.includes('*') || source === 'https:'), `${directive} must not use wildcards`);
+    if (!['connect-src', 'img-src'].includes(directive)) assert.ok(!sources.includes(origin), `${directive} must not allow the results API`);
+  }
 });
 
 Then('every external address the built pages and scripts load should be allowed by the policy', async function () {

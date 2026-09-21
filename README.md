@@ -22,6 +22,8 @@ paid backend.
 | `npm run deploy:unchecked`      | Build and deploy without the checks (emergencies only)              |
 | `npm run test:record`           | Run both suites with reporters, then store the results in R2 (see Test results) |
 | `npm run results:publish`       | Upload `test-results/` to R2 as one run (also `results:list`, `results:show`, `results:trend`, `results:prune`, or `npm run results -- help`) |
+| `npm run results-api:dev`       | Run the results API locally at `localhost:8788` (see Admin page)    |
+| `npm run results-api:deploy`    | Deploy the results API Worker (see Admin page)                      |
 | `npm run smoke`                 | Check the live site (or `-- <url>`); `-- --wait` retries for 2 minutes |
 | `npm run photos -- help`        | Add / replace / remove / verify photos in R2 (see Photos)           |
 
@@ -40,7 +42,7 @@ network call — R2 photos, Web3Forms, Cloudflare's location lookup — so they 
 internet and can never send you a real message. CI runs both suites on every push.
 
 `npm test` builds the site once (`npm run build`), then checks the actual built output — the
-same static files that get deployed — against eighteen areas. **Every page-level check runs
+same static files that get deployed — against twenty areas. **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
 
@@ -113,6 +115,21 @@ against every page in both English and Spanish**; expected text is read from
   linked immediately to the right of "Contact" and marked active on its own page, it has exactly two
   tabs ("Test Results", then "TBD") in a horizontal, labelled tab list wired to two panels with the
   first selected, a no-JavaScript fallback, and it is `noindex` and out of the sitemap.
+- **`results-api.feature`** — the read-only API behind the Admin page's Test Results tab, called through its
+  real request handler over runs published by the real publisher: every data route needs the admin
+  token (missing, wrong, near-miss and Basic credentials are refused; no secret set means a 503), the
+  health check, `index.json` and `latest.json` served exactly as stored (an empty store gives an empty
+  list), signed file links (right content types, sandboxed HTML reports, zip downloads; a changed,
+  removed, re-pointed or expired link, or one signed with an old token, opens nothing), path-escape
+  attempts never reaching the bucket, GET-only, only allowed origins may read answers from a browser
+  (and preflight), no response ever contains the token, nothing cached, and the Worker's config is
+  bound to the right bucket, read-only, with origins matching the site's config. One scenario runs the same
+  code in the real Workers runtime (workerd, via `wrangler dev`) over a real local R2 bucket.
+- **`results-viewer.feature`** — the viewer's pure logic (which address shows the list or a run, durations,
+  dates in both languages, totals wording, which API address is used and when `?api=` may override it,
+  which links are ever followed, sorting a run's files) and what is built: the viewer in both languages
+  pointed at the configured API, no token or bucket address in any page or script, the viewer only ever
+  writes text (never HTML), and the token lives only in `sessionStorage`.
 - **`documentation.feature`** — the README lists every feature file (including the browser ones),
   states the right number of test areas, and documents every npm script and `photos:*` command.
 
@@ -143,6 +160,13 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
 - **`admin.feature`** (browser) — the two tabs really sit side by side on laptop and phone; clicking,
   arrow keys, Home/End (with wrap-around), deep links like `/admin/#tbd`, Spanish, no-JavaScript, and
   the header link to the right of Contact all behave, with no errors or CSP violations.
+- **`results-viewer.feature`** (browser) — the Test Results tab against the real results API code and a
+  fake bucket: the token gate (wrong, forgotten on sign-out, expired, no token on the server, keyboard
+  only), `latest.json` and `index.json` as the only requests to start, opening every run (list, latest
+  card, Back button, reload, direct links, unknown run, keyboard), suites, failures shown as plain text
+  (a failure message containing HTML stays text), reports opening in new tabs from the API, screenshot
+  and trace evidence, empty store, unreachable API and recovery, no requests while another tab is
+  showing, Spanish, an axe audit and no sideways scrolling in every state, no errors or CSP violations.
 - **`failure-artifacts.feature`** — a browser scenario that fails (run for real, on purpose) leaves a
   real screenshot, a replayable Playwright trace and notes; a passing one leaves nothing; and those
   files are stored with the run in R2.
@@ -429,7 +453,7 @@ placeholder Web3Forms keys (the tests never send anything; the real keys stay in
 
 `public/_headers` sends HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, a referrer policy, a
 permissions policy and a **Content-Security-Policy**: scripts only from the site itself (no inline,
-no `eval`), images from the site and the R2 photo host, network calls only to the site and Web3Forms,
+no `eval`), images from the site, the R2 photo host and the results API, network calls only to the site, Web3Forms and the results API,
 forms only to Web3Forms, no plugins, no framing. Astro is configured not to inline scripts
 (`assetsInlineLimit: 0`) so this stays strict; styles may be inline. If you change the R2 address in
 `src/config/photos.ts`, update the `img-src` host in `_headers` — a test fails if they disagree.
@@ -437,14 +461,45 @@ forms only to Web3Forms, no plugins, no framing. Astro is configured not to inli
 ## Admin page
 
 `/admin/` (and `/es/admin/`) is linked in the header, to the right of Contact, and has two tabs side
-by side: **Test Results** and **TBD** (in Spanish: *Resultados de pruebas* and *Por definir*). Both are
-placeholders for now. The tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between
-them, the selected tab is in the URL (`/admin/#tbd`), and without JavaScript both panels are shown.
+by side: **Test Results** and **TBD** (in Spanish: *Resultados de pruebas* and *Por definir*). The
+tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the selected tab is
+in the URL (`/admin/#tbd`), and without JavaScript both panels are shown.
 
-**It is a public page.** This is a static site with no login, so anyone who knows the address can open
-it. It is marked `noindex` and left out of the sitemap so search engines don't list it, but that is not
-protection. Before it shows anything private (for instance the results stored in R2), put it behind
-[Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) or another login.
+### Test Results tab
+
+It shows the runs stored in R2 (`photography-site-test`, under `results/`; see *Test results in R2*).
+It starts from the store's two entry points — `latest.json` (the newest run, shown as a card) and
+`index.json` (every run, newest first) — and any run can be opened: the address becomes
+`/admin/#test-results/run/<run id>` (so a run can be linked to, and the browser's Back button works).
+A run shows its result, commit, branch and source, a table of the suites (offline, browser, live
+smoke), every failure with its feature, scenario, step and reason, the slowest scenarios, links to the
+full HTML and JSON reports, and the screenshots, traces and notes saved for failed browser scenarios.
+
+The results bucket stays **private**. The page reads it through a small read-only Worker,
+`workers/results-api/` (deployed as `photography-site-results`, bound to the bucket; it can only read
+under `results/`). The page asks for an **admin token**, keeps it only for that browser tab
+(`sessionStorage`; *Sign out* forgets it) and sends it in an `Authorization` header — never in an
+address. Reports and screenshots open through short-lived (15 minute) signed links the Worker hands
+out with each run, so nothing else needs the token; HTML reports are served sandboxed.
+
+**One-time setup (needs you — it deploys a Worker and sets a secret):**
+
+```bash
+npm run results-api:deploy                                        # creates the Worker
+npx wrangler secret put ADMIN_TOKEN -c workers/results-api/wrangler.jsonc   # 16+ characters, kept in Cloudflare only
+npm run deploy                                                    # the site, so its CSP allows the Worker
+```
+
+Until the secret exists the Worker refuses everything. If the Worker gets another address, update
+`src/config/results.ts` **and** `public/_headers` (a test fails if they disagree). To try it locally
+with real data: `npm run results-api:dev` and open `http://localhost:4321/admin/?api=http://localhost:8788`
+(the `?api=` override only works on localhost); the local Worker needs `--var ADMIN_TOKEN:<token>` or a
+`.dev.vars` file (git-ignored).
+
+**The page itself is still public.** This is a static site with no login, so anyone who knows the
+address can open it and see the token prompt. It is marked `noindex` and left out of the sitemap, but
+that is not protection; the token is what protects the results. For a real login in front of the whole
+page, use [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/).
 
 ## Error pages
 
@@ -471,7 +526,8 @@ than a large screen (`photoSrcSet` never lists the same width twice for small ph
 gallery photos load eagerly (the first with high priority); the rest lazily. Every image declares its
 width and height so the page can't jump while loading; the header logos are right-sized (the small
 icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
-10 KB, styles 25 KB — current pages are about half that). If you change `PHOTO_VARIANTS`, run
+10 KB, styles 25 KB — current pages are about half that; the Admin pages, which carry the results
+viewer and are opened only by you, may have 20 KB of scripts). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 
 ## Deployment to Cloudflare Pages (free)
@@ -525,12 +581,14 @@ src/
 ├── config/
 │   ├── categories.ts   # category taxonomy (add new categories here)
 │   ├── photos.ts       # R2 buckets, public photo URL, web sizes, srcset helper, key layout
+│   ├── results.ts      # the results API's address and the origins it accepts
 │   ├── site.ts         # language-independent site facts (URL, email, address)
 │   └── web3forms.ts    # which Web3Forms key each language's form uses
 ├── content/
 │   └── photos/<category>/images/   # one <photo id>.md per photo (the photo itself is in R2)
 ├── content.config.ts   # photo content collection schema
 ├── components/         # Header, Footer, Gallery (lightbox), SEO (+JSON-LD), CategoryCard, GeoRedirect
+├── lib/                # results-view (pure viewer logic) and results-viewer (the Admin tab), logging
 ├── i18n/               # en.json, es.json, helpers, and geo.ts (location-based default language)
 ├── layouts/
 │   └── BaseLayout.astro
@@ -547,6 +605,7 @@ scripts/
 ├── run-tests.mjs       # `npm run test:record`
 ├── results.mjs         # `npm run results:*`
 └── lib/                # cli, photos (workflow), exif, r2-storage, build-env, smoke, results, results-cli, test-runner
+workers/results-api/    # read-only Worker serving the private results bucket to the Admin page
 test-fixtures/          # tiny suites the results tests run for real
 features/               # Gherkin tests; features/browser/ = real-Chromium tests; support/ = helpers
 .github/workflows/      # ci.yml (tests + live smoke on push), smoke.yml (every 6 hours)

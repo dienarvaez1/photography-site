@@ -134,6 +134,92 @@
     },
     "tbd": {
       "placeholder": "To be defined."
+    },
+    "results": {
+      "intro": "Results of the automated tests, read from the private results store. Pick a run to see its details.",
+      "gate": {
+        "intro": "These results are private. Enter the admin token to view them.",
+        "label": "Admin token",
+        "submit": "Show results",
+        "checking": "Checking…"
+      },
+      "errors": {
+        "unauthorized": "That token was not accepted.",
+        "notConfigured": "The results service has no admin token yet. Set the ADMIN_TOKEN secret on the results Worker.",
+        "unreachable": "Could not reach the results service. Check your connection and try again.",
+        "generic": "The results service returned an error ({status}).",
+        "notFound": "That run was not found. It may have been pruned."
+      },
+      "signOut": "Sign out",
+      "refresh": "Refresh",
+      "loading": "Loading results…",
+      "empty": "No test results have been published yet. Run npm run test:record, then npm run results:publish.",
+      "latest": {
+        "heading": "Latest run"
+      },
+      "runs": {
+        "heading": "All runs",
+        "count": "{count} runs",
+        "open": "Open run {id}"
+      },
+      "status": {
+        "passed": "Passed",
+        "failed": "Failed"
+      },
+      "totals": {
+        "allPassed": "{passed} of {scenarios} passed",
+        "someFailed": "{passed} of {scenarios} passed, {failed} failed, {skipped} skipped"
+      },
+      "back": "← All runs",
+      "detail": {
+        "started": "Started",
+        "source": "Source",
+        "commit": "Commit",
+        "branch": "Branch",
+        "node": "Node",
+        "dirty": "uncommitted changes",
+        "clean": "clean",
+        "runId": "Run"
+      },
+      "suites": {
+        "heading": "Suites",
+        "suite": "Suite",
+        "scenarios": "Scenarios",
+        "passed": "Passed",
+        "failed": "Failed",
+        "skipped": "Skipped",
+        "steps": "Steps",
+        "duration": "Duration",
+        "checks": "Checks",
+        "offline": "Offline",
+        "browser": "Browser",
+        "smoke": "Live site (smoke)",
+        "features": "Features"
+      },
+      "failures": {
+        "heading": "Failures",
+        "none": "No failures in this run.",
+        "scenario": "Scenario",
+        "step": "Step",
+        "feature": "Feature"
+      },
+      "slowest": {
+        "heading": "Slowest scenarios"
+      },
+      "files": {
+        "heading": "Reports and files",
+        "openHtml": "Open report ({suite})",
+        "openJson": "Raw data ({suite})",
+        "newTab": "(opens in a new tab)",
+        "expiry": "Links stay valid for {minutes} minutes. Reload the run for fresh ones."
+      },
+      "artifacts": {
+        "heading": "Failure evidence",
+        "screenshot": "Screenshot of the failed scenario {name}",
+        "trace": "Trace (zip)",
+        "log": "Log"
+      },
+      "needsJs": "The results viewer needs JavaScript. Without it, read the reports with npm run results:list."
     }
   }
 }

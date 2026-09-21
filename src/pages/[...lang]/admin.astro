@@ -1,6 +1,9 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getLocale, localeStaticParams, useTranslations } from '../../i18n';
+import { RESULTS_API_URL } from '../../config/results';
+import en from '../../i18n/en.json';
+import es from '../../i18n/es.json';
 
 export const getStaticPaths = localeStaticParams;
 
@@ -9,9 +12,12 @@ const t = useTranslations(locale);
 
 // The two sections of the page, left to right. Each tab shows its panel.
 const tabs = [
-  { id: 'test-results', label: t('admin.tabs.testResults'), body: t('admin.testResults.placeholder') },
+  { id: 'test-results', label: t('admin.tabs.testResults'), body: null },
   { id: 'tbd', label: t('admin.tabs.tbd'), body: t('admin.tbd.placeholder') },
 ];
+
+// The viewer's texts travel to the browser as data (an attribute, since the policy allows no inline scripts), in the page's language.
+const resultsMessages = (locale === 'es' ? es : en).admin.results;
 ---
 
 <!-- Not for search engines, and not in the sitemap. It is public: put Cloudflare Access in front of it before it shows real data. -->
@@ -48,7 +54,17 @@ const tabs = [
       {tabs.map((tab, index) => (
         <div class="tabpanel" role="tabpanel" id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`} tabindex="0" hidden={index !== 0}>
           <h2>{tab.label}</h2>
-          <p>{tab.body}</p>
+          {tab.body === null ? (
+            <div class="results" data-results data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(resultsMessages)}>
+              <p class="results-intro">{t('admin.results.intro')}</p>
+              <div data-results-root aria-live="polite">
+                <p>{t('admin.results.loading')}</p>
+              </div>
+              <noscript><p>{t('admin.results.needsJs')}</p></noscript>
+            </div>
+          ) : (
+            <p>{tab.body}</p>
+          )}
         </div>
       ))}
     </div>
@@ -106,7 +122,53 @@ const tabs = [
   }
 </style>
 
+<style is:global>
+  /* The viewer builds its own elements at run time, so its styles can't be scoped to this page's markup. */
+  .results { --ok: #86d99a; --bad: #ff9b9b; }
+  .results h3 { font-size: 1.15rem; margin: var(--space-3) 0 var(--space-1); }
+  .results h4 { font-size: 1rem; margin: var(--space-2) 0 0.25rem; overflow-wrap: anywhere; }
+  .results-intro, .results-hint, .results-count, .results-loading { color: var(--fg-muted); }
+  .results-gate { display: grid; gap: var(--space-1); max-width: 26rem; }
+  .results-gate input { min-height: 44px; padding: 0.5rem 0.75rem; background: var(--bg-elevated); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; }
+  .results-button { min-height: 44px; padding: 0.5rem 1rem; background: none; color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; cursor: pointer; }
+  .results-button:hover { border-color: var(--accent); }
+  .results-button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .results-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); justify-content: flex-end; margin-bottom: var(--space-2); }
+  .results-back { margin-right: auto; display: inline-flex; align-items: center; min-height: 44px; }
+  .results-error { color: var(--bad); }
+  .results-badge { display: inline-block; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid currentColor; font-size: 0.85rem; }
+  .results-badge.ok { color: var(--ok); }
+  .results-badge.bad { color: var(--bad); }
+  .results-runs { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-1); }
+  .results-run { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem var(--space-2); align-items: center; padding: 0.75rem 1rem; min-height: 44px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); color: var(--fg); text-decoration: none; }
+  .results-run:hover, .results-run:focus-visible { border-color: var(--accent); }
+  .run-what, .run-totals { color: var(--fg-muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+  .results-meta { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem var(--space-2); margin: var(--space-1) 0; }
+  .results-meta dt { color: var(--fg-muted); }
+  .results-meta dd { margin: 0; overflow-wrap: anywhere; }
+  .results-run-heading:focus { outline: none; }
+  .results-table-wrap { overflow-x: auto; }
+  .results-table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  .results-table th, .results-table td { padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+  .results-table th:first-child { text-align: left; }
+  .results-failures, .results-artifacts, .results-files { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
+  .results-failure { padding: 0.75rem 1rem; border: 1px solid var(--border); border-left: 3px solid var(--bad); border-radius: var(--radius); }
+  .results-failure pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--fg-muted); }
+  .results-artifact img { max-width: 100%; max-height: 260px; border: 1px solid var(--border); border-radius: var(--radius); }
+  .results-artifact p a + a { margin-left: var(--space-2); }
+  .results-features { margin: var(--space-1) 0; }
+  .results-features summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+  .results-features .has-failures th, .results-features .has-failures td { color: var(--bad); }
+  .results-slowest { padding-left: 1.4rem; margin: 0; color: var(--fg-muted); }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+
 <script>
+  import { mountResultsViewer } from '../../lib/results-viewer';
+
+  const viewer = document.querySelector<HTMLElement>('[data-results]');
+  if (viewer) mountResultsViewer(viewer, viewer.closest<HTMLElement>('[role="tabpanel"]')!);
+
   // Tabs pattern (WAI-ARIA): one tab in the tab order at a time; arrow keys, Home and End move between
   // tabs; the selected tab is shown in the URL (#tbd) so it can be linked to.
   document.querySelectorAll<HTMLElement>('[data-tabs]').forEach((root) => {
@@ -125,7 +187,8 @@ const tabs = [
       if (updateHash) history.replaceState(null, '', `#${idOf(tabs[index])}`);
     }
 
-    const fromHash = () => tabs.findIndex((tab) => `#${idOf(tab)}` === location.hash);
+    // `#test-results/run/<id>` (a run inside the tab) selects the same tab as `#test-results`.
+    const fromHash = () => tabs.findIndex((tab) => idOf(tab) === location.hash.slice(1).split('/')[0]);
 
     tabs.forEach((tab, index) => {
       tab.addEventListener('click', () => select(index, { updateHash: true }));

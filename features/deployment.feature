@@ -112,6 +112,7 @@ Feature: A deploy cannot silently break the site
   Scenario: The policy allows exactly what the pages load
     Then the Content-Security-Policy should allow the photo host configured in the site
     And the Content-Security-Policy should allow the contact form's API in connect-src and form-action
+    And the Content-Security-Policy should allow the results API configured in the site in connect-src and img-src, and nothing broader
     And every external address the built pages and scripts load should be allowed by the policy
 
   Scenario: The pages contain nothing the strict policy would block

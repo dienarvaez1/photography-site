@@ -4,6 +4,15 @@ import { After, AfterAll, Before, Status, setDefaultTimeout } from '@cucumber/cu
 import sharp from 'sharp';
 import { chromium } from 'playwright';
 import { startStaticServer } from './static-server.js';
+import { ROOT } from './lib.js';
+import { asR2Binding } from './r2-binding.js';
+import { publishRuns } from './results-fixtures.js';
+
+// The results API is the real Worker code answering from a fake bucket of really-published runs, so the
+// browser tests cover the actual contract between the publisher, the API and the Admin page.
+const { handle: handleResultsRequest } = await import(join(ROOT, 'workers/results-api/src/index.mjs'));
+const { RESULTS_API_URL } = await import(join(ROOT, 'src/config/results.ts'));
+const RESULTS_ORIGIN = new URL(RESULTS_API_URL).origin;
 
 // Real-browser scenarios are slower than the rest: page loads, axe scans, animations.
 setDefaultTimeout(60_000);
@@ -45,6 +54,9 @@ Before({ tags: '@browser' }, function () {
     lastStatus: null, // status of the most recent page navigation
     viewportOverride: null,
     apiRequests: [],
+    // What the results API is doing: 'ok' (answers), 'unreachable', or 'slow'; `env` is its Worker environment (no
+    // admin token until a scenario sets one up), `requests` is everything the page asked it.
+    results: { mode: 'ok', env: {}, delayMs: 0, requests: [] },
     traceRequests: 0,
     photoRequests: [],
     blocked: [],
@@ -58,6 +70,31 @@ const SHARP_LAPTOP = { viewport: { width: 1280, height: 800 }, deviceScaleFactor
 
 export function useDevice(world, kind) {
   world.b.device = kind === 'phone' ? PHONE : kind === 'laptop with a sharp screen' ? SHARP_LAPTOP : LAPTOP;
+}
+
+/** Publishes runs (see results-fixtures.js) into a fake results bucket behind the API, which then knows this admin token. */
+export async function setUpResultsApi(world, token, runs) {
+  const { bucket, runIds } = await publishRuns(runs);
+  Object.assign(world.b.results, { token, bucket, runIds, env: { ADMIN_TOKEN: token, RESULTS: asR2Binding(bucket) } });
+}
+
+async function serveResults(b, siteOrigin, request, route) {
+  const results = b.results;
+  const url = new URL(request.url());
+  results.requests.push({ method: request.method(), path: url.pathname, url: request.url(), authorization: request.headers()['authorization'] ?? '' });
+  if (results.mode === 'unreachable') return route.abort('connectionrefused');
+  if (results.delayMs) await new Promise((resolve) => setTimeout(resolve, results.delayMs));
+  // Only the site's own origin may read the answers, exactly as in production.
+  const env = { ...results.env, ALLOWED_ORIGINS: siteOrigin };
+  const answer = await handleResultsRequest(new Request(request.url(), { method: request.method(), headers: request.headers() }), env);
+  let body = Buffer.from(await answer.arrayBuffer());
+  if (results.foreignLink && url.pathname.startsWith('/runs/') && answer.status === 200) {
+    // A misbehaving API: one of the run's file links points at another site.
+    const run = JSON.parse(body.toString('utf-8'));
+    run.links[results.foreignLink] = `https://evil.example/files/x/${results.foreignLink}?exp=1&sig=1`;
+    body = Buffer.from(JSON.stringify(run));
+  }
+  return route.fulfill({ status: answer.status, headers: Object.fromEntries(answer.headers), body });
 }
 
 /** Creates the browser context (once per scenario) with the stubs described above. */
@@ -105,6 +142,7 @@ export async function open(world) {
       }
       return route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Thanks</title><h1>Thank you</h1>' }); // the plain-form fallback page
     }
+    if (url.origin === RESULTS_ORIGIN) return serveResults(b, site.url, request, route);
     b.blocked.push(request.url()); // nothing else may leave the machine
     return route.abort('blockedbyclient');
   });

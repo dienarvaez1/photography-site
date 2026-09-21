@@ -31,7 +31,9 @@
     "results:list": "node scripts/results.mjs list",
     "results:show": "node scripts/results.mjs show",
     "results:trend": "node scripts/results.mjs trend",
-    "results:prune": "node scripts/results.mjs prune"
+    "results:prune": "node scripts/results.mjs prune",
+    "results-api:dev": "wrangler dev -c workers/results-api/wrangler.jsonc --port 8788",
+    "results-api:deploy": "wrangler deploy -c workers/results-api/wrangler.jsonc"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.2",
