@@ -76,3 +76,12 @@ Feature: Contact page Web3Forms configuration (English and Spanish)
       | route        |
       | /contact/    |
       | /es/contact/ |
+
+  Scenario Outline: The interest list offers "Other" once, though "Other" is also a category of photos
+    When I load the built page "<route>"
+    Then the contact form's interest list should offer every category except "other" once, then a single "Other" option last
+
+    Examples:
+      | route        |
+      | /contact/    |
+      | /es/contact/ |

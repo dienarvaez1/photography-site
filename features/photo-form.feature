@@ -56,6 +56,7 @@ Feature: The New Photo form adds a photo from what the photo itself says
     And the form should say "astro" has 3 photos, a highest order of 4 and a next order of 5
     And the form should say "nature" has 7 photos, a highest order of 7 and a next order of 8
     And the form should say "pets" has 0 photos, a highest order of 0 and a next order of 1
+    And the form should say "other" has 0 photos, a highest order of 0 and a next order of 1
     And the form should know every configured category
 
   Scenario: A photo submitted without an order gets one past the highest in its category
@@ -78,12 +79,25 @@ Feature: The New Photo form adds a photo from what the photo itself says
       | order    | 9         |
     Then the entry "astro/half-moon" should still have order 9
 
-  Scenario: The first photo of an empty category gets order 1
+  Scenario Outline: The first photo of an empty category gets order 1, in every category
     Given a photo file "moon.jpg" of 1200x700
     When I submit the photo "moon.jpg" to the form with:
-      | title    | Half Moon |
-      | category | pets      |
-    Then the entry "pets/half-moon" should still have order 1
+      | title    | Half Moon  |
+      | category | <category> |
+    Then the form should answer with status 200
+    And the entry "<category>/half-moon" should still have order 1
+    And the entry "<category>/half-moon" should be stored as "<category>/images" named after its photo id
+
+    Examples:
+      | category    |
+      | real-estate |
+      | landscape   |
+      | portrait    |
+      | astro       |
+      | pets        |
+      | nature      |
+      | events      |
+      | other       |
 
   Scenario: Two photos submitted at the same moment get different orders
     Given the category "astro" already has photos with the orders "1, 2"

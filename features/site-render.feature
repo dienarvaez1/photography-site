@@ -18,6 +18,7 @@ Feature: The site renders its photo pages from R2 when they are requested
       | astro    | Comet            |                   | 3     | false    |
       | nature   | Rockfish         |                   | 1     | true     |
       | events   | Quinceañera      |                   | 1     | false    |
+      | other    | Street Market    | Mercado callejero | 1     | false    |
 
   # --- What is built, and what is left for the Worker ----------------------------------------------------------------------
 
@@ -47,7 +48,7 @@ Feature: The site renders its photo pages from R2 when they are requested
     When I request "/"
     Then the site should answer 200
     And the page should list these photos, in this order: "Rockfish, Orion Nebula"
-    And the category cards should show these covers: "Astrophotography: Half Moon, Nature: Rockfish, Public Events: Quinceañera"
+    And the category cards should show these covers: "Astrophotography: Half Moon, Nature: Rockfish, Other: Street Market, Public Events: Quinceañera"
 
   Scenario: A category with no photos says so, and a hidden category is still a page
     When I request "/work/pets/"
@@ -57,6 +58,36 @@ Feature: The site renders its photo pages from R2 when they are requested
     Then the site should answer 200
     And the page should say "No photos in this category yet"
 
+  Scenario Outline: Every category has its own page in both languages, titled in that language
+    When I request "<address>"
+    Then the site should answer 200
+    And the page title should be "<title>"
+
+    Examples:
+      | address                  | title                                             |
+      | /work/real-estate/       | Real Estate · Diego Narvaez Photography           |
+      | /work/landscape/         | Landscape · Diego Narvaez Photography             |
+      | /work/portrait/          | Portrait · Diego Narvaez Photography              |
+      | /work/astro/             | Astrophotography · Diego Narvaez Photography     |
+      | /work/pets/              | Pets · Diego Narvaez Photography                  |
+      | /work/nature/            | Nature · Diego Narvaez Photography                |
+      | /work/events/            | Public Events · Diego Narvaez Photography        |
+      | /work/other/             | Other · Diego Narvaez Photography                 |
+      | /es/work/real-estate/    | Bienes raíces · Diego Narvaez Fotografía          |
+      | /es/work/landscape/      | Paisajes · Diego Narvaez Fotografía               |
+      | /es/work/portrait/       | Retratos · Diego Narvaez Fotografía               |
+      | /es/work/astro/          | Astrofotografía · Diego Narvaez Fotografía        |
+      | /es/work/pets/           | Mascotas · Diego Narvaez Fotografía               |
+      | /es/work/nature/         | Naturaleza · Diego Narvaez Fotografía             |
+      | /es/work/events/         | Eventos públicos · Diego Narvaez Fotografía       |
+      | /es/work/other/          | Otros · Diego Narvaez Fotografía                  |
+
+  Scenario: The Other category lists its photos, in each language
+    When I request "/work/other/"
+    Then the page should list these photos, in this order: "Street Market"
+    When I request "/es/work/other/"
+    Then the page should list these photos, in this order: "Mercado callejero"
+
   Scenario: The category page shares its first photo
     When I request "/work/astro/"
     Then the page should share its first photo, "Half Moon", at full size
@@ -64,7 +95,7 @@ Feature: The site renders its photo pages from R2 when they are requested
   Scenario: The Admin page knows the titles and thumbnails of the photos in the bucket
     When I request "/admin/"
     Then the site should answer 200
-    And the Admin page should know these photos by title: "Half Moon, Orion Nebula, Comet, Rockfish, Quinceañera"
+    And the Admin page should know these photos by title: "Half Moon, Orion Nebula, Comet, Rockfish, Quinceañera, Street Market"
 
   # --- A photo added while the site is running -------------------------------------------------------------------------------------
 

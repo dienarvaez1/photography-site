@@ -5,8 +5,9 @@ export interface Category {
 }
 
 // Add a new category by adding an entry here, then add its `label` and
-// `description` under "categories" in every locale file (src/i18n/*.json)
-// and create a matching folder under src/content/photos/<slug>/.
+// `description` under "categories" in every locale file (src/i18n/*.json),
+// and deploy once. Photos are added to it with `--category <slug>` (or the Admin
+// page's New Photo form): their entries live in R2, so there is no folder to create.
 export const CATEGORIES: Category[] = [
   { slug: 'real-estate', hidden: true },
   { slug: 'landscape' },
@@ -15,6 +16,7 @@ export const CATEGORIES: Category[] = [
   { slug: 'pets' },
   { slug: 'nature' },
   { slug: 'events' },
+  { slug: 'other' },
 ];
 
 export function getCategory(slug: string): Category | undefined {

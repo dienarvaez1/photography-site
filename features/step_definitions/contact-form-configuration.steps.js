@@ -123,3 +123,11 @@ Then('the contact form category options should submit English values', function 
   const violations = options.map((o) => o.getAttribute('value')).filter((v) => !allowed.has(v));
   assert.deepEqual(violations, [], 'Found option values that are not English category labels');
 });
+
+Then(`the contact form's interest list should offer every category except "other" once, then a single "Other" option last`, function () {
+  const english = loadMessages('en');
+  const options = this.data.page.root.querySelectorAll('#contact-form select[name="category"] option').map((o) => o.getAttribute('value'));
+  const expected = [...Object.entries(english.categories).filter(([slug]) => slug !== 'other').map(([, c]) => c.label), 'Other'];
+  assert.deepEqual(options, expected);
+  assert.equal(new Set(options).size, options.length, 'no option is offered twice');
+});

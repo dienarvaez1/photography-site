@@ -6,6 +6,8 @@ import matter from 'gray-matter';
 import { config, entryFile, findEntry, lib, readEntry, sourcePath, state } from '../support/photo-helpers.js';
 import { ROOT } from '../support/lib.js';
 import { pushEntries } from '../../scripts/lib/entry-sync.mjs';
+import { makeJpeg } from '../support/photo-helpers.js';
+import { cli as photoCli } from '../support/photo-helpers.js';
 import { join } from 'node:path';
 
 const manifestModule = await import(join(ROOT, 'src/config/photo-manifest.ts'));
@@ -268,4 +270,29 @@ Then('the public web bucket should hold every web size of the photo of {string},
   const [entry] = await entriesOf(this, ref);
   for (const key of [...config.photoKeys(entry.id).web, entryKey(entry.category, entry.id), MANIFEST_KEY]) assert.ok(web(this).has(key), `${key} is in the web bucket`);
   assert.equal(originals(this).has(entryKey(entry.category, entry.id)), false);
+});
+
+Then('the entry {string} should be published in R2 under {string}', async function (ref, folder) {
+  const { category, photo } = await readEntry(this, ref);
+  const key = `${folder}${photo.id}.md`;
+  assert.equal(entryKey(category, photo.id), key);
+  assert.ok(web(this).has(key), `${key} is in the web bucket`);
+  assert.equal(originals(this).has(key), false);
+});
+
+Then('adding a photo to every configured category with the entries in R2 should publish each one under its own category folder and list it in the manifest', async function () {
+  const { CATEGORIES } = await import(join(ROOT, 'src/config/categories.ts'));
+  assert.ok(CATEGORIES.some((c) => c.slug === 'other'), 'the Other category is configured');
+  for (const [index, { slug }] of CATEGORIES.entries()) {
+    await makeJpeg(this, `${slug}.jpg`, 900 + index, 600); // a different size each, so every photo has its own id
+    const lines = [];
+    const code = await photoCli.run(['add', sourcePath(this, `${slug}.jpg`), '--category', slug, '--title', 'Sample', '--order', '1'], {
+      contentDir: state(this).contentDir, storage: state(this).storage, sync: true, log: (line) => lines.push(line), error: (line) => lines.push(line),
+    });
+    assert.equal(code, 0, `${slug}: ${lines.join(' / ')}`);
+    const { photo } = await readEntry(this, `${slug}/sample`);
+    assert.ok(web(this).has(`photos/categories/${slug}/${photo.id}.md`), `${slug}: the entry file is under its own category folder`);
+  }
+  const listed = manifestIn(this).entries.map((e) => e.category).sort();
+  assert.deepEqual(listed, CATEGORIES.map((c) => c.slug).sort());
 });

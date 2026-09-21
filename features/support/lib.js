@@ -197,6 +197,7 @@ export function listBaseRoutes() {
     '/work/events/',
     '/work/landscape/',
     '/work/nature/',
+    '/work/other/',
     '/work/pets/',
     '/work/portrait/',
     '/work/real-estate/',

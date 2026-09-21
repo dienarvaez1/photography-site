@@ -53,6 +53,10 @@
     "events": {
       "label": "Eventos públicos",
       "description": "Bodas, fiestas y reuniones."
+    },
+    "other": {
+      "label": "Otros",
+      "description": "Todo lo que no encaja en las demás categorías."
     }
   },
   "home": {

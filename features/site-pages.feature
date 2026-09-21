@@ -18,6 +18,7 @@ Feature: Site pages render correctly (English and Spanish)
       | /work/events/         |
       | /work/landscape/      |
       | /work/nature/         |
+      | /work/other/          |
       | /work/pets/           |
       | /work/portrait/       |
       | /work/real-estate/    |
@@ -29,6 +30,7 @@ Feature: Site pages render correctly (English and Spanish)
       | /es/work/events/      |
       | /es/work/landscape/   |
       | /es/work/nature/      |
+      | /es/work/other/       |
       | /es/work/pets/        |
       | /es/work/portrait/    |
       | /es/work/real-estate/ |
@@ -91,6 +93,7 @@ Feature: Site pages render correctly (English and Spanish)
       | /work/events/         |
       | /work/landscape/      |
       | /work/nature/         |
+      | /work/other/          |
       | /work/pets/           |
       | /work/portrait/       |
       | /work/real-estate/    |
@@ -98,6 +101,7 @@ Feature: Site pages render correctly (English and Spanish)
       | /es/work/events/      |
       | /es/work/landscape/   |
       | /es/work/nature/      |
+      | /es/work/other/       |
       | /es/work/pets/        |
       | /es/work/portrait/    |
       | /es/work/real-estate/ |

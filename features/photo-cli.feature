@@ -38,6 +38,8 @@ Feature: Photo command line places entries consistently
       | events    | Quinceañera Portrait       | quinceanera-portrait       |
       | landscape | Hawthorne Bridge, Portland | hawthorne-bridge-portland  |
       | pets      | Hansel                     | hansel                     |
+      | portrait  | Studio Light               | studio-light               |
+      | other     | Loose Ends                 | loose-ends                 |
 
   Scenario: Every configured category accepts new photos and gets the same layout
     Then adding a photo to every configured category should create one id-named entry in each category's images folder

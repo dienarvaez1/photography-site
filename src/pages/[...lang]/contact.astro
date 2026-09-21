@@ -18,10 +18,14 @@ const locale = getLocale(Astro);
 const t = useTranslations(locale);
 // Option values stay English so submissions read the same whatever language the visitor used.
 const englishLabels = Object.fromEntries(getLocalizedCategories(DEFAULT_LOCALE).map((c) => [c.slug, c.label]));
-const categoryOptions = getLocalizedCategories(locale).map((c) => ({
-  value: englishLabels[c.slug],
-  label: c.label,
-}));
+// The list ends with its own "Other" option below, which is what the "other" category stands for too: leave the
+// category out so the visitor is not offered "Other" twice.
+const categoryOptions = getLocalizedCategories(locale)
+  .filter((c) => c.slug !== 'other')
+  .map((c) => ({
+    value: englishLabels[c.slug],
+    label: c.label,
+  }));
 
 // Free contact form via Web3Forms (no backend, no cost), with a separate form per language.
 // See README for setup.

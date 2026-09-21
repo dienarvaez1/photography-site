@@ -24,12 +24,12 @@ Feature: The navigation works on phones and with the keyboard
     When I open "/"
     And I open the mobile menu
     And I open the Work submenu
-    Then the Work submenu should list 6 categories, all visible
+    Then the Work submenu should list 7 categories, all visible
 
   Scenario: On a laptop, tabbing to Work reveals its dropdown
     When I open "/"
     And I tab until keyboard focus reaches the Work menu
-    Then the Work dropdown should be visible with its 6 category links
+    Then the Work dropdown should be visible with its 7 category links
 
   Scenario: The keyboard can reach every navigation link in order
     When I open "/"

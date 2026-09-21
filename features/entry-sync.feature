@@ -277,6 +277,32 @@ Feature: The photo entries live in R2, and the local folder is only a mirror
     And the R2 change ".webp" should have happened before the R2 change "web: put photos/categories/astro/"
     And the R2 change "web: put photos/categories/astro/" should have happened before the R2 change "web: put photos/index.json"
 
+  Scenario Outline: A photo added to any category is published under that category, in the right buckets
+    Given a photo file "moon.jpg" of 1200x700
+    When I run the command: add moon.jpg --category <category> --title "Sample" --order 1
+    Then the command should succeed
+    And the entry "<category>/sample" should be published in R2 under "photos/categories/<category>/"
+    And the private originals bucket should hold exactly the originals of: "<category>/sample"
+    And the public web bucket should hold exactly the web sizes, entry files and manifest of: "<category>/sample"
+    And the manifest in R2 should hold exactly these entries:
+      | category   | title  | titleEs | width | height | camera | featured | order |
+      | <category> | Sample |         | 1200  | 700    |        | false    | 1     |
+    And every manifest entry should equal the front matter of its entry file in R2
+
+    Examples:
+      | category    |
+      | real-estate |
+      | landscape   |
+      | portrait    |
+      | astro       |
+      | pets        |
+      | nature      |
+      | events      |
+      | other       |
+
+  Scenario: Every configured category, including any added later, publishes its photos the same way
+    Then adding a photo to every configured category with the entries in R2 should publish each one under its own category folder and list it in the manifest
+
   # --- When an upload fails part-way: what R2 is left holding ---------------------------------------------------------------------
 
   Scenario: An original that cannot be stored leaves R2 with nothing of the photo, and the local file

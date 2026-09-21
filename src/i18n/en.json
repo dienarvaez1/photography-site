@@ -53,6 +53,10 @@
     "events": {
       "label": "Public Events",
       "description": "Weddings, parties, and gatherings."
+    },
+    "other": {
+      "label": "Other",
+      "description": "Everything that doesn't fit the other categories."
     }
   },
   "home": {
