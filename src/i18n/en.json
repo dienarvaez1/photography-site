@@ -108,5 +108,14 @@
     "success": "Thanks! Your message has been sent — I'll be in touch soon.",
     "error": "Something went wrong. Please try emailing me directly instead.",
     "notConfigured": "The contact form isn't configured yet. Add a free {link} access key as <code>PUBLIC_WEB3FORMS_KEY</code> to enable it — see the README. Until then, please reach out via email above."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "eyebrow": "Error 404",
+    "heading": "That page doesn't exist.",
+    "body": "The link may be broken, or the page may have moved. Try one of these instead:",
+    "home": "Back to the homepage",
+    "work": "View the work",
+    "contact": "Get in touch"
   }
 }

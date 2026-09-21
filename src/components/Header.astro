@@ -22,11 +22,11 @@ const alternates = getAlternates(Astro.url.pathname);
 <header class="site-header">
   <div class="wrap bar">
     <a href={localizePath('/', locale)} class="brand">
-      <img src="/logo.png" alt={SITE.author} class="brand-logo" />
-      <img src="/aperture-logo.png" alt="" class="aperture-logo" />
+      <img src="/logo.png" width="800" height="231" alt={SITE.author} class="brand-logo" fetchpriority="high" decoding="async" />
+      <img src="/aperture-logo.png" width="240" height="244" alt="" class="aperture-logo" decoding="async" />
     </a>
 
-    <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" id="nav-toggle">
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" id="nav-toggle">
       <span class="visually-hidden">{t('nav.toggleNavigation')}</span>
       <span class="nav-toggle-icon"></span>
     </button>
@@ -347,6 +347,15 @@ const alternates = getAlternates(Astro.url.pathname);
   toggle?.addEventListener('click', () => {
     const isOpen = nav?.classList.toggle('open');
     toggle.setAttribute('aria-expanded', String(Boolean(isOpen)));
+  });
+
+  // Escape closes the open mobile menu and hands focus back to its button.
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && nav?.classList.contains('open')) {
+      nav.classList.remove('open');
+      toggle?.setAttribute('aria-expanded', 'false');
+      (toggle as HTMLElement | null)?.focus();
+    }
   });
 
   navLabel?.addEventListener('click', () => {

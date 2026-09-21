@@ -5,6 +5,7 @@ import Gallery from '../../components/Gallery.astro';
 import CategoryCard from '../../components/CategoryCard.astro';
 import GeoRedirect from '../../components/GeoRedirect.astro';
 import { VISIBLE_CATEGORIES } from '../../config/categories';
+import { SITE } from '../../config/site';
 import {
   DEFAULT_LOCALE,
   getLocale,
@@ -18,6 +19,41 @@ export const getStaticPaths = localeStaticParams;
 
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
+
+// Structured data for search engines: the website and the photography business behind it.
+const homeUrl = new URL(localizePath('/', locale), SITE.url).href;
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: t('site.title'),
+    url: homeUrl,
+    inLanguage: locale,
+    description: t('site.description'),
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'ProfessionalService',
+    name: t('site.title'),
+    url: homeUrl,
+    image: new URL('/og-image.png', SITE.url).href,
+    description: t('site.description'),
+    email: SITE.email,
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: SITE.address.locality,
+      addressRegion: SITE.address.region,
+      addressCountry: SITE.address.country,
+    },
+    contactPoint: {
+      '@type': 'ContactPoint',
+      email: SITE.email,
+      contactType: 'customer service',
+      availableLanguage: ['English', 'Spanish'],
+    },
+    sameAs: Object.values(SITE.social).filter(Boolean),
+  },
+];
 
 const visibleSlugs = new Set(VISIBLE_CATEGORIES.map((c) => c.slug));
 
@@ -37,7 +73,7 @@ const covers = sortedCategories.map((category) => {
 });
 ---
 
-<BaseLayout title={t('site.title')} description={t('site.description')}>
+<BaseLayout title={t('site.title')} description={t('site.description')} jsonLd={jsonLd}>
   {locale === DEFAULT_LOCALE && <GeoRedirect />}
   <section class="hero wrap">
     <p class="eyebrow">{t('site.tagline')}</p>

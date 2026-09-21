@@ -6,7 +6,9 @@
 	"main": "@astrojs/cloudflare/entrypoints/server",
 	"assets": {
 		"directory": "./dist",
-		"binding": "ASSETS"
+		"binding": "ASSETS",
+		// Unknown URLs get the nearest 404.html (/es/404.html under /es/), not an empty response.
+		"not_found_handling": "404-page"
 	},
 	"observability": {
 		"enabled": true

@@ -1,0 +1,42 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getLocale, localeStaticParams, localizePath, useTranslations } from '../../i18n';
+
+// Built as /404.html and /es/404.html. Cloudflare serves the nearest 404.html for an unknown URL
+// (`assets.not_found_handling: "404-page"` in wrangler.jsonc), so a mistyped Spanish URL gets Spanish.
+export const getStaticPaths = localeStaticParams;
+
+const locale = getLocale(Astro);
+const t = useTranslations(locale);
+---
+
+<BaseLayout title={t('notFound.title')} description={t('notFound.body')} noindex>
+  <section class="wrap not-found">
+    <p class="eyebrow">{t('notFound.eyebrow')}</p>
+    <h1>{t('notFound.heading')}</h1>
+    <p>{t('notFound.body')}</p>
+    <div class="actions">
+      <a class="btn btn-primary" href={localizePath('/', locale)}>{t('notFound.home')}</a>
+      <a class="btn" href={localizePath('/work/landscape/', locale)}>{t('notFound.work')}</a>
+      <a class="btn" href={localizePath('/contact/', locale)}>{t('notFound.contact')}</a>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .not-found {
+    padding-block: var(--space-5);
+    max-width: 700px;
+  }
+
+  .not-found h1 {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+</style>

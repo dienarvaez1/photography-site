@@ -20,7 +20,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
     Then the entry "landscape/sunset" should reference a photo of 1200x800 with a 16-character content id
     And the entry "landscape/sunset" should have the title "Sunset" and the Spanish title "Atardecer"
     And the private originals bucket should hold exactly the original of that photo
-    And the public web bucket should hold exactly the thumb, cover and full sizes of that photo
+    And the public web bucket should hold exactly every web size of that photo
     And all uploaded objects should be cacheable forever
     And the local file "sunset.jpg" should be gone
 
@@ -66,7 +66,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
     And the entry "nature/first" should be stored as "nature/images" named after its photo id
     And the entry "pets/second" should be stored as "pets/images" named after its photo id
     And the private originals bucket should hold 1 object
-    And the public web bucket should hold 3 objects
+    And the public web bucket should hold the web sizes of 1 photo
 
   Scenario: Adding the same photo to the same category twice is refused and changes nothing
     Given a photo file "a.jpg" of 900x600
@@ -77,7 +77,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
     And the local file "b.jpg" should still exist
     And the folder "nature/images" should contain exactly 1 entry file, each named after its photo id
     And the private originals bucket should hold 1 object
-    And the public web bucket should hold 3 objects
+    And the public web bucket should hold the web sizes of 1 photo
 
   Scenario: Two different photos may share a title
     Given a photo file "x.jpg" of 900x600
@@ -148,7 +148,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
     And the entry "nature/bird" should be stored as "nature/images" named after its photo id
     And the folder "nature/images" should contain exactly 1 entry file, each named after its photo id
     And the private originals bucket should hold 1 object
-    And the public web bucket should hold 3 objects
+    And the public web bucket should hold the web sizes of 1 photo
     And the stored objects should all belong to the entry "nature/bird"
 
   Scenario: Replacing a photo with the very same image changes nothing
@@ -159,7 +159,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
     Then the entry "nature/same" should be stored as "nature/images" named after its photo id
     And the folder "nature/images" should contain exactly 1 entry file, each named after its photo id
     And the private originals bucket should hold 1 object
-    And the public web bucket should hold 3 objects
+    And the public web bucket should hold the web sizes of 1 photo
 
   Scenario: Replacing with a photo already in the same category is refused
     Given a photo file "p1.jpg" of 900x600
@@ -180,7 +180,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
     And I have added "shared2.jpg" to the category "pets" with the title "Right"
     When I replace the photo of "nature/left" with "other.jpg"
     Then the private originals bucket should hold 2 objects
-    And the public web bucket should hold 6 objects
+    And the public web bucket should hold the web sizes of 2 photos
     And the stored objects should all belong to the entries "nature/left" and "pets/right"
 
   # --- Removing -----------------------------------------------------------------
@@ -192,7 +192,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
     Then no entry should exist
     And the folder "nature/images" should contain no files
     And the private originals bucket should hold 0 objects
-    And the public web bucket should hold 0 objects
+    And the public web bucket should hold the web sizes of 0 photos
 
   Scenario: Removing an entry keeps a photo another entry still uses
     Given a photo file "s1.jpg" of 900x600
@@ -203,7 +203,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
     Then the entry "nature/keeper" should exist
     And the entry "pets/leaver" should not exist
     And the private originals bucket should hold 1 object
-    And the public web bucket should hold 3 objects
+    And the public web bucket should hold the web sizes of 1 photo
 
   # --- Verify and sync ----------------------------------------------------------
 
@@ -238,7 +238,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
     And the "full" size disappears from R2
     When I sync the library
     Then sync should report 1 repaired entry and no problems
-    And the public web bucket should hold 3 objects
+    And the public web bucket should hold the web sizes of 1 photo
     When I verify the library
     Then verification should report no problems
 

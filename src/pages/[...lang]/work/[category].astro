@@ -3,9 +3,11 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Gallery from '../../../components/Gallery.astro';
 import { CATEGORIES } from '../../../config/categories';
+import { photoVariant } from '../../../config/photos';
 import {
   getLocale,
   getLocalizedCategory,
+  getPhotoTitle,
   localeStaticParams,
   useTranslations,
 } from '../../../i18n';
@@ -29,9 +31,20 @@ const t = useTranslations(locale);
 const { category: slug } = Astro.params;
 const { photos } = Astro.props;
 const category = getLocalizedCategory(slug!, locale)!;
+
+// Share this category's first photo when the page is linked on social media / messaging apps.
+const first = photos[0];
+const share = first ? photoVariant(first.data.photo, 'full') : undefined;
 ---
 
-<BaseLayout title={category.label} description={category.description}>
+<BaseLayout
+  title={category.label}
+  description={category.description}
+  image={share?.src}
+  imageWidth={share?.width}
+  imageHeight={share?.height}
+  imageAlt={first ? getPhotoTitle(first.data, locale) : undefined}
+>
   <section class="wrap header">
     <p class="eyebrow">{t('work.eyebrow')}</p>
     <h1>{category.label}</h1>

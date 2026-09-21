@@ -9,9 +9,15 @@ interface Props {
   title: string;
   description?: string;
   image?: string;
+  imageAlt?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  jsonLd?: object[];
+  /** Error pages: keep them out of search results. */
+  noindex?: boolean;
 }
 
-const { title, description, image } = Astro.props;
+const { title, description, image, imageAlt, imageWidth, imageHeight, jsonLd, noindex = false } = Astro.props;
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
 ---
@@ -23,7 +29,16 @@ const t = useTranslations(locale);
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b0c0e" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <SEO title={title} description={description} image={image} />
+    <SEO
+      title={title}
+      description={description}
+      image={image}
+      imageAlt={imageAlt}
+      imageWidth={imageWidth}
+      imageHeight={imageHeight}
+      jsonLd={jsonLd}
+      noindex={noindex}
+    />
   </head>
   <body>
     <a href="#main-content" class="skip-link">{t('nav.skipToContent')}</a>

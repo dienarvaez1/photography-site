@@ -234,10 +234,10 @@ Then('the private originals bucket should hold exactly the original of that phot
   assert.equal([...originals.values()][0].contentType, 'image/jpeg');
 });
 
-Then('the public web bucket should hold exactly the thumb, cover and full sizes of that photo', async function () {
+Then('the public web bucket should hold exactly every web size of that photo', async function () {
   const { photo } = await onlyEntry(this);
   const { web } = state(this).storage.objects;
-  assert.deepEqual([...web.keys()].sort(), ['cover', 'full', 'thumb'].map((v) => config.photoKey(photo.id, v)).sort());
+  assert.deepEqual([...web.keys()].sort(), Object.keys(config.PHOTO_VARIANTS).map((v) => config.photoKey(photo.id, v)).sort());
   for (const object of web.values()) assert.equal(object.contentType, 'image/webp');
 });
 
@@ -258,8 +258,8 @@ Then('the private originals bucket should hold {int} object(s)', function (count
   assert.equal(state(this).storage.objects.originals.size, count);
 });
 
-Then('the public web bucket should hold {int} object(s)', function (count) {
-  assert.equal(state(this).storage.objects.web.size, count);
+Then('the public web bucket should hold the web sizes of {int} photo(s)', function (photos) {
+  assert.equal(state(this).storage.objects.web.size, photos * Object.keys(config.PHOTO_VARIANTS).length);
 });
 
 async function storedSize(world, variant) {

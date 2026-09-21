@@ -1,6 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-import { photoVariant } from '../config/photos';
+import { COVER_SRCSET, photoSrcSet, photoVariant } from '../config/photos';
 import { getLocale, getPhotoTitle, localizePath, type LocalizedCategory } from '../i18n';
 
 interface Props {
@@ -11,11 +11,12 @@ interface Props {
 const { category, cover } = Astro.props;
 const locale = getLocale(Astro);
 const image = cover ? photoVariant(cover.data.photo, 'cover') : null;
+const srcset = cover ? photoSrcSet(cover.data.photo, COVER_SRCSET) : undefined;
 ---
 
 <a class="category-card" href={localizePath(`/work/${category.slug}/`, locale)}>
   <div class="cover">
-    {image && <img src={image.src} width={image.width} height={image.height} alt={cover ? getPhotoTitle(cover.data, locale) : category.label} loading="lazy" decoding="async" />}
+    {image && <img src={image.src} width={image.width} height={image.height} srcset={srcset} sizes="(max-width: 600px) 100vw, 320px" alt={cover ? getPhotoTitle(cover.data, locale) : category.label} loading="lazy" decoding="async" />}
   </div>
   <div class="label">
     <h3>{category.label}</h3>

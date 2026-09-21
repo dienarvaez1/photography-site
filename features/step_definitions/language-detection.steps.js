@@ -37,6 +37,19 @@ Then(
   }
 );
 
+const list = (text) => (orNull(text) ? text.split(',').map((l) => l.trim()) : []);
+
+Then(
+  'a visitor with remembered choice {string}, country {string} and browser languages {string} should get the language {string}',
+  function (stored, country, languages, language) {
+    assert.equal(geo.pickLocale({ stored: orNull(stored), country: orNull(country), languages: list(languages) }), language);
+  }
+);
+
+Given("the visitor's browser languages are {string}", function (languages) {
+  this.data.geo.env.languages = list(languages);
+});
+
 Then('the trace text {string} should give the country {string}', function (trace, country) {
   assert.equal(geo.parseTraceCountry(trace.replaceAll('\\n', '\n')), orNull(country));
 });

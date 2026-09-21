@@ -5,14 +5,30 @@ import { DEFAULT_LOCALE, LOCALE_INFO, getAlternates, getLocale, useTranslations 
 interface Props {
   title: string;
   description?: string;
+  /** Share image (absolute URL or site path); defaults to the branded /og-image.png. */
   image?: string;
+  imageAlt?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  noindex?: boolean;
+  /** schema.org objects to publish as JSON-LD. */
+  jsonLd?: object[];
 }
 
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
 const siteTitle = t('site.title');
 
-const { title, description = t('site.description'), image } = Astro.props;
+const {
+  title,
+  description = t('site.description'),
+  image = '/og-image.png',
+  imageAlt = siteTitle,
+  imageWidth = image === '/og-image.png' ? 1200 : undefined,
+  imageHeight = image === '/og-image.png' ? 630 : undefined,
+  noindex = false,
+  jsonLd = [],
+} = Astro.props;
 const pageTitle = title === siteTitle ? title : `${title} · ${siteTitle}`;
 const canonicalURL = new URL(Astro.url.pathname, SITE.url);
 
@@ -26,9 +42,10 @@ const xDefault = alternates.find((alt) => alt.locale === DEFAULT_LOCALE)!;
 
 <title>{pageTitle}</title>
 <meta name="description" content={description} />
-<link rel="canonical" href={canonicalURL} />
-{alternates.map((alt) => <link rel="alternate" hreflang={alt.locale} href={alt.url} />)}
-<link rel="alternate" hreflang="x-default" href={xDefault.url} />
+{noindex && <meta name="robots" content="noindex" />}
+{!noindex && <link rel="canonical" href={canonicalURL} />}
+{!noindex && alternates.map((alt) => <link rel="alternate" hreflang={alt.locale} href={alt.url} />)}
+{!noindex && <link rel="alternate" hreflang="x-default" href={xDefault.url} />}
 
 <meta property="og:type" content="website" />
 <meta property="og:title" content={pageTitle} />
@@ -38,9 +55,14 @@ const xDefault = alternates.find((alt) => alt.locale === DEFAULT_LOCALE)!;
 {alternates
   .filter((alt) => alt.locale !== locale)
   .map((alt) => <meta property="og:locale:alternate" content={LOCALE_INFO[alt.locale].ogLocale} />)}
-{image && <meta property="og:image" content={new URL(image, SITE.url)} />}
+{!noindex && <meta property="og:image" content={new URL(image, SITE.url)} />}
+{!noindex && imageWidth && <meta property="og:image:width" content={String(imageWidth)} />}
+{!noindex && imageHeight && <meta property="og:image:height" content={String(imageHeight)} />}
+{!noindex && <meta property="og:image:alt" content={imageAlt} />}
 
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content={pageTitle} />
 <meta name="twitter:description" content={description} />
-{image && <meta name="twitter:image" content={new URL(image, SITE.url)} />}
+{!noindex && <meta name="twitter:image" content={new URL(image, SITE.url)} />}
+{!noindex && <meta name="twitter:image:alt" content={imageAlt} />}
+{jsonLd.map((item) => <script type="application/ld+json" set:html={JSON.stringify(item)} />)}

@@ -77,12 +77,19 @@ export interface Alternate {
   current: boolean;
 }
 
-/** The equivalent of the page at `pathname` in every locale (including its own). */
+/** Error pages exist per language only as /404.html files, so they have no per-language URL to link to. */
+const NOT_FOUND_PATH = /^\/404(\/|\.html)?$/;
+
+/**
+ * The equivalent of the page at `pathname` in every locale (including its own). The 404 page
+ * has no addressable twin, so its language switcher goes to the other language's home page.
+ */
 export function getAlternates(pathname: string): Alternate[] {
   const { locale: current, path } = splitLocalePath(pathname);
+  const target = NOT_FOUND_PATH.test(path) ? '/' : path;
   return LOCALES.map((locale) => ({
     locale,
-    path: localizePath(path, locale),
+    path: localizePath(target, locale),
     current: locale === current,
   }));
 }

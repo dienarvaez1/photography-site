@@ -5,7 +5,8 @@ Feature: Location-based default language
   without ever overriding a language I chose myself
 
   Rules, in order: the visitor's own remembered choice, then their country (from Cloudflare's IP
-  geolocation), then English. Detection only runs on the English home page ("/").
+  geolocation), then - only when the country can't be determined - the browser's language, then
+  English. Detection only runs on the English home page ("/").
 
   Scenario Outline: A country maps to a language
     Then the country "<country>" should map to the language "<language>"
@@ -122,3 +123,42 @@ Feature: Location-based default language
   Scenario: Every page remembers an explicit language choice from the language switcher
     When I load every built page
     Then every page should load the script that remembers the language switcher choice
+
+  # --- Browser language: a tiebreaker only when the country is unknown ---------------------------
+
+  Scenario Outline: The browser language decides only when the country is unknown
+    Then a visitor with remembered choice "<stored>", country "<country>" and browser languages "<languages>" should get the language "<language>"
+
+    Examples:
+      | stored | country | languages     | language | why                                                  |
+      | none   | US      | es-MX, es     | en       | a known country wins: USA stays English              |
+      | none   | MX      | en-US         | es       | a known country wins over an English browser         |
+      | none   | none    | es-MX, en     | es       | unknown country: Spanish browser                     |
+      | none   | none    | es            | es       | unknown country: plain "es"                          |
+      | none   | none    | en-US, es     | en       | unknown country: first supported language wins       |
+      | none   | none    | fr-FR, es-AR  | es       | unsupported languages are skipped                    |
+      | none   | none    | fr-FR, de     | en       | nothing supported: default                           |
+      | none   | none    | none          | en       | nothing known: default                               |
+      | en     | none    | es-MX         | en       | the visitor's own choice still wins                  |
+
+  Scenario Outline: When the location lookup fails, a Spanish browser still lands on the Spanish site
+    Given a visitor on the English home page with remembered choice "none", user agent "Mozilla/5.0" and a trace response of "<trace>"
+    And the visitor's browser languages are "<languages>"
+    When the location detection runs
+    Then the visitor should be redirected to "<target>"
+
+    Examples:
+      | trace       | languages | target |
+      | unreachable | es-MX, en | /es/   |
+      | http-error  | es        | /es/   |
+      | timeout     | es-ES     | /es/   |
+      | loc=XX      | es-MX     | /es/   |
+      | unreachable | en-US     | none   |
+      | loc=US      | es-MX     | none   |
+      | loc=MX      | en-US     | /es/   |
+
+  Scenario: A visitor's remembered choice beats the browser language even when the lookup fails
+    Given a visitor on the English home page with remembered choice "en", user agent "Mozilla/5.0" and a trace response of "unreachable"
+    And the visitor's browser languages are "es-MX"
+    When the location detection runs
+    Then the visitor should be redirected to "none"

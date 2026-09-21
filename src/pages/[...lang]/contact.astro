@@ -41,6 +41,8 @@ const web3formsLink =
       <form
         id="contact-form"
         class="contact-form"
+        action="https://api.web3forms.com/submit"
+        method="POST"
         data-msg-sending={t('contact.sending')}
         data-msg-success={t('contact.success')}
         data-msg-error={t('contact.error')}
@@ -51,7 +53,6 @@ const web3formsLink =
           name="botcheck"
           class="visually-hidden"
           tabindex="-1"
-          autocomplete="off"
           aria-hidden="true"
         />
 
@@ -119,7 +120,7 @@ const web3formsLink =
   .contact-form select,
   .contact-form textarea {
     background: var(--bg-elevated);
-    border: 1px solid var(--border);
+    border: 1px solid var(--field-border);
     border-radius: var(--radius);
     padding: 0.65rem 0.75rem;
     color: var(--fg);

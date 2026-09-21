@@ -12,6 +12,8 @@
   --fg: #f2f1ee;
   --fg-muted: #a6a5a0;
   --border: #26272b;
+  /* Boundary of form fields: WCAG 1.4.11 wants 3:1 against the surroundings (this is 4.2:1). */
+  --field-border: #767981;
   --accent: #d9c9a3;
   --accent-fg: #0b0c0e;
   --max-width: 1400px;

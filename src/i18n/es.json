@@ -108,5 +108,14 @@
     "success": "¡Gracias! Tu mensaje ha sido enviado; me pondré en contacto contigo pronto.",
     "error": "Algo salió mal. Por favor, escríbeme directamente por correo electrónico.",
     "notConfigured": "El formulario de contacto aún no está configurado. Agrega una clave de acceso gratuita de {link} como <code>PUBLIC_WEB3FORMS_KEY</code> para activarlo; consulta el README. Mientras tanto, escríbeme por correo electrónico a la dirección indicada arriba."
+  },
+  "notFound": {
+    "title": "Página no encontrada",
+    "eyebrow": "Error 404",
+    "heading": "Esa página no existe.",
+    "body": "Puede que el enlace esté roto o que la página se haya movido. Prueba con una de estas opciones:",
+    "home": "Volver al inicio",
+    "work": "Ver el trabajo",
+    "contact": "Ponte en contacto"
   }
 }

@@ -32,3 +32,40 @@ Feature: Accessibility and cross-browser compatibility (English and Spanish)
   Scenario: Every page declares a document language matching its URL
     When I load every built page
     Then every page should declare an html lang attribute matching its URL's locale
+
+  # --- Contrast (WCAG 2.x): 4.5:1 for text, 3:1 for the boundary of form fields ------------------
+
+  Scenario Outline: Colours have enough contrast
+    Then the colour "<foreground>" on "<background>" should have at least <minimum>:1 contrast
+
+    Examples:
+      | foreground    | background    | minimum |
+      | --fg          | --bg          | 4.5     |
+      | --fg-muted    | --bg          | 4.5     |
+      | --fg-muted    | --bg-elevated | 4.5     |
+      | --accent      | --bg          | 4.5     |
+      | --accent-fg   | --accent      | 4.5     |
+      | --lang-switch | --bg          | 4.5     |
+      | --lang-switch-hover | --bg    | 4.5     |
+      | --field-border | --bg-elevated | 3      |
+      | --field-border | --bg          | 3      |
+      | --accent      | --bg          | 3       |
+
+  Scenario: Form fields use the high-contrast border, and keyboard focus stays visible
+    Then the contact form's fields should use the high-contrast border colour
+    And the keyboard focus outline should use a colour with enough contrast against the page
+
+  Scenario: Reduced-motion preferences are respected
+    Then the built styles should switch off transitions and animations for visitors who ask for reduced motion
+
+  # --- Forms that still work without JavaScript ---------------------------------------------------
+
+  Scenario Outline: The contact form falls back to a normal form post when JavaScript is off
+    When I load the built page "<route>"
+    Then the contact form should post to the Web3Forms API with the POST method
+    And every contact form control should have a name so a plain submit carries the message
+
+    Examples:
+      | route        |
+      | /contact/    |
+      | /es/contact/ |

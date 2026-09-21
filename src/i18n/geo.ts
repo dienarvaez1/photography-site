@@ -2,8 +2,11 @@
 //
 // Order of precedence (first match wins):
 //   1. The visitor's own choice — remembered when they click the language switcher.
-//   2. Their country, from Cloudflare's IP geolocation (see COUNTRY_LOCALES below).
-//   3. The default locale (English).
+//   2. Their country, from Cloudflare's IP geolocation (see LOCALE_COUNTRIES below).
+//   3. Only when the country can't be determined: the browser's language settings.
+//   4. The default locale (English).
+// A known country always wins over the browser language, so a visitor in the USA gets English
+// even if their browser is set to Spanish; they can switch, and the switch is remembered.
 //
 // Browser-only glue lives in runGeoRedirect(); everything else is pure so it
 // can be tested in Node. Imports use explicit `.ts` extensions so Node can
@@ -55,9 +58,32 @@ export function parseTraceCountry(trace: string): string | null {
   return country && country !== 'XX' ? country : null;
 }
 
-/** Applies the precedence rules: explicit choice, then country, then default. */
-export function pickLocale({ stored, country }: { stored?: string | null; country?: string | null }): Locale {
-  return isLocale(stored) ? stored : localeForCountry(country);
+/**
+ * The configured locale matching the first of the browser's preferred languages that
+ * has one ("es-MX" and "es" both give "es"); null when none does. `languages` comes
+ * from `navigator.languages`.
+ */
+export function localeFromLanguages(languages: readonly string[] | null | undefined): Locale | null {
+  for (const language of languages ?? []) {
+    const primary = String(language).toLowerCase().split('-')[0];
+    if (isLocale(primary)) return primary;
+  }
+  return null;
+}
+
+/** Applies the precedence rules: explicit choice, known country, browser language, default. */
+export function pickLocale({
+  stored,
+  country,
+  languages,
+}: {
+  stored?: string | null;
+  country?: string | null;
+  languages?: readonly string[] | null;
+}): Locale {
+  if (isLocale(stored)) return stored;
+  if (country) return localeForCountry(country);
+  return localeFromLanguages(languages) ?? DEFAULT_LOCALE;
 }
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
@@ -92,6 +118,8 @@ export interface GeoRedirectEnv {
   fetch: (url: string, init?: { signal?: AbortSignal }) => Promise<{ ok: boolean; text(): Promise<string> }>;
   location: { pathname: string; search: string; hash: string; replace(url: string): void };
   userAgent: string;
+  /** The browser's preferred languages (navigator.languages), used only when the country is unknown. */
+  languages?: readonly string[];
   /** Development aid only (the page passes it in dev builds): pretend the visitor is in this country. */
   countryOverride?: string | null;
 }
@@ -112,7 +140,7 @@ export async function runGeoRedirect(env: GeoRedirectEnv): Promise<Locale | null
     country = env.countryOverride ? env.countryOverride.toUpperCase() : await fetchCountry(env.fetch);
   }
 
-  const target = pickLocale({ stored, country });
+  const target = pickLocale({ stored, country, languages: env.languages });
   if (target === DEFAULT_LOCALE) return null;
 
   location.replace(`${homePath(target)}${location.search}${location.hash}`);

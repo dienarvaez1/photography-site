@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import {
   listBuiltRoutes,
+  listNotFoundRoutes,
   listDistRoutes,
   loadCategoriesConfig,
   loadContentEntries,
@@ -50,7 +51,7 @@ Then('the page should have a non-empty title', function () {
 });
 
 Then('the built pages on disk should exactly match the expected routes in every locale', async function () {
-  const expected = [...(await listBuiltRoutes())].sort();
+  const expected = [...(await listBuiltRoutes()), ...(await listNotFoundRoutes())].sort();
   assert.deepEqual(
     listDistRoutes(),
     expected,

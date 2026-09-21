@@ -1,6 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-import { photoVariant } from '../config/photos';
+import { THUMB_SRCSET, photoSrcSet, photoVariant } from '../config/photos';
 import { getLocale, getPhotoTitle, useTranslations } from '../i18n';
 
 interface Props {
@@ -11,10 +11,18 @@ const { photos } = Astro.props;
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
 
+// The lightbox <img> has no photo until one is opened; a 1x1 transparent GIF keeps the HTML valid
+// (an <img> needs a src) without a network request.
+const BLANK_IMAGE = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+
+// The first row is above the fold on most screens: load it right away, the rest lazily.
+const EAGER_TILES = 3;
+
 // Photos live in R2; the URLs are derived from each entry's photo id (no network at build time).
 const tiles = photos.map((photo, index) => ({
   index,
   thumb: photoVariant(photo.data.photo, 'thumb'),
+  srcset: photoSrcSet(photo.data.photo, THUMB_SRCSET),
   full: photoVariant(photo.data.photo, 'full'),
   data: photo.data,
   title: getPhotoTitle(photo.data, locale),
@@ -35,8 +43,11 @@ const tiles = photos.map((photo, index) => ({
         src={tile.thumb.src}
         width={tile.thumb.width}
         height={tile.thumb.height}
+        srcset={tile.srcset}
+        sizes="(max-width: 600px) 100vw, 350px"
         alt={tile.title}
-        loading="lazy"
+        loading={tile.index < EAGER_TILES ? 'eager' : 'lazy'}
+        fetchpriority={tile.index === 0 ? 'high' : undefined}
         decoding="async"
       />
       <span class="tile-caption">
@@ -62,7 +73,7 @@ const tiles = photos.map((photo, index) => ({
   <button type="button" class="lightbox-close" id="lightbox-close" aria-label={t('gallery.close')}>&times;</button>
   <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label={t('gallery.previous')}>&#8249;</button>
   <figure class="lightbox-figure">
-    <img id="lightbox-img" alt="" />
+    <img id="lightbox-img" alt="" src={BLANK_IMAGE} />
     <figcaption id="lightbox-caption"></figcaption>
   </figure>
   <button type="button" class="lightbox-nav lightbox-next" id="lightbox-next" aria-label={t('gallery.next')}>&#8250;</button>

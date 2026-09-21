@@ -117,7 +117,9 @@ export function localizedRoute(route, locale, defaultLocale = 'en') {
 
 /** Read a built static page from dist/client and parse it as HTML. Throws with a clear message if the site hasn't been built. */
 export function readBuiltPage(routePath) {
-  const normalized = routePath === '/' ? '/index.html' : `${routePath.replace(/\/$/, '')}/index.html`;
+  const normalized = routePath.endsWith('.html')
+    ? routePath // e.g. /404.html
+    : routePath === '/' ? '/index.html' : `${routePath.replace(/\/$/, '')}/index.html`;
   const filePath = join(DIST_DIR, normalized);
   if (!existsSync(filePath)) {
     throw new Error(
@@ -199,6 +201,12 @@ export function listBaseRoutes() {
   ];
 }
 
+/** The error pages Cloudflare serves for unknown URLs: /404.html and /es/404.html. */
+export async function listNotFoundRoutes() {
+  const { LOCALES, DEFAULT_LOCALE } = await loadLocaleConfig();
+  return LOCALES.map((locale) => localizedRoute('/404.html', locale, DEFAULT_LOCALE));
+}
+
 /** Every route the site builds, in every locale. */
 export async function listBuiltRoutes() {
   const { LOCALES, DEFAULT_LOCALE } = await loadLocaleConfig();
@@ -232,6 +240,8 @@ export function listDistRoutes() {
       } else if (entry === 'index.html') {
         const rel = relative(DIST_DIR, dir).split('\\').join('/');
         routes.push(rel ? `/${rel}/` : '/');
+      } else if (entry.endsWith('.html')) {
+        routes.push(`/${relative(DIST_DIR, full).split('\\').join('/')}`); // e.g. /404.html, /es/404.html
       }
     }
   };

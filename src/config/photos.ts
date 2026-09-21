@@ -17,8 +17,14 @@ export const PHOTO_BUCKETS = {
 // domain later, change only this line — the .md files never contain URLs.
 export const PHOTOS_BASE_URL = 'https://pub-b7007991d1ab46b99ecee4a08e5ead46.r2.dev';
 
-/** Widths of the web variants, generated when a photo is added. */
-export const PHOTO_VARIANTS = { thumb: 700, cover: 900, full: 2000 } as const;
+/**
+ * Widths of the web variants, generated when a photo is added. The gallery offers the
+ * browser `w400 / thumb / w1000` and the category cards `w400 / cover / w1000` (via srcset),
+ * so a phone on a slow connection doesn't download the same file as a large screen.
+ * `full` is the lightbox size. After changing this, run `npm run photos:sync` to create the
+ * new sizes for photos already in R2.
+ */
+export const PHOTO_VARIANTS = { w400: 400, thumb: 700, cover: 900, w1000: 1000, full: 2000 } as const;
 export type PhotoVariant = keyof typeof PHOTO_VARIANTS;
 
 export const PHOTO_ID_PATTERN = /^[0-9a-f]{16}$/;
@@ -56,6 +62,25 @@ export function photoKeys(id: string): { original: string; web: string[] } {
 export function variantSize(photo: PhotoRef, variant: PhotoVariant): { width: number; height: number } {
   const width = Math.min(PHOTO_VARIANTS[variant], photo.width);
   return { width, height: Math.round((width * photo.height) / photo.width) };
+}
+
+/** The sizes offered to the browser for gallery thumbnails and for category-card covers. */
+export const THUMB_SRCSET: PhotoVariant[] = ['w400', 'thumb', 'w1000'];
+export const COVER_SRCSET: PhotoVariant[] = ['w400', 'cover', 'w1000'];
+
+/**
+ * A `srcset` value for some variants: "<url> 400w, <url> 700w, ...", smallest first. A photo
+ * narrower than a variant is never upscaled, so two variants can have the same width; only
+ * the first of each width is listed.
+ */
+export function photoSrcSet(photo: PhotoRef, variants: PhotoVariant[], baseUrl: string = PHOTOS_BASE_URL): string {
+  const seen = new Set<number>();
+  return variants
+    .map((variant) => ({ ...photoVariant(photo, variant, baseUrl), variant }))
+    .sort((a, b) => a.width - b.width)
+    .filter(({ width }) => !seen.has(width) && seen.add(width))
+    .map(({ src, width }) => `${src} ${width}w`)
+    .join(', ');
 }
 
 /** Public URL plus size of a photo variant, for <img src width height>. */

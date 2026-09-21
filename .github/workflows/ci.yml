@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      # Placeholder Web3Forms keys: the release-build guard and the contact-form tests need keys
+      # that look real, but the tests never send anything, so these are not secrets and are not
+      # the production keys (those live in Cloudflare's build settings).
+      PUBLIC_WEB3FORMS_KEY: 00000000-0000-4000-8000-000000000001
+      PUBLIC_WEB3FORMS_KEY_ES: 00000000-0000-4000-8000-000000000002
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Type-check
+        run: npx astro check
+      - name: Install the browser for the browser tests
+        run: npx playwright install --with-deps chromium
+      - name: Tests (build output, tooling and logic; no network needed)
+        run: npm test
+      - name: Browser tests (real Chromium)
+        run: npm run test:browser
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+  # After Cloudflare's Git build has had time to finish, check the live site the way a visitor
+  # would. This catches a build that deployed without the contact-form keys.
+  live-smoke:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Wait for Cloudflare's build to finish
+        run: sleep 300
+      - name: Smoke-check the live site
+        run: node scripts/smoke.mjs --wait --timeout 180

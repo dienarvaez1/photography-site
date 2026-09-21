@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://photography-site.pages.dev/sitemap-index.xml
