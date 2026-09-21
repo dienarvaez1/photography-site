@@ -5,11 +5,15 @@
 //   GET /latest                         results/latest.json: the newest run     (token)
 //   GET /runs/<run id>                  that run's summary + signed file links  (token)
 //   GET /files/<run id>/<path>?exp&sig  one stored file, for a short time       (signature)
+//   GET /pics                           the originals in photography-site-originals (token)
+//   GET /pics/<photo id>                one original's size, camera and copyright (token)
 //
 // "token" = `Authorization: Bearer <ADMIN_TOKEN>`. Files are opened by links the run endpoint signs
 // (HMAC of the path and an expiry, keyed by the token), so a link can be opened in a new tab or an <img>
 // without ever putting the token in a URL. The API only ever reads under results/, never writes, and
 // refuses everything until ADMIN_TOKEN is set (and long enough).
+import { PHOTO_ID, describeOriginal, listOriginals } from './pics.mjs';
+
 const PREFIX = 'results/';
 const MIN_TOKEN_LENGTH = 16;
 const LINK_TTL_SECONDS = 900;
@@ -140,6 +144,16 @@ export async function handle(request, env, now = Date.now()) {
   if (route === 'files') {
     if (!RUN_ID.test(runId ?? '') || !rest.length || !rest.every((s) => SEGMENT.test(s))) return fail(request, env, 400, 'bad-request', 'Bad file path.');
     return fileRoute(request, env, runId, rest, now);
+  }
+
+  if (route === 'pics') {
+    const denied = await authorize(request, env);
+    if (denied) return denied;
+    if (!env.ORIGINALS) return fail(request, env, 500, 'misconfigured', 'The originals bucket is not bound to this Worker.');
+    if (!runId) return json(request, env, 200, await listOriginals(env.ORIGINALS));
+    if (!PHOTO_ID.test(runId) || rest.length) return fail(request, env, 400, 'bad-request', 'Bad photo id.');
+    const photo = await describeOriginal(env.ORIGINALS, runId);
+    return photo ? json(request, env, 200, photo) : fail(request, env, 404, 'not-found', `No original "${runId}".`);
   }
 
   if (route === 'index' || route === 'latest' || route === 'runs') {

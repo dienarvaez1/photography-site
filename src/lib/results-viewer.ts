@@ -6,7 +6,6 @@ import {
   describeTotals,
   formatDate,
   formatDuration,
-  formatMessage,
   groupArtifacts,
   isApiLink,
   listReports,
@@ -16,98 +15,38 @@ import {
   type Route,
   type Totals,
 } from './results-view';
-
-const TOKEN_KEY = 'admin-token';
+import { AUTH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, messageReader, remembered, type Child, type Messages } from './admin-common';
 
 type Failure = { feature?: string; scenario?: string; step?: string; message?: string; name?: string; detail?: string };
 type Suite = { scenarios?: number; passed: number; failed: number; skipped?: number; steps?: { total: number }; durationMs?: number; features?: { name: string; scenarios: number; passed: number; failed: number }[]; failures?: Failure[]; slowest?: { feature: string; scenario: string; ms: number }[]; checks?: number; baseUrl?: string };
 type Summary = { runId: string; startedAt: string; source: string; commit: string; branch: string; dirty: boolean; node?: string; ok: boolean; totals: Totals; suites: Record<string, Suite> };
-type Messages = Record<string, any>;
-
-class ApiError extends Error {
-  constructor(readonly kind: 'unauthorized' | 'notConfigured' | 'unreachable' | 'notFound' | 'generic', readonly status = 0) {
-    super(kind);
-  }
-}
-
-// Storage can be blocked (private windows, site settings); the token then just isn't remembered.
-const remembered = {
-  get: () => {
-    try {
-      return sessionStorage.getItem(TOKEN_KEY) ?? '';
-    } catch {
-      return '';
-    }
-  },
-  set: (token: string) => {
-    try {
-      token ? sessionStorage.setItem(TOKEN_KEY, token) : sessionStorage.removeItem(TOKEN_KEY);
-    } catch {
-      // not remembered
-    }
-  },
-};
-
-type Child = Node | string | null | undefined | false;
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: { class?: string; text?: string; attrs?: Record<string, string> } = {}, ...children: Child[]): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (props.class) node.className = props.class;
-  if (props.text !== undefined) node.textContent = props.text;
-  for (const [name, value] of Object.entries(props.attrs ?? {})) node.setAttribute(name, value);
-  for (const child of children) if (child) node.append(child);
-  return node;
-}
 
 export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   const root = container.querySelector<HTMLElement>('[data-results-root]')!;
   const messages: Messages = JSON.parse(container.dataset.messages ?? '{}');
   const locale = container.dataset.locale ?? 'en';
   const apiUrl = resolveApiUrl(container.dataset.api ?? '', location.search, location.hostname);
-  const m = (path: string, values?: Record<string, string | number>) => formatMessage(path.split('.').reduce<any>((node, key) => node?.[key], messages) ?? path, values);
+  const m = messageReader(messages);
 
   let token = remembered.get();
   let generation = 0; // a newer render makes older, slower answers stale
 
-  async function api<T>(path: string): Promise<T> {
-    let response: Response;
-    try {
-      response = await fetch(`${apiUrl}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-    } catch {
-      throw new ApiError('unreachable');
-    }
-    if (response.status === 401) throw new ApiError('unauthorized', 401);
-    if (response.status === 503) throw new ApiError('notConfigured', 503);
-    if (response.status === 404) throw new ApiError('notFound', 404);
-    if (!response.ok) throw new ApiError('generic', response.status);
-    try {
-      return (await response.json()) as T;
-    } catch {
-      throw new ApiError('generic', response.status);
-    }
-  }
+  const api = <T,>(path: string) => apiGet<T>(apiUrl, token, path);
 
   const show = (...nodes: Child[]) => {
     root.replaceChildren(...(nodes.filter(Boolean) as Node[]));
     root.removeAttribute('aria-busy');
   };
-  const errorBox = (error: unknown) => el('p', { class: 'results-error', text: m(`errors.${error instanceof ApiError ? error.kind : 'generic'}`, { status: error instanceof ApiError ? error.status : 0 }), attrs: { role: 'alert' } });
+  const errorBox = (error: unknown) => el('p', { class: 'results-error', text: errorMessage(m, error), attrs: { role: 'alert' } });
 
   // --- Sign in -----------------------------------------------------------------------------------------------
 
   function renderGate(problem?: unknown) {
-    const input = el('input', { attrs: { type: 'password', id: 'results-token', name: 'token', autocomplete: 'off', required: '', spellcheck: 'false' } });
-    const submit = el('button', { class: 'results-button primary', text: m('gate.submit'), attrs: { type: 'submit' } });
-    const form = el('form', { class: 'results-gate' }, el('p', { text: m('gate.intro') }), el('label', { text: m('gate.label'), attrs: { for: 'results-token' } }), input, submit);
-    if (problem) form.append(errorBox(problem));
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      token = input.value.trim();
-      if (!token) return;
-      submit.disabled = true;
-      submit.textContent = m('gate.checking');
-      remembered.set(token);
+    const { form, input } = gateForm(m, 'results', (given) => {
+      token = given;
+      remembered.set(given);
       void render();
-    });
+    }, problem);
     show(form);
     if (problem) input.focus();
   }
@@ -324,10 +263,19 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   const sync = () => {
     if (!panel.hidden && (token ? displayed !== keyOf(wantedRoute()) : !root.querySelector('form'))) void render();
   };
+  // A sign-in or sign-out in the other viewer applies here too.
+  window.addEventListener(AUTH_EVENT, () => {
+    const next = remembered.get();
+    if (next === token) return;
+    token = next;
+    displayed = null;
+    generation++;
+    sync();
+  });
   new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
   // The tabs' own handlers run first; look afterwards.
   const later = () => setTimeout(sync, 0);
   window.addEventListener('hashchange', later);
   document.getElementById('tab-test-results')?.addEventListener('click', later);
-  later(); // once the tabs have applied the address (a link to #tbd must not load results)
+  later(); // once the tabs have applied the address (a link to #pics-viewer must not load results)
 }

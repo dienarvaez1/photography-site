@@ -42,7 +42,7 @@ network call — R2 photos, Web3Forms, Cloudflare's location lookup — so they 
 internet and can never send you a real message. CI runs both suites on every push.
 
 `npm test` builds the site once (`npm run build`), then checks the actual built output — the
-same static files that get deployed — against twenty areas. **Every page-level check runs
+same static files that get deployed — against twenty-one areas. **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
 
@@ -113,7 +113,7 @@ against every page in both English and Spanish**; expected text is read from
   pruning, flaky-scenario trends, the command line, the runner's plan, and the GitHub workflow steps.
 - **`admin.feature`** — a basic smoke test of the Admin page: it exists in both languages, "Admin" is
   linked immediately to the right of "Contact" and marked active on its own page, it has exactly two
-  tabs ("Test Results", then "TBD") in a horizontal, labelled tab list wired to two panels with the
+  tabs ("Test Results", then "Pics Viewer") in a horizontal, labelled tab list wired to two panels with the
   first selected, a no-JavaScript fallback, and it is `noindex` and out of the sitemap.
 - **`results-api.feature`** — the read-only API behind the Admin page's Test Results tab, called through its
   real request handler over runs published by the real publisher: every data route needs the admin
@@ -130,6 +130,15 @@ against every page in both English and Spanish**; expected text is read from
   which links are ever followed, sorting a run's files) and what is built: the viewer in both languages
   pointed at the configured API, no token or bucket address in any page or script, the viewer only ever
   writes text (never HTML), and the token lives only in `sessionStorage`.
+- **`pics-viewer.feature`** — the Pics Viewer's half of the API and its logic, against real JPEG files (real
+  EXIF and XMP metadata, megabytes of picture data): the list holds exactly the `photos/<id>/original.*`
+  files with their real sizes (other files never listed, pagination, an incomplete list says so); one
+  photo's camera line, size, copyright (EXIF, XMP, an empty field is "none") and artist; only the first
+  128 KB of a file is ever read; location, serial numbers, dates and everything else in the metadata are
+  never passed on; no answer holds picture data; bad ids, access rules, read-only; the same code in the real
+  Workers runtime over a local R2 bucket; file-size wording in both languages; how the list is joined with
+  the site's photo entries; and that the built pages know every photo of the site, name the tab in both
+  languages, and never name the originals bucket; thumbnails are the public web copies, scaled down, never up, and the viewer can make no image but that one.
 - **`documentation.feature`** — the README lists every feature file (including the browser ones),
   states the right number of test areas, and documents every npm script and `photos:*` command.
 
@@ -158,7 +167,7 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   script is blocked); the browser picks the right image size for phone, laptop and sharp screens;
   layout shift stays under 0.02 with slow images; the logos take their final space before loading.
 - **`admin.feature`** (browser) — the two tabs really sit side by side on laptop and phone; clicking,
-  arrow keys, Home/End (with wrap-around), deep links like `/admin/#tbd`, Spanish, no-JavaScript, and
+  arrow keys, Home/End (with wrap-around), deep links like `/admin/#pics-viewer`, Spanish, no-JavaScript, and
   the header link to the right of Contact all behave, with no errors or CSP violations.
 - **`results-viewer.feature`** (browser) — the Test Results tab against the real results API code and a
   fake bucket: the token gate (wrong, forgotten on sign-out, expired, no token on the server, keyboard
@@ -167,6 +176,13 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   (a failure message containing HTML stays text), reports opening in new tabs from the API, screenshot
   and trace evidence, empty store, unreachable API and recovery, no requests while another tab is
   showing, Spanish, an axe audit and no sideways scrolling in every state, no errors or CSP violations.
+- **`pics-viewer.feature`** (browser) — the Pics Viewer against the real API code and fake buckets: one
+  sign-in for both tabs (sign-in and sign-out apply to each other), nothing requested until the tab is
+  shown, the list by category and title (files the site doesn't use last) with a small thumbnail at the start of each row ("No thumbnail" where the site has no copy), the tooltip on hover, keyboard
+  focus and tap (camera, size, copyright and artist; missing values say so; no picture in the tooltip), one tooltip at a time,
+  Escape, moving away and clicking elsewhere close it, the pointer can move onto it, each file looked up
+  once, the only pictures requested are the public 400-pixel copies (never an original) and only file headers are read, an empty bucket, a vanished file, an
+  unreachable API, Spanish, an axe audit and no sideways scrolling in every state.
 - **`failure-artifacts.feature`** — a browser scenario that fails (run for real, on purpose) leaves a
   real screenshot, a replayable Playwright trace and notes; a passing one leaves nothing; and those
   files are stored with the run in R2.
@@ -461,9 +477,9 @@ forms only to Web3Forms, no plugins, no framing. Astro is configured not to inli
 ## Admin page
 
 `/admin/` (and `/es/admin/`) is linked in the header, to the right of Contact, and has two tabs side
-by side: **Test Results** and **TBD** (in Spanish: *Resultados de pruebas* and *Por definir*). The
+by side: **Test Results** and **Pics Viewer** (in Spanish: *Resultados de pruebas* and *Visor de fotos*). The
 tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the selected tab is
-in the URL (`/admin/#tbd`), and without JavaScript both panels are shown.
+in the URL (`/admin/#pics-viewer`), and without JavaScript both panels are shown.
 
 ### Test Results tab
 
@@ -476,7 +492,7 @@ smoke), every failure with its feature, scenario, step and reason, the slowest s
 full HTML and JSON reports, and the screenshots, traces and notes saved for failed browser scenarios.
 
 The results bucket stays **private**. The page reads it through a small read-only Worker,
-`workers/results-api/` (deployed as `photography-site-results`, bound to the bucket; it can only read
+`workers/results-api/` (deployed as `photography-site-results`; for the results it can only read
 under `results/`). The page asks for an **admin token**, keeps it only for that browser tab
 (`sessionStorage`; *Sign out* forgets it) and sends it in an `Authorization` header — never in an
 address. Reports and screenshots open through short-lived (15 minute) signed links the Worker hands
@@ -495,6 +511,24 @@ Until the secret exists the Worker refuses everything. If the Worker gets anothe
 with real data: `npm run results-api:dev` and open `http://localhost:4321/admin/?api=http://localhost:8788`
 (the `?api=` override only works on localhost); the local Worker needs `--var ADMIN_TOKEN:<token>` or a
 `.dev.vars` file (git-ignored).
+
+### Pics Viewer tab
+
+It lists the original photos in the private `photography-site-originals` bucket
+(`photos/<id>/original.*`). Each file is a link named after its photo on the site (its title and
+category, or "not on the site" for a file no entry uses) with its path. Each row starts with a small thumbnail of the photo. **Hover over a row, focus it with the
+keyboard, or tap it** and a tooltip shows the file's camera information (the same line as the gallery),
+its file size, and its copyright (and the artist, when the file has one); Escape, moving away or clicking
+elsewhere closes it. Where the file has no camera data or no copyright notice, the tooltip says so.
+
+**The private originals are never shown, or even sent to the page.** The thumbnails are the site's own
+public 400-pixel web copies of the photos (from the public photo host, the same files the gallery uses,
+loaded lazily; a file the site has no entry for shows "No thumbnail"). The Worker lists the bucket and, for one file
+at a time, reads only its first 128 KB to find the metadata (EXIF, and XMP for copyrights written there);
+it returns numbers and text, nothing else — no location, serial number or date. It uses the same admin
+token as the Test Results tab (one sign-in serves both), and its `ORIGINALS` binding is read-only.
+After pulling this change, redeploy the Worker so it gets that binding: `npm run results-api:deploy`
+(the token stays as it is).
 
 **The page itself is still public.** This is a static site with no login, so anyone who knows the
 address can open it and see the token prompt. It is marked `noindex` and left out of the sitemap, but
@@ -588,7 +622,7 @@ src/
 │   └── photos/<category>/images/   # one <photo id>.md per photo (the photo itself is in R2)
 ├── content.config.ts   # photo content collection schema
 ├── components/         # Header, Footer, Gallery (lightbox), SEO (+JSON-LD), CategoryCard, GeoRedirect
-├── lib/                # results-view (pure viewer logic) and results-viewer (the Admin tab), logging
+├── lib/                # the Admin viewers: admin-common, results-view/-viewer, pics-view/-viewer; logging
 ├── i18n/               # en.json, es.json, helpers, and geo.ts (location-based default language)
 ├── layouts/
 │   └── BaseLayout.astro
@@ -604,7 +638,7 @@ scripts/
 ├── smoke.mjs           # `npm run smoke`
 ├── run-tests.mjs       # `npm run test:record`
 ├── results.mjs         # `npm run results:*`
-└── lib/                # cli, photos (workflow), exif, r2-storage, build-env, smoke, results, results-cli, test-runner
+└── lib/                # cli, photos (workflow), exif, exif-format, r2-storage, build-env, smoke, results, results-cli, test-runner
 workers/results-api/    # read-only Worker serving the private results bucket to the Admin page
 test-fixtures/          # tiny suites the results tests run for real
 features/               # Gherkin tests; features/browser/ = real-Chromium tests; support/ = helpers

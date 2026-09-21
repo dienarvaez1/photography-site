@@ -21,7 +21,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs
       | #test-results/run/%E0%A4%A                                | the list of runs                             |
       | #test-results/run/2026-09-21T04-54-28Z-e786ff8-local/x    | the list of runs                             |
       | #test-results/other                                       | the list of runs                             |
-      | #tbd                                                      | another tab                                  |
+      | #pics-viewer                                                    | another tab                                  |
       |                                                           | another tab                                  |
       | #test-resultsx                                            | another tab                                  |
 

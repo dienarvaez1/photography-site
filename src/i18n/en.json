@@ -127,13 +127,7 @@
     "tablistLabel": "Admin sections",
     "tabs": {
       "testResults": "Test Results",
-      "tbd": "TBD"
-    },
-    "testResults": {
-      "placeholder": "Test results will appear here."
-    },
-    "tbd": {
-      "placeholder": "To be defined."
+      "picsViewer": "Pics Viewer"
     },
     "results": {
       "intro": "Results of the automated tests, read from the private results store. Pick a run to see its details.",
@@ -220,6 +214,24 @@
         "log": "Log"
       },
       "needsJs": "The results viewer needs JavaScript. Without it, read the reports with npm run results:list."
+    },
+    "pics": {
+      "intro": "The original photos in the private originals bucket, each with a small thumbnail (the site's own web copy; the original files are never loaded). Hover over (or focus, or tap) a file to see its camera information, file size and copyright.",
+      "count": "{count} original photos",
+      "empty": "The originals bucket has no photos yet.",
+      "incomplete": "The bucket holds more photos than could be listed here.",
+      "notOnSite": "not on the site",
+      "loading": "Reading the file's information…",
+      "camera": "Camera",
+      "noCamera": "No camera information in the file.",
+      "size": "File size",
+      "bytes": "bytes",
+      "copyright": "Copyright",
+      "noCopyright": "No copyright notice recorded in the file.",
+      "artist": "Artist",
+      "failed": "Could not read this file's information.",
+      "needsJs": "The Pics Viewer needs JavaScript.",
+      "noThumbnail": "No thumbnail"
     }
   }
 }

@@ -1,14 +1,11 @@
 import { After, Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { createHmac } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { createServer } from 'node:net';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getPlatformProxy } from 'wrangler';
 import { ROOT } from '../support/lib.js';
 import { asR2Binding } from '../support/r2-binding.js';
+import { startWorker } from '../support/workerd.js';
 import { publishRuns, runsFromRows } from '../support/results-fixtures.js';
 
 const { handle } = await import(join(ROOT, 'workers/results-api/src/index.mjs'));
@@ -52,41 +49,18 @@ When('the admin token is changed to {string}', function (token) {
 
 // --- The real Workers runtime ----------------------------------------------------------------------------------
 
-const freePort = () =>
-  new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const { port } = server.address();
-      server.close(() => resolve(port));
-    });
-  });
-
 After(function () {
-  const runtime = state(this)?.runtime;
-  if (!runtime) return;
-  runtime.child.kill('SIGTERM');
-  rmSync(runtime.dir, { recursive: true, force: true });
+  state(this)?.runtime?.stop();
 });
 
 Given('the same runs are stored in a local R2 bucket and the Worker runs in the real Workers runtime', { timeout: 120_000 }, async function () {
   const s = state(this);
-  const dir = mkdtempSync(join(tmpdir(), 'results-workerd-'));
-  // Seed a local R2 bucket (the same simulation `wrangler dev` uses) with everything the publisher stored.
-  const proxy = await getPlatformProxy({ configPath: join(ROOT, 'workers/results-api/wrangler.jsonc'), persist: { path: join(dir, 'v3') } });
-  for (const [key, object] of s.bucket.objects) await proxy.env.RESULTS.put(key, object.body);
-  await proxy.dispose();
+  s.runtime = await startWorker({ token: s.token, origins: ORIGINS, seed: { RESULTS: s.bucket.objects } });
+});
 
-  const port = await freePort();
-  const args = ['dev', '-c', join(ROOT, 'workers/results-api/wrangler.jsonc'), '--local', '--persist-to', dir, '--ip', '127.0.0.1', '--port', String(port), '--inspector-port', String(await freePort()), '--var', `ADMIN_TOKEN:${s.token}`, '--var', `ALLOWED_ORIGINS:${ORIGINS}`];
-  const child = spawn(process.execPath, [join(ROOT, 'node_modules/wrangler/bin/wrangler.js'), ...args], { stdio: 'ignore', env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' } });
-  s.runtime = { child, dir, base: `http://127.0.0.1:${port}` };
-  let up = false;
-  for (let i = 0; i < 200 && !up; i++) {
-    up = await fetch(`${s.runtime.base}/health`).then((r) => r.ok, () => false);
-    if (!up) await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  assert.ok(up, 'the Worker did not start in the local Workers runtime');
+Given('the same photos are stored in a local originals bucket and the Worker runs in the real Workers runtime', { timeout: 120_000 }, async function () {
+  const s = state(this);
+  s.runtime = await startWorker({ token: s.token, origins: ORIGINS, seed: { ORIGINALS: s.originals.objects } });
 });
 
 // --- Making calls ------------------------------------------------------------------------------------
@@ -373,7 +347,7 @@ const workerFile = (name) => readFileSync(join(ROOT, 'workers/results-api', name
 const workerConfig = () => JSON.parse(workerFile('wrangler.jsonc').split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n'));
 
 Then("the Worker's configuration should bind the bucket {string} as RESULTS", function (bucket) {
-  assert.deepEqual(workerConfig().r2_buckets, [{ binding: 'RESULTS', bucket_name: bucket }]);
+  assert.ok(workerConfig().r2_buckets.some((b) => b.binding === 'RESULTS' && b.bucket_name === bucket));
 });
 
 Then("the Worker's configuration should allow exactly the origins listed in the site configuration", function () {
@@ -385,9 +359,10 @@ Then("the Worker's configuration should contain no secret value", function () {
   assert.doesNotMatch(workerFile('wrangler.jsonc'), /ADMIN_TOKEN["']?\s*:/);
 });
 
-Then("the Worker's code should never write, delete or list anything in R2", function () {
+Then("the Worker's code should never write or delete anything in R2, and list only the originals", function () {
+  for (const file of ['src/index.mjs', 'src/pics.mjs']) assert.doesNotMatch(workerFile(file), /\.(put|delete|head|createMultipartUpload|createMultipartUpload|resumeMultipartUpload)\(/, `${file} writes or deletes`);
+  // The results are only ever read one object at a time; listing is for the originals only.
   const code = workerFile('src/index.mjs');
-  assert.doesNotMatch(code, /\.(put|delete|list|head|createMultipartUpload)\(/);
   const used = [...code.matchAll(/env\.RESULTS\.(\w+)\(/g)].map((m) => m[1]);
   assert.ok(used.length > 0);
   assert.deepEqual(used.filter((method) => method !== 'get'), []);

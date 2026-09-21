@@ -37,7 +37,7 @@ Then('every npm script that is not an automatic hook should be documented in the
 });
 
 Then('the number of test areas stated in the README should equal the number of feature files', function () {
-  const stated = readme().match(/against (\w+) areas/)?.[1];
+  const stated = readme().match(/against ([\w-]+) areas/)?.[1];
   assert.ok(stated, 'README should say "against <number> areas"');
   assert.equal(NUMBER_WORDS.indexOf(stated), featureFiles().length, `README says "${stated} areas" but there are ${featureFiles().length} feature files`);
 });

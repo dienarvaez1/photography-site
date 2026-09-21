@@ -1,5 +1,6 @@
 {
-	// A tiny read-only API over the private test-results bucket, for the Admin page's Test Results tab.
+	// A tiny read-only API over two private buckets, for the Admin page: the test results (Test Results tab)
+	// and the original photos' metadata (Pics Viewer tab).
 	// Deploy with `npm run results-api:deploy`; set its secret once with
 	//   npx wrangler secret put ADMIN_TOKEN -c workers/results-api/wrangler.jsonc
 	// (at least 16 characters; the Admin page asks for it). Until the secret exists the API refuses everything.
@@ -8,7 +9,11 @@
 	"main": "src/index.mjs",
 	"compatibility_date": "2026-09-17",
 	"workers_dev": true,
-	"r2_buckets": [{ "binding": "RESULTS", "bucket_name": "photography-site-test" }],
+	"r2_buckets": [
+		{ "binding": "RESULTS", "bucket_name": "photography-site-test" },
+		// The private originals, for the Pics Viewer (read only: sizes and metadata, never the photo itself).
+		{ "binding": "ORIGINALS", "bucket_name": "photography-site-originals" }
+	],
 	"vars": {
 		"ALLOWED_ORIGINS": "https://photography-site.diego-narvaez.workers.dev,http://localhost:4321"
 	},

@@ -63,7 +63,7 @@ function colourFor(name) {
 }
 
 // Where each EXIF tag lives in the file: IFD0 = main image, IFD2 = Exif sub-block, IFD3 = GPS.
-const IFD = {
+export const IFD = {
   Make: 'IFD0', Model: 'IFD0', Copyright: 'IFD0', Artist: 'IFD0',
   ExposureTime: 'IFD2', FNumber: 'IFD2', ISOSpeedRatings: 'IFD2', FocalLength: 'IFD2', LensModel: 'IFD2',
   DateTimeOriginal: 'IFD2', BodySerialNumber: 'IFD2',
@@ -71,7 +71,7 @@ const IFD = {
 };
 
 /** Human values ("5.6", "140", "2.5", "1/125") -> the "numerator/denominator" strings EXIF stores. */
-function exifValue(tag, value) {
+export function exifValue(tag, value) {
   if (tag === 'FNumber') return `${Math.round(Number(value) * 10)}/10`;
   if (tag === 'FocalLength') return `${Math.round(Number(value) * 10)}/10`;
   if (tag === 'ExposureTime') return value.includes('/') ? value : `${Math.round(Number(value) * 10)}/10`;

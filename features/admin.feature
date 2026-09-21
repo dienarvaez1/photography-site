@@ -1,6 +1,6 @@
 Feature: Admin page smoke test
   As the site owner
-  I want an Admin page next to Contact, with a "Test Results" tab and a "TBD" tab
+  I want an Admin page next to Contact, with a "Test Results" tab and a "Pics Viewer" tab
   So that there is a place to grow the site's admin tools, in both languages
 
   This is a basic smoke test: the page exists, it is linked to the right of Contact, and it has its two tabs.
@@ -43,8 +43,8 @@ Feature: Admin page smoke test
 
     Examples:
       | route      | list label                       | tabs                                 |
-      | /admin/    | Admin sections                   | Test Results, TBD                    |
-      | /es/admin/ | Secciones de administración      | Resultados de pruebas, Por definir   |
+      | /admin/    | Admin sections                   | Test Results, Pics Viewer                    |
+      | /es/admin/ | Secciones de administración      | Resultados de pruebas, Visor de fotos   |
 
   Scenario Outline: The tabs are wired to two panels, with the first tab selected
     When I load the built page "<route>"

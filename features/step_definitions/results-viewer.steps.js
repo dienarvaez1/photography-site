@@ -104,7 +104,7 @@ Then('the built page {string} should tell visitors without JavaScript that the v
   assert.match(message.text, new RegExp(loadMessages('en').admin.results.needsJs.slice(0, 30)));
 });
 
-const viewerCode = () => readFileSync(join(ROOT, 'src/lib/results-viewer.ts'), 'utf-8');
+const viewerCode = () => ['results-viewer.ts', 'admin-common.ts', 'pics-viewer.ts'].map((f) => readFileSync(join(ROOT, 'src/lib', f), 'utf-8')).join('\n');
 
 Then("the viewer's code should never use innerHTML, outerHTML, insertAdjacentHTML, document.write, eval or new Function", function () {
   assert.doesNotMatch(viewerCode(), /\b(innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function)\b/);
@@ -116,5 +116,6 @@ Then("the viewer's code should keep the token in sessionStorage only and send it
   assert.match(code, /sessionStorage/);
   assert.equal([...code.matchAll(/fetch\(/g)].length, 1, 'one place makes requests');
   assert.match(code, /fetch\(`\$\{apiUrl\}\$\{path\}`, \{ headers: \{ Authorization: `Bearer \$\{token\}` \} \}\)/);
+  assert.doesNotMatch(readFileSync(join(ROOT, 'src/lib/pics-viewer.ts'), 'utf-8'), /localStorage|sessionStorage|fetch\(/, 'the pics viewer uses the shared token and request code');
   assert.doesNotMatch(code, /\?token=|&token=|href.*token/);
 });

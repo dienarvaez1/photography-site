@@ -255,7 +255,7 @@ Feature: The results API serves the private test-results bucket safely
     Then the Worker's configuration should bind the bucket "photography-site-test" as RESULTS
     And the Worker's configuration should allow exactly the origins listed in the site configuration
     And the Worker's configuration should contain no secret value
-    And the Worker's code should never write, delete or list anything in R2
+    And the Worker's code should never write or delete anything in R2, and list only the originals
 
   # --- The real Workers runtime ------------------------------------------------------------------------------------------------------
 

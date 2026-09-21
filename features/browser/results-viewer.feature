@@ -208,20 +208,20 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And I click "Refresh" in the Test Results tab
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
 
-  Scenario: Nothing is asked of the results API while another tab is showing
+  Scenario: No test results are asked for while the other tab is showing
     When I open "/admin/"
     And I sign in with the token "browser-test-admin-token"
-    And I open "/admin/#tbd"
+    And I open "/admin/#pics-viewer"
     And I reload the page
-    Then the "TBD" tab should be the selected one
-    And the results API should not have been asked for anything since the reload
+    Then the "Pics Viewer" tab should be the selected one
+    And the results API should not have been asked for test results since the reload
     When I click the "Test Results" tab
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
 
   Scenario: A link to a run opens the Test Results tab from another tab
     When I open "/admin/"
     And I sign in with the token "browser-test-admin-token"
-    And I click the "TBD" tab
+    And I click the "Pics Viewer" tab
     And I open the address "/admin/#test-results/run/2026-09-21T10-00-00Z-ccccccc-local" in this page
     Then the "Test Results" tab should be the selected one
 

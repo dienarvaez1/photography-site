@@ -127,13 +127,7 @@
     "tablistLabel": "Secciones de administración",
     "tabs": {
       "testResults": "Resultados de pruebas",
-      "tbd": "Por definir"
-    },
-    "testResults": {
-      "placeholder": "Los resultados de las pruebas aparecerán aquí."
-    },
-    "tbd": {
-      "placeholder": "Por definir."
+      "picsViewer": "Visor de fotos"
     },
     "results": {
       "intro": "Resultados de las pruebas automáticas, leídos del almacén privado de resultados. Elige una ejecución para ver sus detalles.",
@@ -220,6 +214,24 @@
         "log": "Registro"
       },
       "needsJs": "El visor de resultados necesita JavaScript. Sin él, consulta los informes con npm run results:list."
+    },
+    "pics": {
+      "intro": "Las fotos originales del depósito privado de originales, cada una con una pequeña miniatura (la copia web del propio sitio; los archivos originales nunca se cargan). Pasa el cursor sobre un archivo (o enfócalo, o tócalo) para ver la información de la cámara, el tamaño del archivo y los derechos de autor.",
+      "count": "{count} fotos originales",
+      "empty": "El depósito de originales aún no tiene fotos.",
+      "incomplete": "El depósito contiene más fotos de las que se pudieron listar aquí.",
+      "notOnSite": "no está en el sitio",
+      "loading": "Leyendo la información del archivo…",
+      "camera": "Cámara",
+      "noCamera": "El archivo no tiene información de la cámara.",
+      "size": "Tamaño del archivo",
+      "bytes": "bytes",
+      "copyright": "Derechos de autor",
+      "noCopyright": "El archivo no registra ningún aviso de derechos de autor.",
+      "artist": "Artista",
+      "failed": "No se pudo leer la información de este archivo.",
+      "needsJs": "El visor de fotos necesita JavaScript.",
+      "noThumbnail": "Sin miniatura"
     }
   }
 }

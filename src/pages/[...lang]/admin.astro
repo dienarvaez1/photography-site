@@ -1,7 +1,9 @@
 ---
+import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getLocale, localeStaticParams, useTranslations } from '../../i18n';
+import { getLocale, getLocalizedCategory, getPhotoTitle, localeStaticParams, useTranslations } from '../../i18n';
 import { RESULTS_API_URL } from '../../config/results';
+import { photoVariant } from '../../config/photos';
 import en from '../../i18n/en.json';
 import es from '../../i18n/es.json';
 
@@ -12,12 +14,24 @@ const t = useTranslations(locale);
 
 // The two sections of the page, left to right. Each tab shows its panel.
 const tabs = [
-  { id: 'test-results', label: t('admin.tabs.testResults'), body: null },
-  { id: 'tbd', label: t('admin.tabs.tbd'), body: t('admin.tbd.placeholder') },
+  { id: 'test-results', label: t('admin.tabs.testResults') },
+  { id: 'pics-viewer', label: t('admin.tabs.picsViewer') },
 ];
 
 // The viewer's texts travel to the browser as data (an attribute, since the policy allows no inline scripts), in the page's language.
-const resultsMessages = (locale === 'es' ? es : en).admin.results;
+const adminMessages = (locale === 'es' ? es : en).admin;
+const resultsMessages = adminMessages.results;
+// The Pics Viewer shares the token form, errors and buttons with the Test Results tab.
+const { gate, errors, signOut, refresh, loading } = adminMessages.results;
+const picsMessages = { pics: adminMessages.pics, gate, errors, signOut, refresh, loading };
+
+// What the site knows about each photo (public information), so the list can say "Orion Nebula" rather than a hash.
+const knownPhotos = Object.fromEntries(
+  (await getCollection('photos')).map((entry) => [
+    entry.data.photo.id,
+    { title: getPhotoTitle(entry.data, locale), category: getLocalizedCategory(entry.data.category, locale)?.label ?? entry.data.category, thumb: photoVariant(entry.data.photo, 'w400') },
+  ])
+);
 ---
 
 <!-- Not for search engines, and not in the sitemap. It is public: put Cloudflare Access in front of it before it shows real data. -->
@@ -54,7 +68,7 @@ const resultsMessages = (locale === 'es' ? es : en).admin.results;
       {tabs.map((tab, index) => (
         <div class="tabpanel" role="tabpanel" id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`} tabindex="0" hidden={index !== 0}>
           <h2>{tab.label}</h2>
-          {tab.body === null ? (
+          {tab.id === 'test-results' ? (
             <div class="results" data-results data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(resultsMessages)}>
               <p class="results-intro">{t('admin.results.intro')}</p>
               <div data-results-root aria-live="polite">
@@ -63,7 +77,13 @@ const resultsMessages = (locale === 'es' ? es : en).admin.results;
               <noscript><p>{t('admin.results.needsJs')}</p></noscript>
             </div>
           ) : (
-            <p>{tab.body}</p>
+            <div class="results pics" data-pics data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(picsMessages)} data-photos={JSON.stringify(knownPhotos)}>
+              <p class="results-intro">{t('admin.pics.intro')}</p>
+              <div data-pics-root aria-live="polite">
+                <p>{t('admin.results.loading')}</p>
+              </div>
+              <noscript><p>{t('admin.pics.needsJs')}</p></noscript>
+            </div>
           )}
         </div>
       ))}
@@ -160,17 +180,36 @@ const resultsMessages = (locale === 'es' ? es : en).admin.results;
   .results-features summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
   .results-features .has-failures th, .results-features .has-failures td { color: var(--bad); }
   .results-slowest { padding-left: 1.4rem; margin: 0; color: var(--fg-muted); }
+  .pics-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.25rem; }
+  .pic { position: relative; }
+  .pic-link { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 0 var(--space-2); align-items: center; padding: 0.6rem 1rem; min-height: 44px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); color: var(--fg); text-decoration: none; }
+  .pic-link:hover, .pic-link:focus-visible { border-color: var(--accent); }
+  .pic-title { grid-column: 2; align-self: end; font-weight: 600; overflow-wrap: anywhere; }
+  .pic-category { grid-column: 3; align-self: end; color: var(--fg-muted); font-size: 0.85rem; text-align: right; }
+  .pic-key { grid-column: 2 / -1; align-self: start; margin-top: 0.25rem; color: var(--fg-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+  .pic-tip { position: absolute; z-index: 5; left: 1rem; top: calc(100% - 0.25rem); width: min(26rem, calc(100% - 2rem)); padding: 0.75rem 1rem; background: var(--bg-elevated); color: var(--fg); border: 1px solid var(--accent); border-radius: var(--radius); box-shadow: 0 8px 24px rgb(0 0 0 / 0.5); font-size: 0.9rem; }
+  .pic-thumb { grid-row: 1 / span 2; grid-column: 1; display: grid; place-items: center; width: 96px; height: 96px; }
+  .pic-thumb img { display: block; border-radius: 2px; background: var(--bg); }
+  .pic-thumb-none { display: grid; place-items: center; width: 96px; height: 96px; padding: 0.25rem; border: 1px dashed var(--field-border); border-radius: 2px; color: var(--fg-muted); font-size: 0.75rem; text-align: center; }
+  .pic-tip-note { margin: 0; color: var(--fg-muted); }
+  .pic-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; margin: 0; }
+  .pic-facts dt { color: var(--fg-muted); }
+  .pic-facts dd { margin: 0; overflow-wrap: anywhere; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
 
 <script>
   import { mountResultsViewer } from '../../lib/results-viewer';
 
+  import { mountPicsViewer } from '../../lib/pics-viewer';
+
   const viewer = document.querySelector<HTMLElement>('[data-results]');
   if (viewer) mountResultsViewer(viewer, viewer.closest<HTMLElement>('[role="tabpanel"]')!);
+  const pics = document.querySelector<HTMLElement>('[data-pics]');
+  if (pics) mountPicsViewer(pics, pics.closest<HTMLElement>('[role="tabpanel"]')!);
 
   // Tabs pattern (WAI-ARIA): one tab in the tab order at a time; arrow keys, Home and End move between
-  // tabs; the selected tab is shown in the URL (#tbd) so it can be linked to.
+  // tabs; the selected tab is shown in the URL (#pics-viewer) so it can be linked to.
   document.querySelectorAll<HTMLElement>('[data-tabs]').forEach((root) => {
     const tabs = Array.from(root.querySelectorAll<HTMLElement>('[role="tab"]'));
     const panels = tabs.map((tab) => document.getElementById(tab.getAttribute('aria-controls') ?? '') as HTMLElement);

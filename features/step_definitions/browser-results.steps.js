@@ -170,6 +170,12 @@ Then('the results API should not have been asked for anything since the reload',
   assert.deepEqual(this.b.results.requests.slice(this.b.results.markAtReload), []);
 });
 
+Then('the results API should not have been asked for test results since the reload', async function () {
+  await settle(800);
+  const asked = this.b.results.requests.slice(this.b.results.markAtReload);
+  assert.deepEqual(asked.filter((r) => !r.path.startsWith('/pics')), []);
+});
+
 Then('the browser should not remember any token', async function () {
   const stored = await page(this).evaluate(() => JSON.stringify({ ...sessionStorage, ...localStorage }));
   assert.doesNotMatch(stored, /wrong|browser-test-admin-token|admin-token/);

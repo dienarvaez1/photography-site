@@ -7,6 +7,7 @@ import { startStaticServer } from './static-server.js';
 import { ROOT } from './lib.js';
 import { asR2Binding } from './r2-binding.js';
 import { publishRuns } from './results-fixtures.js';
+import { fakeOriginals } from './originals-fixtures.js';
 
 // The results API is the real Worker code answering from a fake bucket of really-published runs, so the
 // browser tests cover the actual contract between the publisher, the API and the Admin page.
@@ -75,7 +76,14 @@ export function useDevice(world, kind) {
 /** Publishes runs (see results-fixtures.js) into a fake results bucket behind the API, which then knows this admin token. */
 export async function setUpResultsApi(world, token, runs) {
   const { bucket, runIds } = await publishRuns(runs);
-  Object.assign(world.b.results, { token, bucket, runIds, env: { ADMIN_TOKEN: token, RESULTS: asR2Binding(bucket) } });
+  Object.assign(world.b.results, { token, bucket, runIds, env: { ...world.b.results.env, ADMIN_TOKEN: token, RESULTS: asR2Binding(bucket) } });
+}
+
+/** Puts these original photos ([{ id, body }]) behind the API's ORIGINALS binding; `originals.calls` records every read. */
+export function setUpOriginals(world, files) {
+  const originals = fakeOriginals(files);
+  Object.assign(world.b.results, { originals });
+  world.b.results.env.ORIGINALS = originals.binding;
 }
 
 async function serveResults(b, siteOrigin, request, route) {
