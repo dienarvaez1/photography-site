@@ -71,6 +71,13 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   let tip: HTMLElement | null = null;
   let tipOwner: HTMLElement | null = null;
   let tipId = 0;
+  // On a tap, Chromium (at least on some platforms) synthesizes a trailing mouseleave shortly after the
+  // compatibility click it fires for touch input — there is no real hover to leave. Without this, that
+  // synthetic leave closes the tooltip the tap itself just opened, before its content ever arrives. A click
+  // (real or tap-synthesized) is followed by a short window where the owning item's own mouseleave is ignored;
+  // every other way to close it (Escape, tapping/clicking elsewhere, moving focus away) is unaffected.
+  let suppressLeaveUntil = 0;
+  const LEAVE_GRACE_MS = 500;
 
   function hideTip() {
     tipOwner?.querySelector('a')?.removeAttribute('aria-describedby');
@@ -251,12 +258,16 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
       item.prepend(el('label', { class: 'pic-select' }, box));
     }
     item.addEventListener('mouseenter', () => showTip(item, row.id));
-    item.addEventListener('mouseleave', hideTip);
+    item.addEventListener('mouseleave', () => {
+      if (item === tipOwner && Date.now() < suppressLeaveUntil) return;
+      hideTip();
+    });
     link.addEventListener('focus', () => showTip(item, row.id));
     // A tap or click opens the tooltip too (touch screens have no hover); the link goes nowhere.
     link.addEventListener('click', (event) => {
       event.preventDefault();
       showTip(item, row.id);
+      suppressLeaveUntil = Date.now() + LEAVE_GRACE_MS;
     });
     item.addEventListener('focusout', (event) => {
       if (!item.contains(event.relatedTarget as Node | null)) hideTip();

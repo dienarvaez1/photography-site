@@ -119,6 +119,13 @@ When('I tap the file {string}', async function (name) {
   await file(this, name).tap();
 });
 
+When('I click the file {string}, then immediately fire a mouseleave on it', async function (name) {
+  await file(this, name).evaluate((link) => {
+    link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    link.closest('.pic').dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+  });
+});
+
 When('I tap somewhere else on the page', async function () {
   await page(this).locator('.admin h1').tap();
 });

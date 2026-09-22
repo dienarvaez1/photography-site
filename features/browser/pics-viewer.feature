@@ -149,6 +149,16 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     When I click somewhere else on the page
     Then no tooltip should be showing
 
+  Scenario: A tap's synthesized mouseleave right after opening the tooltip does not close it before it loads
+    # Some Chromium builds fire a compatibility mouseleave right after the click a tap synthesizes, since touch
+    # has no real hover to leave. Simulated directly (deterministic regardless of the platform's own touch-to-
+    # mouse-event quirks) rather than relying on a real tap, which is what actually varies between machines.
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I click the file "Orion Nebula", then immediately fire a mouseleave on it
+    Then the tooltip should show these facts:
+      | Copyright | Copyright 2026 Diego Narvaez |
+
   Scenario: Tapping a file on a phone shows the tooltip inside the screen, without sideways scrolling
     Given the visitor uses a phone
     When I open "/admin/#pics-viewer"

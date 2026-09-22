@@ -2,11 +2,15 @@
   "extends": "astro/tsconfigs/strict",
   "include": [
     ".astro/types.d.ts",
-    "**/*",
-    "./worker-configuration.d.ts"
+    "**/*"
   ],
   "exclude": [
     "dist",
-    "dist-prod"
+    "dist-prod",
+    // `wrangler types` (npm run generate-types) writes this. Nothing here reads its `Env`/`Cloudflare.Env`
+    // types (the Worker's bindings are typed narrowly by src/cloudflare.d.ts instead); its own ambient
+    // runtime globals (Response, ReadableStream, Element, ...) collide with the DOM lib types the
+    // browser-side scripts in src/lib/*.ts need (e.g. Node.append), so it must stay out of type-checking.
+    "worker-configuration.d.ts"
   ]
 }
