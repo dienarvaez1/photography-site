@@ -40,7 +40,6 @@ Feature: The navigation works on phones and with the keyboard
       | each category |
       | About         |
       | Contact       |
-      | Admin         |
       | Español       |
 
   Scenario: The skip link appears when focused and jumps to the main content

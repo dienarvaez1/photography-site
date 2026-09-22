@@ -246,7 +246,7 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   layout shift stays under 0.02 with slow images; the logos take their final space before loading.
 - **`admin.feature`** (browser) — the two tabs really sit side by side on laptop and phone; clicking,
   arrow keys, Home/End (with wrap-around), deep links like `/admin/#pics-viewer`, Spanish, no-JavaScript, and
-  the header link to the right of Contact all behave, with no errors or CSP violations.
+  that the page works at its address although the header never links to it, with no errors or CSP violations.
 - **`results-viewer.feature`** (browser) — the Test Results tab against the real results API code and a
   fake bucket: the token gate (wrong, forgotten on sign-out, expired, no token on the server, keyboard
   only), `latest.json` and `index.json` as the only requests to start, opening every run (list, latest
@@ -620,10 +620,11 @@ forms only to Web3Forms, no plugins, no framing. Astro is configured not to inli
 
 ## Admin page
 
-`/admin/` (and `/es/admin/`) is linked in the header, to the right of Contact, and has two tabs side
-by side: **Test Results** and **Pics Viewer** (in Spanish: *Resultados de pruebas* and *Visor de fotos*). The
-tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the selected tab is
-in the URL (`/admin/#pics-viewer`), and without JavaScript both panels are shown.
+`/admin/` (and `/es/admin/`) works like any other page, but is **not linked from the header** — go there
+directly by typing the address. It has two tabs side by side: **Test Results** and **Pics Viewer** (in
+Spanish: *Resultados de pruebas* and *Visor de fotos*). The tabs follow the WAI-ARIA tabs pattern: arrow
+keys, Home and End move between them, the selected tab is in the URL (`/admin/#pics-viewer`), and without
+JavaScript both panels are shown.
 
 **The Admin page signs out after 5 minutes of inactivity** (`src/config/admin.ts`): the token is forgotten,
 both tabs return to the token form, and the form says why. Moving the pointer, pressing a key, scrolling,

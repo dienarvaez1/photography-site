@@ -1,9 +1,11 @@
 Feature: Admin page smoke test
   As the site owner
-  I want an Admin page next to Contact, with a "Test Results" tab and a "Pics Viewer" tab
-  So that there is a place to grow the site's admin tools, in both languages
+  I want an Admin page reachable directly at /admin/, with a "Test Results" tab and a "Pics Viewer" tab,
+  but not advertised in the header
+  So that there is a place to grow the site's admin tools, in both languages, without inviting visitors to it
 
-  This is a basic smoke test: the page exists, it is linked to the right of Contact, and it has its two tabs.
+  This is a basic smoke test: the page exists and works at its address, is never linked from the header, and
+  has its two tabs.
 
   Scenario Outline: The Admin page exists in both languages
     When I load the built page "<route>"
@@ -15,27 +17,17 @@ Feature: Admin page smoke test
       | /admin/     | en       | Admin          |
       | /es/admin/  | es       | Administración |
 
-  Scenario Outline: "Admin" is linked immediately to the right of "Contact" in the header
+  Scenario Outline: The header never links to the Admin page, on any page including the Admin page itself
     When I load the built page "<route>"
     Then the header links after the Work menu should be, in order: "<links>"
-    And the "Admin" link should lead to "<admin path>"
 
     Examples:
-      | route      | links                 | admin path |
-      | /          | About, Contact, Admin | /admin/    |
-      | /about/    | About, Contact, Admin | /admin/    |
-      | /es/       | Sobre mí, Contacto, Admin | /es/admin/ |
-      | /es/admin/ | Sobre mí, Contacto, Admin | /es/admin/ |
-
-  Scenario Outline: The Admin link is marked as the current page only on the Admin page
-    When I load the built page "<route>"
-    Then the active header link should be "<active>"
-
-    Examples:
-      | route      | active |
-      | /admin/    | Admin  |
-      | /es/admin/ | Admin  |
-      | /contact/  | Contact |
+      | route      | links               |
+      | /          | About, Contact      |
+      | /about/    | About, Contact      |
+      | /admin/    | About, Contact      |
+      | /es/       | Sobre mí, Contacto  |
+      | /es/admin/ | Sobre mí, Contacto  |
 
   Scenario Outline: The page has exactly two tabs, side by side in a horizontal tab list, in this order
     When I load the built page "<route>"

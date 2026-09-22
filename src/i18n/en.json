@@ -10,8 +10,7 @@
     "work": "Work",
     "about": "About",
     "contact": "Contact",
-    "language": "Language",
-    "admin": "Admin"
+    "language": "Language"
   },
   "footer": {
     "copyright": "© {year} {author} Photography. All rights reserved.",

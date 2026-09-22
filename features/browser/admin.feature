@@ -58,11 +58,11 @@ Feature: The Admin page's tabs work in a real browser
     When I open "/admin/"
     Then both panels should be visible
 
-  Scenario: The Admin link sits to the right of Contact and leads to the page
+  Scenario: The Admin page is not linked from the header, but its address still works
     When I open "/contact/"
-    Then the "Admin" link should sit to the right of the "Contact" link in the header
-    When I click the header link "Admin"
-    Then the page path should be "/admin/"
+    Then the header should offer no "Admin" link
+    When I open "/admin/"
+    Then the header should offer no "Admin" link
     And the "Test Results" tab should be selected, its panel visible and the other panel hidden
 
   Scenario: Using the tabs reports no errors and no policy violations

@@ -58,6 +58,10 @@ Then('the {string} link should sit to the right of the {string} link in the head
   assert.ok(r.x >= l.x + l.width - 1, `${right} is not to the right of ${left}`);
 });
 
+Then('the header should offer no {string} link', async function (name) {
+  assert.equal(await page(this).locator('#primary-nav > a', { hasText: name }).count(), 0, `an "${name}" link is in the header`);
+});
+
 When('I click the header link {string}', async function (name) {
   await page(this).locator('#primary-nav > a', { hasText: name }).first().click();
   await page(this).waitForLoadState('load');
