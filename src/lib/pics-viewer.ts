@@ -3,7 +3,7 @@
 // its camera information, file size and copyright. Each row of the list shows a small thumbnail, the site's
 // own public web copy of the photo; the private originals are never fetched or shown: the API only ever
 // returns numbers and text. Everything from the API is put on the page as text.
-import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, remembered, type Child, type Messages } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, parseJson, remembered, type Child, type Messages } from './admin-common';
 import type { FormCategory } from './photo-form';
 import type { RemovalBar, RemoveResult } from './photo-remove';
 import { PICS_PAGE_SIZE } from '../config/admin';
@@ -21,9 +21,9 @@ type Details = {
 
 export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   const root = container.querySelector<HTMLElement>('[data-pics-root]')!;
-  const messages: Messages = JSON.parse(container.dataset.messages ?? '{}');
-  const known: Record<string, KnownPhoto> = JSON.parse(container.dataset.photos ?? '{}');
-  const categories: FormCategory[] = JSON.parse(container.dataset.categories ?? '[]');
+  const messages = parseJson<Messages>(container.dataset.messages ?? '{}');
+  const known = parseJson<Record<string, KnownPhoto>>(container.dataset.photos ?? '{}');
+  const categories = parseJson<FormCategory[]>(container.dataset.categories ?? '[]');
   const formHost = container.querySelector<HTMLElement>('[data-pics-form]')!; // where the New Photo form opens
   const locale = container.dataset.locale ?? 'en';
   const apiUrl = resolveApiUrl(container.dataset.api ?? '', location.search, location.hostname);

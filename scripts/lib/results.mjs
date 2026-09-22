@@ -176,7 +176,7 @@ export async function publishResults({ dir, storage, source = 'local', meta = gi
     try {
       report = JSON.parse(await readFile(join(dir, file), 'utf-8'));
     } catch (error) {
-      throw new Error(`${file} is not valid JSON (${error.message}) — was the test run interrupted?`);
+      throw new Error(`${file} is not valid JSON (${error.message}) — was the test run interrupted?`, { cause: error });
     }
     suites[suite] = suite === 'smoke' ? summarizeSmoke(report) : summarizeCucumber(report);
   }

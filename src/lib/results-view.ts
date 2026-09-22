@@ -27,7 +27,7 @@ export function parseRoute(hash: string): Route | null {
 
 /** Fills {name} placeholders. */
 export function formatMessage(template: string, values: Record<string, string | number> = {}): string {
-  return template.replace(/\{(\w+)\}/g, (whole, name) => (name in values ? String(values[name]) : whole));
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) => (name in values ? String(values[name]) : whole));
 }
 
 export function formatDuration(ms: number): string {

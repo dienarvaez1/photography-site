@@ -127,11 +127,24 @@ export function icon(name: keyof typeof ICONS): SVGSVGElement {
   return svg;
 }
 
-export type Messages = Record<string, any>;
+export type Messages = Record<string, unknown>;
 
-/** Looks up a message by dotted path ("errors.unauthorized") and fills its {placeholders}. */
+/** Looks up a message by dotted path ("errors.unauthorized") and fills its {placeholders}; a path that doesn't
+ *  lead to a string (missing, or stopping at a branch node) falls back to the path itself, so a translation
+ *  that isn't there yet never renders blank. */
 export function messageReader(messages: Messages) {
-  return (path: string, values?: Record<string, string | number>) => formatMessage(path.split('.').reduce<any>((node, key) => node?.[key], messages) ?? path, values);
+  return (path: string, values?: Record<string, string | number>) => {
+    const found = path
+      .split('.')
+      .reduce<unknown>((node, key) => (typeof node === 'object' && node !== null ? (node as Record<string, unknown>)[key] : undefined), messages);
+    return formatMessage(typeof found === 'string' ? found : path, values);
+  };
+}
+
+/** `JSON.parse`, with the result's type asserted rather than checked — only for data the page itself put in a
+ *  `data-*` attribute (never for anything read over the network; see ApiError/apiGet below for that). */
+export function parseJson<T>(text: string): T {
+  return JSON.parse(text) as T;
 }
 
 export type Reader = ReturnType<typeof messageReader>;

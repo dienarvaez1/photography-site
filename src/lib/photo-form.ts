@@ -136,7 +136,8 @@ export function photoForm(options: {
       orderTouched = order.value.trim() !== ''; // an emptied field goes back to following the category
     });
 
-    file.addEventListener('change', async () => {
+    /** Reads the chosen photo through the service, filling in `analysis` and what it found. */
+    async function handleFileChosen() {
       const chosen = file.files?.[0];
       const run = ++reading;
       analysis = null;
@@ -164,10 +165,11 @@ export function photoForm(options: {
         reader.textContent = '';
         showProblem(problem, error);
       }
-    });
+    }
+    file.addEventListener('change', () => void handleFileChosen());
 
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
+    /** Submits the form: uploads the photo and publishes its entry through the service. */
+    async function handleSubmit() {
       problem.textContent = '';
       if (!analysis || !file.files?.[0]) {
         problem.textContent = t('errors.needFile');
@@ -199,6 +201,10 @@ export function photoForm(options: {
         submit.disabled = false;
         showProblem(problem, error, category.value);
       }
+    }
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void handleSubmit();
     });
 
     body.replaceChildren(form);

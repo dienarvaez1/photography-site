@@ -14,6 +14,9 @@ const run = promisify(execFile);
 // Run the project's own wrangler with the current Node (faster than npx, and no PATH assumptions).
 const wranglerBin = fileURLToPath(new URL('../../node_modules/wrangler/bin/wrangler.js', import.meta.url));
 
+// Deliberately matches the ANSI CSI escape sequence, to strip wrangler's color codes from its output before
+// showing it to a person or writing it to a log.
+// eslint-disable-next-line no-control-regex
 const ANSI = /\x1b\[[0-9;]*m/g;
 
 /**
@@ -93,7 +96,7 @@ export function createR2Storage({ baseUrl = PHOTOS_BASE_URL } = {}) {
         try {
           response = await fetch(`${baseUrl}/${key}`, { method: 'HEAD' });
         } catch (error) {
-          throw new Error(`Could not reach ${baseUrl} (offline?): ${error.message}`);
+          throw new Error(`Could not reach ${baseUrl} (offline?): ${error.message}`, { cause: error });
         }
         return response.ok;
       },

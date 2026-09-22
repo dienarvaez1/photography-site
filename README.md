@@ -15,6 +15,7 @@ paid backend.
 | `npm run build`                 | Build the production site to `./dist/` (runs the key guard first)   |
 | `npm run preview`               | Preview the production build locally                                |
 | `npm run astro check`           | Type-check the project                                              |
+| `npm run lint`                  | Run ESLint (see Linting)                                             |
 | `npm run generate-types`        | Regenerate the Cloudflare binding types (`wrangler types`)          |
 | `npm test`                      | Run the offline test suite (see Testing)                            |
 | `npm run test:browser`          | Run the real-browser tests in Chromium (see Testing)                |
@@ -26,6 +27,18 @@ paid backend.
 | `npm run results-api:deploy`    | Deploy the results API Worker (see Admin page)                      |
 | `npm run smoke`                 | Check the live site (or `-- <url>`); `-- --wait` retries for 2 minutes |
 | `npm run photos -- help`        | Add / replace / remove / verify photos in R2 (see Photos)           |
+
+## Linting
+
+`npm run lint` runs [ESLint](https://eslint.org) (flat config, `eslint.config.mjs`) over the whole project:
+`.astro` components (via `eslint-plugin-astro`), the TypeScript in `src/` (type-aware, via `typescript-eslint`,
+against the real `tsconfig.json`), and the plain JavaScript in `scripts/`, `workers/` and `features/`.
+
+It only enables each plugin's own **recommended, correctness** rules — no stylistic/formatting rules, so it
+never relitigates the codebase's existing style. `worker-configuration.d.ts` is excluded, same as in
+`tsconfig.json` (see "Notes on R2" — its ambient Workers-runtime types collide with the DOM types the
+browser-side scripts need). Accessibility is checked separately and far more thoroughly, by the real
+axe-core audits in `npm run test:browser`; `eslint-plugin-astro`'s optional `jsx-a11y` rules aren't enabled.
 
 ## Testing
 

@@ -18,13 +18,14 @@ export async function call<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new ServiceError('unreachable');
   }
-  let body: any = null;
+  let body: unknown = null;
   try {
     body = await response.json();
   } catch {
     // not JSON: handled below
   }
-  if (!response.ok) throw new ServiceError(body?.error ?? 'unavailable', body?.message ?? '');
+  const info = body && typeof body === 'object' ? (body as { error?: string; message?: string }) : {};
+  if (!response.ok) throw new ServiceError(info.error ?? 'unavailable', info.message ?? '');
   if (!body) throw new ServiceError('unavailable');
   return body as T;
 }

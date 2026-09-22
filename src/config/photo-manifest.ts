@@ -88,7 +88,7 @@ export function parseManifest(text: string): { entries: ManifestEntry[]; skipped
   const skipped: string[] = [];
   for (const entry of manifest.entries) {
     const problem = problemWith(entry);
-    if (problem) skipped.push(`${isObject(entry) ? `${entry.category}/${entry.id}` : 'an item'} ${problem}`);
+    if (problem) skipped.push(`${isObject(entry) ? `${String(entry.category)}/${String(entry.id)}` : 'an item'} ${problem}`);
     else entries.push(entry as ManifestEntry);
   }
   return { entries, skipped };

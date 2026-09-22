@@ -15,7 +15,7 @@ import {
   type Route,
   type Totals,
 } from './results-view';
-import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, messageReader, remembered, type Child, type Messages } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, messageReader, parseJson, remembered, type Child, type Messages } from './admin-common';
 
 type Failure = { feature?: string; scenario?: string; step?: string; message?: string; name?: string; detail?: string };
 type Suite = { scenarios?: number; passed: number; failed: number; skipped?: number; steps?: { total: number }; durationMs?: number; features?: { name: string; scenarios: number; passed: number; failed: number }[]; failures?: Failure[]; slowest?: { feature: string; scenario: string; ms: number }[]; checks?: number; baseUrl?: string };
@@ -23,7 +23,7 @@ type Summary = { runId: string; startedAt: string; source: string; commit: strin
 
 export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   const root = container.querySelector<HTMLElement>('[data-results-root]')!;
-  const messages: Messages = JSON.parse(container.dataset.messages ?? '{}');
+  const messages = parseJson<Messages>(container.dataset.messages ?? '{}');
   const locale = container.dataset.locale ?? 'en';
   const apiUrl = resolveApiUrl(container.dataset.api ?? '', location.search, location.hostname);
   const m = messageReader(messages);
@@ -77,7 +77,10 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   }
 
   async function renderList(run: number) {
-    const [latest, index] = await Promise.all([api<Summary>('/latest').catch((e) => (e instanceof ApiError && e.kind === 'notFound' ? null : Promise.reject(e))), api<{ runs: IndexEntry[] }>('/index')]);
+    // Re-propagates whatever apiGet rejected with (always an ApiError; see admin-common.ts), not a new reason.
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+    const notFoundIsFine = (e: unknown) => (e instanceof ApiError && e.kind === 'notFound' ? null : Promise.reject(e));
+    const [latest, index] = await Promise.all([api<Summary>('/latest').catch(notFoundIsFine), api<{ runs: IndexEntry[] }>('/index')]);
     if (run !== generation) return;
     if (!index.runs.length && !latest) {
       show(el('p', { class: 'results-empty', text: m('empty') }));
