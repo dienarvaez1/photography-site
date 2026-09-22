@@ -17,6 +17,10 @@ export const CATEGORIES: Category[] = [
   { slug: 'nature' },
   { slug: 'events' },
   { slug: 'other' },
+  // Permanently hidden: never linked from the nav or the homepage grid, on purpose. It has no photos, so it keeps
+  // the "hidden categories still build, and show the empty-state message" test (site-pages.feature) exercising
+  // real behavior rather than skipping for lack of anything to check.
+  { slug: 'drafts', hidden: true },
 ];
 
 export function getCategory(slug: string): Category | undefined {

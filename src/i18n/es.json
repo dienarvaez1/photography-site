@@ -57,6 +57,10 @@
     "other": {
       "label": "Otros",
       "description": "Todo lo que no encaja en las demás categorías."
+    },
+    "drafts": {
+      "label": "Borradores",
+      "description": "No se muestra en el sitio; existe solo para que las herramientas siempre tengan una categoría oculta con la que probar."
     }
   },
   "home": {

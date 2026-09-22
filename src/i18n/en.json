@@ -57,6 +57,10 @@
     "other": {
       "label": "Other",
       "description": "Everything that doesn't fit the other categories."
+    },
+    "drafts": {
+      "label": "Drafts",
+      "description": "Not shown on the site; kept here only so the tools always have a hidden category to test against."
     }
   },
   "home": {
