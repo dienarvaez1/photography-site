@@ -30,6 +30,8 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Lint
+        # `npm run lint`'s own `prelint` hook runs `astro sync` first: ESLint's type-aware rules need the
+        # `astro:content` ambient types it writes to .astro/ (gitignored, so a fresh checkout has none yet).
         run: npm run lint
       - name: Type-check
         run: npx astro check
