@@ -6,4 +6,4 @@
 export const RESULTS_API_URL = 'https://photography-site-results.diego-narvaez.workers.dev';
 
 /** The Worker only answers requests coming from these pages (CORS). Keep in step with workers/results-api/wrangler.jsonc. */
-export const RESULTS_API_ALLOWED_ORIGINS = ['https://photography-site.diego-narvaez.workers.dev', 'http://localhost:4321'] as const;
+export const RESULTS_API_ALLOWED_ORIGINS = ['https://photography-site.diego-narvaez.workers.dev', 'https://diego-narvaez-photography.org', 'http://localhost:4321'] as const;

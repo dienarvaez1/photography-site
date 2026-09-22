@@ -15,7 +15,7 @@
 		{ "binding": "ORIGINALS", "bucket_name": "photography-site-originals" }
 	],
 	"vars": {
-		"ALLOWED_ORIGINS": "https://photography-site.diego-narvaez.workers.dev,http://localhost:4321"
+		"ALLOWED_ORIGINS": "https://photography-site.diego-narvaez.workers.dev,https://diego-narvaez-photography.org,http://localhost:4321"
 	},
 	"observability": { "enabled": true }
 }
