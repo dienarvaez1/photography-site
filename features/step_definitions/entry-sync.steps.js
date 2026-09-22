@@ -162,6 +162,7 @@ const idOf = (bytes) => createHash('sha256').update(bytes).digest('hex').slice(0
 
 /** The entries named like "astro/half-moon" (category/title slug), as { category, id, data } from the local mirror. */
 async function entriesOf(world, list) {
+  if (list === '') return [];
   return Promise.all(list.split(', ').map(async (ref) => {
     const data = await readEntry(world, ref);
     return { ref, category: data.category, id: data.photo.id, data };
@@ -174,6 +175,7 @@ Given('I remember the bytes of the photo file {string}', async function (name) {
 
 Given('R2 works again', function () {
   state(this).storage.faults.failPutMatching = null;
+  state(this).storage.faults.failDeleteMatching = null;
 });
 
 Then('the private originals bucket should hold exactly the originals of: {string}', async function (list) {

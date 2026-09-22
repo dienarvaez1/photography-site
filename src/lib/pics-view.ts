@@ -38,6 +38,14 @@ export function joinPhotos(originals: Original[], known: Record<string, KnownPho
 
 export const PICS_TAB = 'pics-viewer';
 
+/**
+ * How many rows to draw: at least one page, whole pages, and enough to include the first `needed` rows (say, the last one
+ * that is ticked, so a refreshed list still shows it); never more than there are.
+ */
+export function rowsToShow(total: number, needed: number, pageSize: number): number {
+  return Math.min(total, Math.max(pageSize, Math.ceil(needed / pageSize) * pageSize));
+}
+
 /** The size to show a picture of `width` x `height` at, scaled down to fit a `max` pixel square (never scaled up). */
 export function thumbSize(width: number, height: number, max = 96): { width: number; height: number } {
   if (!(width > 0) || !(height > 0)) return { width: max, height: max };

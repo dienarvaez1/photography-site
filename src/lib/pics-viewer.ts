@@ -4,8 +4,10 @@
 // own public web copy of the photo; the private originals are never fetched or shown: the API only ever
 // returns numbers and text. Everything from the API is put on the page as text.
 import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, remembered, type Child, type Messages } from './admin-common';
-import { photoForm, type FormCategory } from './photo-form';
-import { PICS_TAB, formatBytes, formatExactBytes, joinPhotos, thumbSize, type KnownPhoto, type Original } from './pics-view';
+import type { FormCategory } from './photo-form';
+import type { RemovalBar, RemoveResult } from './photo-remove';
+import { PICS_PAGE_SIZE } from '../config/admin';
+import { PICS_TAB, formatBytes, formatExactBytes, joinPhotos, rowsToShow, thumbSize, type KnownPhoto, type Original, type PicRow } from './pics-view';
 import { resolveApiUrl } from './results-view';
 
 type Details = {
@@ -30,6 +32,20 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   let token = remembered.get();
   let generation = 0;
   let displayed = false; // is the list on screen?
+  // Bulk removal (the Remove Photos button): the last listing, whether checkboxes are showing, which photos are ticked.
+  let listing: { rows: PicRow[]; complete: boolean } | null = null;
+  // The list is drawn a page at a time (PICS_PAGE_SIZE rows); the next page is drawn when the end of the list is reached.
+  let shownCount = PICS_PAGE_SIZE;
+  let more: HTMLElement | null = null; // "Showing 20 of 87 photos" and the Show more button, while there is more to show
+  let pager: IntersectionObserver | null = null;
+  let removing = false;
+  let bar: RemovalBar | null = null;
+  // The removal code is loaded when Remove Photos is first pressed (it is only ever used on the owner's computer), so
+  // the page's own script stays small.
+  let removal: typeof import('./photo-remove') | null = null;
+  let deleting = false; // a removal is under way: nothing may redraw the list until it is over
+  const selected = new Set<string>();
+  let notice: { text: string; alert: boolean } | null = null; // what the last removal did, shown until the next action
   const details = new Map<string, Promise<Details>>(); // one request per photo, however often it is hovered
 
   const api = <T,>(path: string) => apiGet<T>(apiUrl, token, path);
@@ -108,12 +124,17 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
 
   // --- The count and the Upload / Remove buttons ---------------------------------------------------------------
 
+  // Like the removal code, the New Photo form is loaded when it is first needed (it is only ever used on the owner's computer).
+  let formModule: typeof import('./photo-form') | null = null;
+
   /** Opens the New Photo form above the list (a second press just goes back to it). */
-  function openForm() {
+  async function openForm() {
     const open = formHost.querySelector<HTMLElement>('input');
     if (open) return open.focus();
+    formModule ??= await import('./photo-form');
+    if (formHost.firstElementChild) return; // a second press opened it while the code was loading
     formHost.append(
-      photoForm({
+      formModule.photoForm({
         m,
         categories,
         // The photo is now in the bucket: look at the list again (the form stays, showing what was written).
@@ -133,16 +154,19 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
 
   /** "<count> original photos" with the two action buttons across from it, at the right. */
   function summary(count: number) {
-    const status = el('p', { class: 'pics-status', attrs: { role: 'status' } });
+    const status = el('p', { class: 'pics-status', attrs: { role: notice?.alert ? 'alert' : 'status' } });
+    if (notice) status.textContent = notice.text;
     const button = (kind: 'upload' | 'remove', glyph: 'upload' | 'trash') => {
       const node = el('button', { class: 'results-button pics-action', attrs: { type: 'button', 'data-action': kind } }, icon(glyph), el('span', { text: m(`pics.${kind}`) }));
-      // Upload Photos opens the New Photo form; nothing is removed yet, and Remove Photos says so.
+      if (kind === 'remove') node.setAttribute('aria-pressed', String(removing));
+      // Upload Photos opens the New Photo form; Remove Photos shows a checkbox on every photo (see photo-remove.ts).
       node.addEventListener('click', () => {
+        notice = null;
         if (kind === 'upload') {
           status.textContent = '';
-          openForm();
+          void openForm();
         } else {
-          status.textContent = m('pics.removeSoon');
+          void toggleRemoval(status);
         }
       });
       return node;
@@ -151,48 +175,196 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     return [el('div', { class: 'pics-summary' }, el('p', { class: 'results-count', text: m('pics.count', { count }) }), actions), status];
   }
 
+  // --- Removing photos in bulk ---------------------------------------------------------------------------------------------
+
+  /** Remove Photos: shows the checkboxes (once the local photo service, which does the deleting, is known to be there), or hides them. */
+  async function toggleRemoval(status: HTMLElement) {
+    if (deleting) return;
+    if (removing) return stopRemoval();
+    status.textContent = m('pics.removal.checking');
+    removal ??= await import('./photo-remove');
+    if (!(await removal.serviceAvailable())) {
+      status.textContent = m('pics.removal.unavailable');
+      return;
+    }
+    removing = true;
+    selected.clear();
+    paint();
+    container.querySelector<HTMLInputElement>('.pic-check')?.focus();
+  }
+
+  function stopRemoval() {
+    removing = false;
+    selected.clear();
+    paint();
+    container.querySelector<HTMLElement>('[data-action="remove"]')?.focus();
+  }
+
+  /** The removal is over (or failed): say what happened, and look at the list again. */
+  function removalDone(outcome: RemoveResult[] | Error) {
+    deleting = false;
+    removing = false;
+    selected.clear();
+    if (outcome instanceof Error) {
+      notice = { text: m('pics.removal.requestFailed', { message: outcome.message || m('pics.removal.unreachable') }), alert: true };
+    } else {
+      const done = outcome.filter((r) => !r.error).length;
+      const failures = outcome.filter((r) => r.error).map((r) => m('pics.removal.failed', { title: `${listing?.rows.find((row) => row.id === r.id)?.title ?? r.id} (${r.id})`, message: r.error ?? '' }));
+      notice = { text: [done ? m(done === 1 ? 'pics.removal.doneOne' : 'pics.removal.done', { count: done }) : '', ...failures].filter(Boolean).join(' '), alert: failures.length > 0 };
+    }
+    details.clear();
+    void render();
+  }
+
   // --- The list -------------------------------------------------------------------------------------------------------------
 
   async function renderList(run: number) {
-    const listing = await api<{ photos: Original[]; complete: boolean }>('/pics');
+    const fetched = await api<{ photos: Original[]; complete: boolean }>('/pics');
     if (run !== generation) return;
-    if (!listing.photos.length) {
-      show(...summary(0), el('p', { class: 'results-empty', text: m('pics.empty') }));
-      displayed = true;
-      return;
-    }
-    const rows = joinPhotos(listing.photos, known, locale);
-    const items = rows.map((row) => {
-      const link = el('a', { class: 'pic-link', attrs: { href: `#${PICS_TAB}` } },
-        thumbnail(row.id),
-        el('span', { class: 'pic-title', text: row.title ?? row.id }),
-        row.category ? el('span', { class: 'pic-category', text: row.category }) : el('span', { class: 'pic-category', text: m('pics.notOnSite') }),
-        el('span', { class: 'pic-key', text: row.key }));
-      const item = el('li', { class: 'pic' }, link);
-      item.addEventListener('mouseenter', () => showTip(item, row.id));
-      item.addEventListener('mouseleave', hideTip);
-      link.addEventListener('focus', () => showTip(item, row.id));
-      // A tap or click opens the tooltip too (touch screens have no hover); the link goes nowhere.
-      link.addEventListener('click', (event) => {
-        event.preventDefault();
-        showTip(item, row.id);
-      });
-      item.addEventListener('focusout', (event) => {
-        if (!item.contains(event.relatedTarget as Node | null)) hideTip();
-      });
-      return item;
-    });
-    show(
-      ...summary(rows.length),
-      listing.complete ? null : el('p', { class: 'results-error', text: m('pics.incomplete') }),
-      el('ul', { class: 'pics-list' }, ...items)
-    );
+    listing = { rows: joinPhotos(fetched.photos, known, locale), complete: fetched.complete };
+    for (const id of [...selected]) if (!listing.rows.some((row) => row.id === id)) selected.delete(id); // a photo that has gone cannot stay chosen
+    // A fresh look starts at the first page, but never hides a row that is still ticked.
+    const needed = Math.max(0, ...[...selected].map((id) => listing!.rows.findIndex((row) => row.id === id) + 1));
+    shownCount = rowsToShow(listing.rows.length, needed, PICS_PAGE_SIZE);
+    paint();
     displayed = true;
   }
 
+  /** One row of the list: thumbnail, title, category, key, the tooltip's triggers and (while removing) its checkbox. */
+  function buildRow(row: PicRow) {
+    const link = el('a', { class: 'pic-link', attrs: { href: `#${PICS_TAB}` } },
+      thumbnail(row.id),
+      el('span', { class: 'pic-title', text: row.title ?? row.id }),
+      row.category ? el('span', { class: 'pic-category', text: row.category }) : el('span', { class: 'pic-category', text: m('pics.notOnSite') }),
+      el('span', { class: 'pic-key', text: row.key }));
+    const item = el('li', { class: 'pic' }, link);
+    if (removing) {
+      const box = el('input', { class: 'pic-check', attrs: { type: 'checkbox', 'data-id': row.id, 'aria-label': m('pics.removal.select', { title: `${row.title ?? row.id} (${row.id})` }) } });
+      box.checked = selected.has(row.id);
+      item.classList.toggle('selected', box.checked);
+      box.addEventListener('change', () => {
+        if (box.checked) selected.add(row.id);
+        else selected.delete(row.id);
+        item.classList.toggle('selected', box.checked);
+        bar?.update();
+      });
+      item.prepend(el('label', { class: 'pic-select' }, box));
+    }
+    item.addEventListener('mouseenter', () => showTip(item, row.id));
+    item.addEventListener('mouseleave', hideTip);
+    link.addEventListener('focus', () => showTip(item, row.id));
+    // A tap or click opens the tooltip too (touch screens have no hover); the link goes nowhere.
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      showTip(item, row.id);
+    });
+    item.addEventListener('focusout', (event) => {
+      if (!item.contains(event.relatedTarget as Node | null)) hideTip();
+    });
+    return item;
+  }
+
+  // --- Paging: a page of rows at a time -----------------------------------------------------------------------------------------
+
+  /** Draws the next page below the rows already there (the observer calls this when the end of the list comes into view). */
+  function loadMore() {
+    const list = root.querySelector<HTMLElement>('.pics-list');
+    if (!listing || !list || shownCount >= listing.rows.length) return;
+    const from = shownCount;
+    shownCount = Math.min(listing.rows.length, shownCount + PICS_PAGE_SIZE);
+    list.append(...listing.rows.slice(from, shownCount).map(buildRow));
+    bar?.update(); // "Select the 20 shown" now says 40
+    updateMore();
+  }
+
+  /** Keeps the "Showing X of Y" note and the button true; once everything is shown the button goes and the note says so. */
+  function updateMore() {
+    pager?.disconnect();
+    if (!more || !listing) return;
+    const total = listing.rows.length;
+    const note = more.querySelector<HTMLElement>('.pics-shown')!;
+    const button = more.querySelector('button');
+    if (shownCount >= total) {
+      const hadFocus = button !== null && button === document.activeElement;
+      button?.remove();
+      note.textContent = m('pics.paging.all', { total });
+      if (hadFocus) {
+        note.tabIndex = -1; // the button that was pressed is gone: keep the keyboard here rather than lose it
+        note.focus();
+      }
+      more = null; // nothing left to watch for
+      return;
+    }
+    note.textContent = m('pics.paging.shown', { shown: shownCount, total });
+    button!.textContent = m('pics.paging.more', { count: Math.min(PICS_PAGE_SIZE, total - shownCount) });
+    // Watching again reports the end of the list at once if it is still in view, so a tall screen fills up page by page.
+    pager?.observe(more);
+  }
+
+  /** "Showing 20 of 87 photos" with a Show more button (the way to load more without scrolling, and for the keyboard). Only for lists longer than a page. */
+  function moreControls(): HTMLElement | null {
+    pager?.disconnect();
+    pager = null;
+    more = null;
+    if (!listing || listing.rows.length <= PICS_PAGE_SIZE) return null;
+    more = el('div', { class: 'pics-more' }, el('p', { class: 'pics-shown', attrs: { role: 'status' } }), el('button', { class: 'results-button', attrs: { type: 'button', 'data-action': 'more' } }));
+    more.querySelector('button')!.addEventListener('click', loadMore);
+    if (typeof IntersectionObserver !== 'undefined') {
+      pager = new IntersectionObserver((entries) => entries.some((entry) => entry.isIntersecting) && loadMore(), { rootMargin: '400px 0px' });
+    }
+    return more;
+  }
+
+  /** Draws the counter, the buttons, the removal bar (while removing) and the first pages of the list from the last listing. */
+  function paint() {
+    hideTip();
+    if (!listing) return;
+    const { rows, complete } = listing;
+    if (!rows.length) {
+      removing = false;
+      bar = null;
+      show(...summary(0), el('p', { class: 'results-empty', text: m('pics.empty') }));
+      return;
+    }
+    bar = removing && removal
+      ? removal.removalBar({
+          m,
+          rows,
+          selected,
+          shown: () => shownCount,
+          onSelectAll: (all) => {
+            selected.clear();
+            if (all) for (const row of rows.slice(0, shownCount)) selected.add(row.id);
+            for (const box of root.querySelectorAll<HTMLInputElement>('.pic-check')) {
+              box.checked = selected.has(box.dataset.id ?? '');
+              box.closest('.pic')?.classList.toggle('selected', box.checked);
+            }
+            bar?.update();
+          },
+          onCancel: stopRemoval,
+          perform: (photos) => {
+            deleting = true;
+            return removal!.removePhotos(photos);
+          },
+          onDone: removalDone,
+        })
+      : null;
+    show(
+      ...summary(rows.length),
+      bar?.element ?? null,
+      complete ? null : el('p', { class: 'results-error', text: m('pics.incomplete') }),
+      el('ul', { class: `pics-list${removing ? ' selecting' : ''}` }, ...rows.slice(0, shownCount).map(buildRow)),
+      moreControls()
+    );
+    updateMore();
+  }
+
   async function render() {
+    if (deleting) return; // a removal is under way: it redraws the list itself when it is over
     const run = ++generation;
     hideTip();
+    pager?.disconnect(); // the list about to be replaced is not watched any more
+    more = null;
     if (!token) {
       displayed = false;
       return renderGate();
@@ -233,6 +405,10 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     details.clear();
     hideTip();
     formHost.replaceChildren(); // signing out (or in as someone else) closes the form
+    removing = false; // ...and the removal checkboxes
+    selected.clear();
+    notice = null;
+    listing = null;
     if (!panel.hidden) void render();
     else root.replaceChildren();
   });

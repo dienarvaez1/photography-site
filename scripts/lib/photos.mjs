@@ -284,6 +284,53 @@ export async function removePhoto({ entryFile, contentDir, storage, publish, log
   }
 }
 
+/** The one key an original may have for a photo id: `photos/<id>/original.<extension>` (uploads always use `.jpg`). */
+export const originalKeyPattern = (id) => new RegExp(`^photos/${id}/original\\.[a-z0-9]{1,8}$`);
+
+/**
+ * Removes whole photos in bulk. Each photo is named by its photo id together with the key of its original (which a
+ * file put there by hand may give another extension). Deletes ONLY, for each id:
+ *   - the entries that use that id, in every category (they are removed from the site first);
+ *   - the photo's own files: that original, and the web sizes `photos/<id>/<size>.webp`.
+ * The entries are unpublished (`publish`, once for all) BEFORE any file is deleted, so the site never lists a photo
+ * whose files are gone; if that publishing fails the entries are put back and nothing is deleted. A file that cannot
+ * be deleted fails only its own photo. Returns [{ id, entries: ['<category>', ...], deleted: [key, ...], error? }].
+ */
+export async function removePhotosById({ photos, contentDir, storage, publish, log = () => {} }) {
+  const wanted = new Map();
+  for (const { id, originalKey } of photos) {
+    if (!PHOTO_ID_PATTERN.test(id ?? '')) throw new Error(`"${id}" is not a photo id`);
+    if (!originalKeyPattern(id).test(originalKey ?? '')) throw new Error(`"${originalKey}" is not the original of photo ${id}`);
+    wanted.set(id, originalKey);
+  }
+
+  const doomed = (await listEntries(contentDir)).filter((entry) => wanted.has(entry.data.photo?.id));
+  const saved = await Promise.all(doomed.map(async (entry) => ({ file: entry.file, text: await readFile(entry.file, 'utf-8') })));
+  for (const { file } of saved) await unlink(file);
+  try {
+    if (doomed.length) await publish?.();
+  } catch (error) {
+    for (const { file, text } of saved) await writeFile(file, text); // nothing was deleted: leave the mirror as it was
+    throw error;
+  }
+
+  const results = [];
+  for (const [id, originalKey] of wanted) {
+    const result = { id, entries: doomed.filter((e) => e.data.photo.id === id).map((e) => e.data.category), deleted: [] };
+    try {
+      for (const [bucket, key] of [[storage.originals, originalKey], ...photoKeys(id).web.map((k) => [storage.web, k])]) {
+        await bucket.delete(key);
+        result.deleted.push(key);
+      }
+      log(`  removed photo ${id}`);
+    } catch (error) {
+      result.error = error.message;
+    }
+    results.push(result);
+  }
+  return results;
+}
+
 /**
  * Checks every entry against R2. Read-only.
  * Returns { problems: [{ file, message }], checked } — empty problems means in sync.

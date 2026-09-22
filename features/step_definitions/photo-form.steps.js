@@ -15,19 +15,19 @@ const { CATEGORIES } = await import(join(ROOT, 'src/config/categories.ts'));
 const en = JSON.parse(readFileSync(join(ROOT, 'src/i18n/en.json'), 'utf-8'));
 const es = JSON.parse(readFileSync(join(ROOT, 'src/i18n/es.json'), 'utf-8'));
 
-const SITE = 'http://localhost:4321';
+export const SITE = 'http://localhost:4321';
 
 // --- Talking to the form's service ---------------------------------------------------------------------------------------
 
 /** The service, over this scenario's temporary content folder and fake R2. */
-function service(world) {
+export function service(world) {
   const s = state(world);
   s.service ??= form.createPhotoFormHandler({ contentDir: s.contentDir, storage: s.storage, sync: Boolean(s.sync), categories: s.configured ? () => s.configured : undefined });
   return s.service;
 }
 
 /** Sends one request the way the page (or something else) would, and remembers the answer. */
-async function send(world, method, address, { body, origin, headers = {} } = {}) {
+export async function send(world, method, address, { body, origin, headers = {} } = {}) {
   const request = new Request(address, { method, body, headers: { ...(origin ? { Origin: origin } : {}), ...headers } });
   const response = await service(world)(request);
   const answer = response ? { status: response.status, body: await response.json() } : null;
@@ -59,7 +59,7 @@ async function whatWasSent(world, what) {
   return fileBytes(world, 'moon.jpg');
 }
 
-const answer = (world) => state(world).answer;
+export const answer = (world) => state(world).answer;
 
 // --- Setting the scene ------------------------------------------------------------------------------------------------------
 
@@ -229,19 +229,26 @@ const placeholders = (text) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1])
 const flatten = (object, prefix = '') => Object.entries(object).flatMap(([key, value]) => (typeof value === 'object' ? flatten(value, `${prefix}${key}.`) : [[`${prefix}${key}`, value]]));
 
 Then("the form's messages should be the same set in English and Spanish, with the same placeholders", function () {
-  const english = new Map(flatten(en.admin.pics.form));
-  const spanish = new Map(flatten(es.admin.pics.form));
-  assert.ok(english.size >= 30);
-  assert.deepEqual([...spanish.keys()].sort(), [...english.keys()].sort());
-  for (const [key, text] of english) assert.deepEqual(placeholders(spanish.get(key)), placeholders(text), key);
+  for (const [group, minimum] of [['form', 30], ['removal', 15]]) {
+    const english = new Map(flatten(en.admin.pics[group]));
+    const spanish = new Map(flatten(es.admin.pics[group]));
+    assert.ok(english.size >= minimum, group);
+    assert.deepEqual([...spanish.keys()].sort(), [...english.keys()].sort(), group);
+    for (const [key, text] of english) assert.deepEqual(placeholders(spanish.get(key)), placeholders(text), `${group}.${key}`);
+  }
 });
 
 Then("the form's code should only fetch from the local photo service, never write HTML, and never send the admin token", function () {
-  const code = readFileSync(join(ROOT, 'src/lib/photo-form.ts'), 'utf-8');
-  assert.equal(code.match(/\bfetch\(/g)?.length, 1, 'one place makes requests');
-  assert.match(code, /const SERVICE = '\/__photos';/);
-  assert.match(code, /fetch\(`\$\{SERVICE\}\$\{path\}`/);
-  assert.doesNotMatch(code, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|Authorization|remembered|sessionStorage|localStorage/);
+  // One file makes every request to the local photo service; the form and the removal bar go through it.
+  const service = readFileSync(join(ROOT, 'src/lib/photo-service.ts'), 'utf-8');
+  assert.equal(service.match(/\bfetch\(/g)?.length, 1, 'one place makes requests');
+  assert.match(service, /export const SERVICE = '\/__photos';/);
+  assert.match(service, /fetch\(`\$\{SERVICE\}\$\{path\}`/);
+  for (const file of ['photo-service.ts', 'photo-form.ts', 'photo-remove.ts']) {
+    const code = readFileSync(join(ROOT, 'src/lib', file), 'utf-8');
+    assert.doesNotMatch(code, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|Authorization|remembered|sessionStorage|localStorage/, file);
+    if (file !== 'photo-service.ts') assert.doesNotMatch(code, /\bfetch\(/, `${file} must go through photo-service.ts`);
+  }
 });
 
 // --- Categories added while the service is running ------------------------------------------------------------------------------

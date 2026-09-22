@@ -5,6 +5,8 @@
 //   POST /__photos/analyze   multipart `photo`        -> { id, width, height, camera, inCategories }
 //   POST /__photos/add       multipart `photo`, `title`, `titleEs`, `category`, `order`, `featured`, `camera`
 //                                                     -> { path, key, entry, id, width, height, camera, order }
+//   POST /__photos/remove    JSON { photos: [{ id, key }] }   (id: the photo id; key: its original's key)
+//                                                     -> { results: [{ id, entries, deleted, error? }] }
 //
 // The form never invents anything the photo can tell it: the id (a hash of the file), the size as displayed
 // and the camera line all come from the file, through the same code `npm run photos:add` uses (addPhoto),
@@ -23,12 +25,15 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { CATEGORIES } from '../../src/config/categories.ts';
 import { entryKey } from '../../src/config/photo-manifest.ts';
+import { PHOTO_ID_PATTERN } from '../../src/config/photos.ts';
 import { pullEntries, pushEntries } from './entry-sync.mjs';
-import { addPhoto, analyzePhoto, entryPath, listEntries } from './photos.mjs';
+import { addPhoto, analyzePhoto, entryPath, listEntries, originalKeyPattern, removePhotosById } from './photos.mjs';
 import { readCameraLine } from './exif.mjs';
 
 export const PHOTO_FORM_PREFIX = '/__photos/';
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+/** The most photos one removal may name (a slip must not be able to empty the whole archive). */
+export const MAX_REMOVALS = 100;
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -140,6 +145,35 @@ async function describeEntry(contentDir, category, id) {
   };
 }
 
+/** Reads and checks a removal request: which photos, each by its id and the key of its original. Nothing else is accepted. */
+async function readRemoval(request) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    throw new FormError(400, 'bad-request', 'Send the photos to remove as JSON.');
+  }
+  const photos = body?.photos;
+  if (!Array.isArray(photos) || !photos.length) throw new FormError(400, 'bad-request', 'Name at least one photo to remove.');
+  if (photos.length > MAX_REMOVALS) throw new FormError(400, 'bad-request', `At most ${MAX_REMOVALS} photos can be removed at once.`);
+  const seen = new Set();
+  return photos.map((photo) => {
+    const id = photo?.id;
+    const key = photo?.key;
+    if (typeof id !== 'string' || !PHOTO_ID_PATTERN.test(id)) throw new FormError(400, 'bad-request', `"${id}" is not a photo id (16 hexadecimal characters).`);
+    if (typeof key !== 'string' || !originalKeyPattern(id).test(key)) throw new FormError(400, 'bad-request', `"${key}" is not the original of photo ${id} (photos/${id}/original.<extension>).`);
+    if (seen.has(id)) throw new FormError(400, 'bad-request', `Photo ${id} is named twice.`);
+    seen.add(id);
+    return { id, originalKey: key };
+  });
+}
+
+async function remove({ request, contentDir, storage, publish, refresh, log }) {
+  const photos = await readRemoval(request); // refused before anything is read from R2
+  await refresh();
+  return json(200, { results: await removePhotosById({ photos, contentDir, storage, publish, log }) });
+}
+
 async function add({ request, contentDir, storage, categories, publish, log }) {
   const { form, buffer } = await readForm(request);
   const title = text(form, 'title');
@@ -206,6 +240,8 @@ export function createPhotoFormHandler({ contentDir, storage, sync = false, cate
             await refresh();
             return add({ request, contentDir, storage, categories, publish, log });
           });
+        case 'POST remove':
+          return await inTurn(() => remove({ request, contentDir, storage, publish, refresh, log }));
         default:
           throw new FormError(404, 'not-found', 'Not found.');
       }

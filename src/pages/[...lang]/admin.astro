@@ -239,6 +239,23 @@ const knownPhotos = Object.fromEntries(
   .photo-form-buttons { display: flex; flex-wrap: wrap; gap: var(--space-1); }
   .photo-form-entry { margin: 0; padding: var(--space-1) var(--space-2); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; font-size: 0.85rem; }
   .photo-form-done:focus { outline: none; }
+  .results-button.danger { background: var(--bad); color: #1a0505; border-color: var(--bad); }
+  .results-button.danger:hover:not(:disabled) { filter: brightness(1.08); }
+  .results-button.danger:disabled { opacity: 0.45; cursor: not-allowed; }
+  .results-button[aria-pressed='true'] { border-color: var(--accent); }
+  .pics-remove-bar { display: grid; gap: var(--space-1); margin: 0 0 var(--space-1); padding: var(--space-1) var(--space-2); border: 1px solid var(--bad); border-radius: var(--radius); background: var(--bg-elevated); }
+  .pics-remove-count { margin: 0; color: var(--fg); }
+  .pics-remove-warning { margin: 0; color: var(--fg); font-weight: 600; }
+  .pics-remove-warning:focus { outline: none; }
+  .pics-remove-named { margin: 0; padding-left: 1.25rem; color: var(--fg-muted); overflow-wrap: anywhere; }
+  .pics-remove-buttons { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+  .pics-list.selecting .pic { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; column-gap: 0.25rem; }
+  .pic-select { display: grid; place-items: center; width: 44px; min-height: 44px; cursor: pointer; }
+  .pic-check { width: 1.4rem; height: 1.4rem; accent-color: var(--bad); cursor: pointer; }
+  .pic.selected .pic-link { border-color: var(--bad); }
+  .pics-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); margin-top: var(--space-2); }
+  .pics-shown { margin: 0; color: var(--fg-muted); }
+  .pics-shown:focus { outline: none; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
 

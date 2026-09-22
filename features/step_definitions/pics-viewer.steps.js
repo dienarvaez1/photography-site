@@ -191,17 +191,19 @@ Then('every original should appear exactly once', function () {
   assert.deepEqual(this.data.pics.rows.map((r) => r.id).sort(), [...this.data.pics.ids].sort());
 });
 
-Then("the Pics Viewer's Upload Photos button should open the New Photo form, and Remove Photos should only show a message, and make no request to the API", function () {
+Then("the Pics Viewer's Upload Photos button should open the New Photo form, and Remove Photos should only ask the local photo service, and make no request to the API", function () {
   const code = readFileSync(join(ROOT, 'src/lib/pics-viewer.ts'), 'utf-8');
-  const body = code.slice(code.indexOf('function summary('), code.indexOf('// --- The list'));
+  const body = code.slice(code.indexOf('function summary('), code.indexOf('// --- Removing photos in bulk'));
   assert.match(body, /icon\('upload'\)|button\('upload', 'upload'\)/);
   assert.match(body, /button\('remove', 'trash'\)/);
-  // The buttons themselves ask for nothing: Upload opens the form (which has its own service), Remove says it is not available.
+  // The buttons themselves ask for nothing: Upload opens the form and Remove starts the removal, both of which use the
+  // local photo service (src/lib/photo-service.ts), never the results API.
   assert.doesNotMatch(body, /api<|api\(|fetch\(|\.put\(|\.delete\(|method:/);
   assert.match(body, /if \(kind === 'upload'\) \{[^}]*openForm\(\);/);
-  assert.match(body, /status\.textContent = m\('pics\.removeSoon'\)/);
+  assert.match(body, /void toggleRemoval\(status\)/);
   assert.match(code, /photoForm\(\{/);
-  // ...and the API still only knows GET.
+  assert.match(code, /removalBar\(\{/);
+  // ...and the results API still only knows GET, so nothing here can delete through it.
   assert.match(readFileSync(join(ROOT, 'workers/results-api/src/index.mjs'), 'utf-8'), /request\.method !== 'GET'/);
 });
 
@@ -296,3 +298,29 @@ Then("the Pics Viewer's code should create no image but the thumbnail taken from
   assert.match(images[0], /src: photo\.thumb\.src/, 'its address comes from the photo data of the page');
   assert.deepEqual([...code.matchAll(/api<[^>]*>\((`[^`]*`|'[^']*')\)/g)].map((m) => m[1]).sort(), ["'/pics'", '`/pics/${encodeURIComponent(id)}`']);
 });
+
+Then(/^the Pics Viewer's page size should be 20, configured in src\/config\/admin\.ts and used by the viewer instead of a number of its own$/, async function () {
+  const { PICS_PAGE_SIZE } = await import(join(ROOT, 'src/config/admin.ts'));
+  assert.equal(PICS_PAGE_SIZE, 20);
+  const code = readFileSync(join(ROOT, 'src/lib/pics-viewer.ts'), 'utf-8');
+  assert.match(code, /import \{ PICS_PAGE_SIZE \} from '\.\.\/config\/admin';/);
+  assert.ok((code.match(/PICS_PAGE_SIZE/g) ?? []).length >= 5, 'the viewer pages by the configured size');
+  assert.doesNotMatch(code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''), /\b20\b/, 'no page size of its own in the viewer');
+});
+
+Then('with {int} photos, {int} rows that must be shown and pages of {int}, {int} rows should be drawn', function (total, needed, pageSize, shown) {
+  assert.equal(view.rowsToShow(total, needed, pageSize), shown);
+});
+
+Then("the Pics Viewer's paging messages should be the same in English and Spanish, with the same placeholders", function () {
+  const en = JSON.parse(readFileSync(join(ROOT, 'src/i18n/en.json'), 'utf-8')).admin.pics;
+  const es = JSON.parse(readFileSync(join(ROOT, 'src/i18n/es.json'), 'utf-8')).admin.pics;
+  const placeholders = (text) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+  const groups = [['paging', en.paging, es.paging], ['removal.selectShown', { x: en.removal.selectShown }, { x: es.removal.selectShown }]];
+  for (const [name, english, spanish] of groups) {
+    assert.deepEqual(Object.keys(spanish).sort(), Object.keys(english).sort(), name);
+    for (const key of Object.keys(english)) assert.deepEqual(placeholders(spanish[key]), placeholders(english[key]), `${name}.${key}`);
+  }
+  assert.deepEqual(Object.keys(en.paging).sort(), ['all', 'more', 'shown']);
+});
+

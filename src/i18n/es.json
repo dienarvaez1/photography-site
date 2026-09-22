@@ -240,7 +240,32 @@
       "noThumbnail": "Sin miniatura",
       "upload": "Subir fotos",
       "remove": "Eliminar fotos",
-      "removeSoon": "Eliminar fotos aún no está disponible.",
+      "removal": {
+        "checking": "Comprobando el servicio local de fotos…",
+        "unavailable": "Eliminar fotos solo funciona mientras el sitio se ejecuta en tu computadora (npm run dev): necesita tu sesión de Cloudflare para borrar. Inicia el servidor de desarrollo y abre esta página desde localhost:4321.",
+        "barLabel": "Eliminar fotos",
+        "select": "Seleccionar {title}",
+        "selected": "{count} seleccionadas",
+        "selectAll": "Seleccionar todas",
+        "selectShown": "Seleccionar las {count} mostradas",
+        "selectNone": "No seleccionar ninguna",
+        "delete": "Eliminar seleccionadas",
+        "cancel": "Cancelar",
+        "notOnSite": "no está en el sitio",
+        "confirm": "¿Eliminar de forma permanente estas {count} fotos de R2? De cada una se borran su original, sus tamaños web y sus entradas en el sitio. No se puede deshacer.",
+        "confirmOne": "¿Eliminar de forma permanente esta foto de R2? Se borran su original, sus tamaños web y sus entradas en el sitio. No se puede deshacer.",
+        "more": "…y {count} más",
+        "yes": "Sí, eliminar {count} fotos",
+        "yesOne": "Sí, eliminar esta foto",
+        "keep": "Conservarlas",
+        "deleting": "Eliminando {count} fotos de R2. Esto puede tardar un poco…",
+        "deletingOne": "Eliminando la foto de R2. Esto puede tardar un poco…",
+        "done": "{count} fotos eliminadas.",
+        "doneOne": "1 foto eliminada.",
+        "failed": "No se pudo eliminar {title}: {message}",
+        "requestFailed": "No se pudieron eliminar las fotos: {message}",
+        "unreachable": "no se pudo contactar con el servicio local de fotos"
+      },
       "form": {
         "heading": "Nueva foto",
         "intro": "Elige un JPEG. Se sube a R2 (el original en privado, los tamaños web en público) y su entrada se publica también allí, igual que con npm run photos:add. El id, el tamaño y la línea de la cámara se leen de la propia foto.",
@@ -283,6 +308,11 @@
           "badOrder": "El orden debe ser un número entero, 0 o más.",
           "failed": "No se pudo añadir la foto: {message}"
         }
+      },
+      "paging": {
+        "shown": "Mostrando {shown} de {total} fotos",
+        "more": "Mostrar {count} más",
+        "all": "Mostrando las {total} fotos"
       }
     }
   }

@@ -43,7 +43,7 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against twenty-four areas. The
+tests bake in sample photos instead), then checks that built output against twenty-five areas. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
@@ -112,6 +112,18 @@ against every page in both English and Spanish**; expected text is read from
   original, a failed web size or a failed entry file publishes nothing, a failed manifest leaves the site as it was,
   and publishing again completes it. (These tests were also checked by breaking the code on purpose: an entry file in
   the wrong bucket, a manifest missing an entry and a manifest written first each fail them.)
+- **`photo-remove.feature`** — bulk removal, through the photo service's real request handler and a fake R2, with photos
+  added by the real commands: a removal deletes, for each photo id named, its entries in every category (through the
+  manifest, **published before any file is deleted**), its original and its five web sizes, and **nothing else** —
+  other photos, a photo whose id differs by one character, and files that are not a photo's own (`logos/`, `backups/`,
+  notes) all stay; several photos at once write the manifest once; a photo in two categories goes from both; an
+  original nothing lists can be removed and leaves the manifest alone; **fifteen kinds of malformed request** (no photos,
+  a bad id, a wildcard, a category name, a web size / entry file / manifest / other photo's original as the key, `..`,
+  sub-folders, the same photo twice, more than 100 photos, not JSON, a good photo next to a bad one) are refused with
+  R2 exactly as it was; only the form's own page on localhost may ask; unpublished local changes stop it; an
+  unpublishable manifest deletes nothing and puts the local entries back; and one photo whose files cannot be deleted
+  fails alone, the rest go, and it can be retried. (Also checked by breaking the code on purpose: an unchecked key, a
+  delete by id prefix and deleting before unpublishing each fail these scenarios.)
 - **`photo-exif.feature`** — the camera line built from real JPEGs' EXIF: formatting rules, what is
   (and is never) stored, overrides, replace behaviour, and filling in missing camera lines.
 - **`localization.feature`** — locale files define identical keys, hreflang (`en`/`es`/`x-default`),
@@ -159,7 +171,9 @@ against every page in both English and Spanish**; expected text is read from
   never passed on; no answer holds picture data; bad ids, access rules, read-only; the same code in the real
   Workers runtime over a local R2 bucket; file-size wording in both languages; how the list is joined with
   the site's photo entries; and that the built pages know every photo of the site, name the tab in both
-  languages, and never name the originals bucket; thumbnails are the public web copies, scaled down, never up, and the viewer can make no image but that one.
+  languages, and never name the originals bucket; thumbnails are the public web copies, scaled down, never up, and the viewer can make no image but that one;
+  and the paging rules (a page is 20, configured once and used by the viewer; whole pages, at least one, enough for what is
+  still ticked, never more than there are; the messages in both languages).
 - **`photo-form.feature`** — the Admin page's New Photo form, through its real request handler with a fake R2
   and a temporary content folder: a photo is read for its id, its size as displayed (rotation applied) and its
   camera line, uploading and writing nothing; the order suggested is one past the highest in the category (not
@@ -231,9 +245,13 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   and Sign out at the top of the page (across from the title, only while signed in, Refresh reloads only the
   tab showing, Sign out signs out of both, keyboard, Spanish, phone); the
   Upload Photos and Remove Photos buttons across from the counter (order, icons, size, keyboard, Remove Photos
-  showing a message and asking for nothing, also with an empty bucket, in Spanish and on a phone); one
+  on the deployed site saying it only works on your computer and asking the API for nothing, also with an empty
+  bucket, in Spanish and on a phone); one
   sign-in for both tabs (sign-in and sign-out apply to each other), nothing requested until the tab is
-  shown, the list by category and title (files the site doesn't use last) with a small thumbnail at the start of each row ("No thumbnail" where the site has no copy), the tooltip on hover, keyboard
+  shown, the list drawn 20 photos at a time (a bucket of 45: the first 20 and no thumbnail of a later one requested,
+  the next 20 when the end of the list is scrolled to and the last 5 after that, a "Show more" button for the keyboard
+  that keeps focus, the same tooltip on later pages, Refresh back to the first page, no paging for a list of 20 or fewer
+  and paging for 21, Spanish, an axe audit and a phone), the list by category and title (files the site doesn't use last) with a small thumbnail at the start of each row ("No thumbnail" where the site has no copy), the tooltip on hover, keyboard
   focus and tap (camera, size, copyright and artist; missing values say so; no picture in the tooltip), one tooltip at a time,
   Escape, moving away and clicking elsewhere close it, the pointer can move onto it, each file looked up
   once, the only pictures requested are the public 400-pixel copies (never an original) and only file headers are read, an empty bucket, a vanished file, an
@@ -245,6 +263,15 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   writes the entry (shown on screen), the camera line and order can be changed, a photo already in the category or a
   failed upload is reported with what was typed kept, a photo added with the entries in R2 ends up in the right buckets and the manifest, Spanish, every state passes the accessibility audit and
   fits a phone, and nothing but the site and the results API is requested.
+- **`photo-remove.feature`** (browser) — the Remove Photos screens, with the real photo service over the very buckets
+  the Pics Viewer lists: a checkbox on every photo (named by its title and id) and a bar with the count, Select all /
+  none, Delete selected and Cancel; ticking counts, Cancel and signing out put it all away; **Delete selected asks first,
+  naming every photo by title and id, with "Keep them" under the keyboard** (Escape and Keep them delete nothing);
+  confirming deletes only the ticked photos from both buckets and the manifest, then the list shows what is left; a photo
+  the site does not list can be deleted; a photo that cannot be deleted is named while the others go; Spanish; every state
+  passes the accessibility audit and fits a phone; and nothing but the site and the results API is requested. In a list of
+  45, "Select all" ticks only the 20 shown (and says so), the whole list once it has all been drawn, and deleting the
+  20 shown removes exactly those and carries on from what is left.
 - **`admin-timeout.feature`** (browser) — with the page's clock under the test's control: still signed in at
   4:55 and signed out at 5:00 (both tabs, whichever is showing, header buttons gone, token forgotten, tooltip
   closed, no more requests); a mouse move, key press, scroll, click or tap restarts the 5 minutes but the
@@ -634,9 +661,41 @@ keyboard, or tap it** and a tooltip shows the file's camera information (the sam
 its file size, and its copyright (and the artist, when the file has one); Escape, moving away or clicking
 elsewhere closes it. Where the file has no camera data or no copyright notice, the tooltip says so.
 
+**The list is drawn 20 photos at a time** (`PICS_PAGE_SIZE` in `src/config/admin.ts`), so a bucket of hundreds of photos
+never means hundreds of rows and thumbnails at once. Under the list, *"Showing 20 of 87 photos"* and a **Show 20 more**
+button; scrolling down to the end of the list draws the next 20 by itself (an `IntersectionObserver` starts a little
+before the end, and keeps going while the end is still in view), and the button does the same for the keyboard (focus
+stays put; at the end the button gives way to *"Showing all 87 photos"*). A list of 20 or fewer has no paging. The
+counter above the buttons still says how many there are in all, Refresh starts again from the first page, and a photo
+drawn later behaves like the first ones (tooltip, checkbox). **Select all (in a bulk removal) only ticks the photos
+shown** — the button then reads *"Select the 20 shown"* — so a removal can never include a photo nobody has seen.
+
 Across from the photo counter ("20 original photos"), at the right, are two buttons: **Upload Photos**
 (upload icon) and **Remove Photos** (trash icon). Upload Photos opens the **New Photo form** (below). Remove
-Photos **does nothing yet**: it just says it isn't available (the API is read-only, so no removal can happen).
+Photos starts a **bulk removal** (next).
+
+#### Removing photos in bulk
+
+Press **Remove Photos** and every photo in the list gets a checkbox (named by its title and id), with a bar above the
+list: *N selected*, **Select all / Select none**, **Delete selected** (off until something is ticked) and **Cancel**.
+**Delete selected** does not delete yet: it asks *"Permanently delete these N photos from R2?"*, names every photo by
+title and id, and puts the keyboard on **Keep them** (Escape does the same). Only **Yes, delete N photos** deletes.
+
+For each photo *id* ticked, the removal deletes **exactly** these, and nothing else:
+
+1. its **entries** on the site (`photos/categories/<category>/<id>.md`, in every category that uses it) — taken out of
+   `photos/index.json` first, so the site stops listing the photo before any file goes;
+2. its **original** in the private originals bucket (`photos/<id>/original.<ext>`, the key the list shows);
+3. its **web sizes** in the public bucket (`photos/<id>/{w400,thumb,cover,w1000,full}.webp`).
+
+A photo the site has no entry for (a file only in the originals bucket) can be removed too. The request may carry at
+most 100 photos and names each by its 16-character id and the key of its original; anything else is refused before
+R2 is touched (no wildcards, no paths, no other file of the bucket). If one photo's files can't be deleted, it alone
+is reported (by title and id) and the others still go; running the removal again for it is safe. If the entries
+cannot be unpublished, nothing is deleted.
+
+Like the New Photo form, **it only works on your own computer, in `npm run dev`** (it needs your Cloudflare login,
+and the results API is read-only): on the deployed site, Remove Photos says so instead of showing checkboxes.
 
 #### New Photo form
 

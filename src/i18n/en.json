@@ -240,7 +240,32 @@
       "noThumbnail": "No thumbnail",
       "upload": "Upload Photos",
       "remove": "Remove Photos",
-      "removeSoon": "Removing photos isn't available yet.",
+      "removal": {
+        "checking": "Checking the local photo service…",
+        "unavailable": "Removing photos only works while the site runs on your computer (npm run dev): it needs your Cloudflare login to delete. Start the dev server and open this page from localhost:4321.",
+        "barLabel": "Remove photos",
+        "select": "Select {title}",
+        "selected": "{count} selected",
+        "selectAll": "Select all",
+        "selectShown": "Select the {count} shown",
+        "selectNone": "Select none",
+        "delete": "Delete selected",
+        "cancel": "Cancel",
+        "notOnSite": "not on the site",
+        "confirm": "Permanently delete these {count} photos from R2? For each one, its original, its web sizes and its entries on the site are deleted. This cannot be undone.",
+        "confirmOne": "Permanently delete this photo from R2? Its original, its web sizes and its entries on the site are deleted. This cannot be undone.",
+        "more": "…and {count} more",
+        "yes": "Yes, delete {count} photos",
+        "yesOne": "Yes, delete this photo",
+        "keep": "Keep them",
+        "deleting": "Deleting {count} photos from R2. This can take a while…",
+        "deletingOne": "Deleting the photo from R2. This can take a while…",
+        "done": "{count} photos deleted.",
+        "doneOne": "1 photo deleted.",
+        "failed": "Could not delete {title}: {message}",
+        "requestFailed": "The photos could not be deleted: {message}",
+        "unreachable": "the local photo service could not be reached"
+      },
       "form": {
         "heading": "New photo",
         "intro": "Choose a JPEG. It is uploaded to R2 (the original privately, the web sizes publicly) and its entry is published there too, exactly as npm run photos:add does. The id, size and camera line are read from the photo itself.",
@@ -283,6 +308,11 @@
           "badOrder": "The order must be a whole number, 0 or more.",
           "failed": "The photo could not be added: {message}"
         }
+      },
+      "paging": {
+        "shown": "Showing {shown} of {total} photos",
+        "more": "Show {count} more",
+        "all": "Showing all {total} photos"
       }
     }
   }

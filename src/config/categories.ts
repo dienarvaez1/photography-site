@@ -9,7 +9,7 @@ export interface Category {
 // and deploy once. Photos are added to it with `--category <slug>` (or the Admin
 // page's New Photo form): their entries live in R2, so there is no folder to create.
 export const CATEGORIES: Category[] = [
-  { slug: 'real-estate', hidden: true },
+  { slug: 'real-estate' },
   { slug: 'landscape' },
   { slug: 'portrait' },
   { slug: 'astro' },

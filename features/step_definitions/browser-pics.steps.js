@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { setUpOriginals } from '../support/browser.js';
 import { sampleFile } from '../support/originals-fixtures.js';
 import { PHOTOS_BASE_URL } from '../../src/config/photos.ts';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { CONTENT_DIR } from '../support/lib.js';
 
 const page = (world) => world.b.page;
 const panel = (world) => page(world).locator('#panel-pics-viewer');
@@ -425,5 +428,90 @@ Then('the two top buttons should be entirely inside the screen', async function 
   const layout = await topLayout(this);
   const viewport = page(this).viewportSize();
   for (const b of layout.buttons) assert.ok(b.x >= 0 && b.x + b.width <= viewport.width, JSON.stringify(b));
+});
+
+Then('the Pics Viewer should show no checkbox to select a photo', async function () {
+  assert.equal(await panel(this).locator('.pic-check').count(), 0);
+});
+
+// --- Paging: a page of rows at a time ------------------------------------------------------------------------------------------
+
+/** The photo ids of the site's sample library (the ones the built page knows by title and thumbnail). */
+function siteIds() {
+  return readdirSync(CONTENT_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((category) => readdirSync(join(CONTENT_DIR, category.name, 'images')).filter((f) => f.endsWith('.md')).map((f) => f.replace(/\.md$/, '')))
+    .sort();
+}
+
+Given('the originals bucket holds {int} photos: every photo of the site, then others the site does not list', async function (count) {
+  const site = siteIds();
+  const ids = [...site, ...Array.from({ length: Math.max(0, count - site.length) }, (_, i) => (i + 1).toString(16).padStart(16, '0'))].slice(0, count);
+  setUpOriginals(this, await Promise.all(ids.map(async (id, i) => ({ id, body: await sampleFile('nothing', i) }))));
+});
+
+When('I wait a moment', async function () {
+  await settle(1200);
+});
+
+const rows = (world) => panel(world).locator('.pics-list .pic');
+
+Then('the Pics Viewer should draw {int} of its photos', async function (count) {
+  await eventually(async () => (await rows(this).count()) === count, `${count} rows drawn (found ${await rows(this).count()})`);
+});
+
+Then('the Pics Viewer should say it is showing {int} of {int} photos', async function (shown, total) {
+  await eventually(async () => (await panel(this).locator('.pics-shown').innerText()) === `Showing ${shown} of ${total} photos`, 'the paging note');
+});
+
+Then('the Pics Viewer should offer the button {string}', async function (name) {
+  await panel(this).getByRole('button', { name, exact: true }).waitFor({ state: 'visible', timeout: 8000 });
+});
+
+Then('the Pics Viewer should offer no button to show more', async function () {
+  await eventually(async () => (await panel(this).locator('[data-action="more"]').count()) === 0, 'no Show more button');
+});
+
+Then('the Pics Viewer should offer no paging at all', async function () {
+  await settle(300);
+  assert.equal(await panel(this).locator('.pics-more').count(), 0);
+});
+
+Then('the Pics Viewer should draw no more than {int} thumbnails', async function (max) {
+  await settle(500);
+  assert.ok((await panel(this).locator('.pic-thumb img').count()) <= max);
+  assert.ok(this.b.photoRequests.filter((url) => url.includes('/w400.webp')).length <= max, `${this.b.photoRequests.length} thumbnails requested`);
+});
+
+Then('the thumbnail of the 21st photo of the list should not have been requested', async function () {
+  const site = siteIds();
+  assert.ok(site.length >= 21);
+  // The list is sorted by category and title; take the id of the 21st row from the page once it has been drawn (page 2), not from here.
+  const drawn = await rows(this).evaluateAll((items) => items.map((item) => item.querySelector('.pic-key').textContent));
+  const notDrawn = site.map((id) => `photos/${id}/original.jpg`).filter((key) => !drawn.includes(key));
+  assert.equal(notDrawn.length, site.length - 20, 'the site photos beyond the first page are not drawn');
+  for (const key of notDrawn) {
+    const id = /photos\/([0-9a-f]{16})\//.exec(key)[1];
+    assert.equal(this.b.photoRequests.some((url) => url.includes(`/photos/${id}/`)), false, `${id} was requested`);
+  }
+});
+
+When('I scroll to the end of the list', async function () {
+  const before = await rows(this).count();
+  await page(this).evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  // The next page is drawn once the end is near; give it a moment (the last scroll of a scenario has nothing more to draw).
+  await eventually(async () => (await rows(this).count()) > before || (await panel(this).locator('[data-action="more"]').count()) === 0, 'the next page is drawn', 4000).catch(() => {});
+});
+
+Then("every photo of the list should be listed once, site photos first", async function () {
+  const keys = await rows(this).evaluateAll((items) => items.map((item) => item.querySelector('.pic-key').textContent));
+  assert.equal(new Set(keys).size, keys.length, 'no photo twice');
+  const site = new Set(siteIds().map((id) => `photos/${id}/original.jpg`));
+  const flags = keys.map((key) => site.has(key));
+  assert.deepEqual(flags, [...flags].sort((a, b) => Number(b) - Number(a)), 'the site photos come first');
+});
+
+Then('keyboard focus should be on the paging note', async function () {
+  await eventually(async () => (await page(this).evaluate(() => document.activeElement?.classList.contains('pics-shown'))) === true, 'focus on the note');
 });
 

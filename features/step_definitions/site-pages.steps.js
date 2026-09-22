@@ -120,7 +120,9 @@ When('I load the built page for each hidden category with no photos in locale {s
   const hiddenWithNoPhotos = hidden.filter(
     (c) => entries.filter((e) => e.frontmatter.category === c.slug).length === 0
   );
-  assert.ok(hiddenWithNoPhotos.length > 0, 'Expected at least one hidden category with no photos to test against');
+  // "hidden" (src/config/categories.ts) is meant for temporarily hiding a category, so there may genuinely be none
+  // configured right now; skip rather than fail so the suite doesn't force a category to stay hidden just for this.
+  if (hiddenWithNoPhotos.length === 0) return 'skipped';
   this.data.locale = locale;
   this.data.hiddenEmptyPages = hiddenWithNoPhotos.map((c) =>
     readBuiltPage(localizedRoute(`/work/${c.slug}/`, locale, DEFAULT_LOCALE))

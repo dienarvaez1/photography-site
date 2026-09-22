@@ -8,38 +8,12 @@
 // The service exists only in `astro dev` (it needs the owner's Cloudflare login to upload), so on the deployed
 // page the form says so instead of failing. Every answer is put on the page as text.
 import { el, type Reader } from './admin-common';
+import { ServiceError, call } from './photo-service';
 
 export type FormCategory = { slug: string; label: string };
 type Order = { count: number; max: number; next: number };
 type Analysis = { id: string; width: number; height: number; camera: string | null; inCategories: string[] };
 type Added = { path: string; key: string; entry: string; id: string; order: number; camera: string | null };
-
-const SERVICE = '/__photos';
-
-class ServiceError extends Error {
-  constructor(readonly code: string, message = '') {
-    super(message);
-  }
-}
-
-/** Calls the local photo service. Anything that is not its JSON answer (the deployed site's 404 page, no server) is "unavailable". */
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`${SERVICE}${path}`, init);
-  } catch {
-    throw new ServiceError('unreachable');
-  }
-  let body: any = null;
-  try {
-    body = await response.json();
-  } catch {
-    // not JSON: handled below
-  }
-  if (!response.ok) throw new ServiceError(body?.error ?? 'unavailable', body?.message ?? '');
-  if (!body) throw new ServiceError('unavailable');
-  return body as T;
-}
 
 /** Service error codes -> the message keys under pics.form.errors. */
 const ERROR_KEYS: Record<string, string> = {

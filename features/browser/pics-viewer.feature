@@ -267,19 +267,20 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     Then both action buttons should be in the tab order and at least 44 pixels tall
 
-  Scenario Outline: Pressing Remove Photos says it is not available yet, and asks the API for nothing
+  Scenario Outline: Pressing Remove Photos on the deployed site says it only works on the owner's computer, and asks the API for nothing
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I <how> the "<button>" button
     Then the Pics Viewer should say "<message>"
     And the results API should have been asked for the list only
     And the Pics Viewer should list 4 original photos in this order: "Half Moon, Orion Nebula, Chimpanzee Portrait, ffffffffffffffff"
+    And the Pics Viewer should show no checkbox to select a photo
 
     Examples:
-      | how                            | button        | message                                  |
-      | click                          | Remove Photos | Removing photos isn't available yet.     |
-      | focus and press Space on       | Remove Photos | Removing photos isn't available yet.     |
-      | focus and press Enter on       | Remove Photos | Removing photos isn't available yet.     |
+      | how                            | button        | message                                                    |
+      | click                          | Remove Photos | Removing photos only works while the site runs on your computer |
+      | focus and press Space on       | Remove Photos | Removing photos only works while the site runs on your computer |
+      | focus and press Enter on       | Remove Photos | Removing photos only works while the site runs on your computer |
 
   Scenario: The buttons are also there when the bucket is empty
     Given the originals bucket holds these files:
@@ -388,7 +389,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     When I sign in to the Pics Viewer with the token "browser-test-admin-token"
     Then the photo counter should be at the left of its row, with "Subir fotos" then "Eliminar fotos" across from it at the right, all on one line
     When I click the "Eliminar fotos" button
-    Then the Pics Viewer should say "Eliminar fotos aún no está disponible."
+    Then the Pics Viewer should say "Eliminar fotos solo funciona mientras el sitio se ejecuta en tu computadora"
     Then the Pics Viewer should list 4 original photos in this order: "La Nebulosa de Orion, Media luna, Retrato de un chimpancé, ffffffffffffffff"
     Then the row for "ffffffffffffffff" should say "Sin miniatura" where the picture would be
     When I hover over the file "La Nebulosa de Orion"
@@ -429,3 +430,113 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     Then no script error should have been logged
     And no Content-Security-Policy violation should have been reported
     And nothing but the site and the results API should have been requested
+
+  # --- Paging: a page of 20 rows at a time --------------------------------------------------------------------------------------
+
+  Scenario: A long list starts with 20 photos, says how many there are, and offers to show more
+    Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then the Pics Viewer should draw 20 of its photos
+    And the Pics Viewer should say "45 original photos"
+    And the Pics Viewer should say it is showing 20 of 45 photos
+    And the Pics Viewer should offer the button "Show 20 more"
+    And the Pics Viewer should draw no more than 20 thumbnails
+
+  Scenario: Nothing beyond the first page is drawn or loaded until the end of the list comes near
+    Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I wait a moment
+    Then the Pics Viewer should draw 20 of its photos
+    And the thumbnail of the 21st photo of the list should not have been requested
+    And the results API should have been asked for the list only
+
+  Scenario: Scrolling to the end of the list draws the next 20, and then the rest
+    Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I scroll to the end of the list
+    Then the Pics Viewer should draw 40 of its photos
+    And the Pics Viewer should say it is showing 40 of 45 photos
+    And the Pics Viewer should offer the button "Show 5 more"
+    When I scroll to the end of the list
+    Then the Pics Viewer should draw 45 of its photos
+    And the Pics Viewer should say "Showing all 45 photos"
+    And the Pics Viewer should offer no button to show more
+    And every photo of the list should be listed once, site photos first
+
+  Scenario: The Show more button draws the next page for the keyboard, and keeps the keyboard where it was
+    Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I focus and press Enter on the "Show 20 more" button
+    Then the Pics Viewer should draw 40 of its photos
+    When I focus and press Space on the "Show 5 more" button
+    Then the Pics Viewer should draw 45 of its photos
+    And the Pics Viewer should say "Showing all 45 photos"
+    And keyboard focus should be on the paging note
+
+  Scenario: Photos on a later page have the same tooltip as the first ones
+    Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I focus and press Enter on the "Show 20 more" button
+    And I hover over the file "0000000000000002"
+    Then the tooltip should say "No camera information in the file."
+
+  Scenario: Refresh starts again from the first page
+    Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I focus and press Enter on the "Show 20 more" button
+    And I click "Refresh" at the top of the page
+    Then the Pics Viewer should draw 20 of its photos
+    And the Pics Viewer should say it is showing 20 of 45 photos
+
+  Scenario Outline: A list that fits one page has no paging, and one photo more has
+    Given the originals bucket holds <count> photos: every photo of the site, then others the site does not list
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then the Pics Viewer should draw <drawn> of its photos
+    And the Pics Viewer should <paging>
+
+    Examples:
+      | count | drawn | paging                            |
+      | 4     | 4     | offer no paging at all            |
+      | 20    | 20    | offer no paging at all            |
+      | 21    | 20    | offer the button "Show 1 more"    |
+
+  Scenario: The paging speaks Spanish on the Spanish page
+    Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
+    When I open "/es/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then the Pics Viewer should say "Mostrando 20 de 45 fotos"
+    And the Pics Viewer should offer the button "Mostrar 20 más"
+    When I focus and press Enter on the "Mostrar 20 más" button
+    And I focus and press Enter on the "Mostrar 5 más" button
+    Then the Pics Viewer should say "Mostrando las 45 fotos"
+
+  Scenario Outline: The list with more to show passes the automated accessibility audit and fits a phone
+    Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
+    And the visitor uses <device>
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then the Pics Viewer should draw 20 of its photos
+    And <check>
+
+    Examples:
+      | device | check                                                       |
+      | a laptop | the page should pass the automated accessibility audit     |
+      | a phone  | the page should not scroll sideways                        |
+
+  Scenario: Paging causes no script errors, no policy violations and no unexpected requests
+    Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I scroll to the end of the list
+    And I scroll to the end of the list
+    Then no script error should have been logged
+    And no Content-Security-Policy violation should have been reported
+    And nothing but the site and the results API should have been requested
+

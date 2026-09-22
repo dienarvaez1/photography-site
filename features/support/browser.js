@@ -90,8 +90,8 @@ export async function setUpResultsApi(world, token, runs) {
 }
 
 /** Puts these original photos ([{ id, body }]) behind the API's ORIGINALS binding; `originals.calls` records every read. */
-export function setUpOriginals(world, files) {
-  const originals = fakeOriginals(files);
+export function setUpOriginals(world, files, { objects } = {}) {
+  const originals = fakeOriginals(files, { objects });
   Object.assign(world.b.results, { originals });
   world.b.results.env.ORIGINALS = originals.binding;
 }

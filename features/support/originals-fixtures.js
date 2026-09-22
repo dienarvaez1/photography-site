@@ -37,8 +37,9 @@ export async function jpegWith({ exif = {}, xmp, padding = 0, seed = 0 } = {}) {
  * `calls` records every read; there is no put or delete, so a write attempt fails loudly.
  * files = [{ id, ext?, body }] -> object keys photos/<id>/original.<ext>.
  */
-export function fakeOriginals(files, { pageSize } = {}) {
-  const objects = new Map(files.map((f) => [f.key ?? `photos/${f.id}/original.${f.ext ?? 'jpg'}`, { body: f.body, uploaded: new Date('2026-09-01T12:00:00Z') }]));
+// `objects` shares an existing map of key -> { body, uploaded? } (say, the photo service's fake originals bucket), so both see the same photos.
+export function fakeOriginals(files, { pageSize, objects: shared } = {}) {
+  const objects = shared ?? new Map(files.map((f) => [f.key ?? `photos/${f.id}/original.${f.ext ?? 'jpg'}`, { body: f.body, uploaded: new Date('2026-09-01T12:00:00Z') }]));
   const calls = [];
   const binding = {
     async list({ prefix = '', cursor, limit = 1000 } = {}) {
@@ -48,7 +49,7 @@ export function fakeOriginals(files, { pageSize } = {}) {
       const size = Math.min(limit, pageSize ?? limit);
       const page = keys.slice(start, start + size);
       const more = start + size < keys.length;
-      return { objects: page.map((key) => ({ key, size: objects.get(key).body.length, uploaded: objects.get(key).uploaded })), truncated: more, cursor: more ? String(start + size) : undefined };
+      return { objects: page.map((key) => ({ key, size: objects.get(key).body.length, uploaded: objects.get(key).uploaded ?? new Date('2026-09-01T12:00:00Z') })), truncated: more, cursor: more ? String(start + size) : undefined };
     },
     async get(key, options) {
       calls.push({ op: 'get', key, range: options?.range });

@@ -229,9 +229,35 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
   Scenario: The pages never name the private originals bucket
     Then no built page or script should contain the originals bucket's name
 
-  Scenario: Upload Photos opens the New Photo form, and Remove Photos changes nothing yet
-    Then the Pics Viewer's Upload Photos button should open the New Photo form, and Remove Photos should only show a message, and make no request to the API
+  Scenario: Upload Photos opens the New Photo form, and Remove Photos shows the removal checkboxes
+    Then the Pics Viewer's Upload Photos button should open the New Photo form, and Remove Photos should only ask the local photo service, and make no request to the API
 
   Scenario: The Pics Viewer only ever shows the site's own thumbnail, and never a picture the API names
     Then the Pics Viewer's code should create no image but the thumbnail taken from the page's own photo data, and should only ask the API for the list and for one photo by its id
     And no answer of the API should be able to carry a picture or a picture address
+
+  # --- Paging: a page of rows at a time -------------------------------------------------------------------------------------------
+
+  Scenario: The Pics Viewer draws 20 photos at a time, and the number is configured in one place
+    Then the Pics Viewer's page size should be 20, configured in src/config/admin.ts and used by the viewer instead of a number of its own
+
+  Scenario Outline: How many rows are drawn: whole pages, at least one, enough for whatever is still ticked, never more than there are
+    Then with <total> photos, <needed> rows that must be shown and pages of 20, <shown> rows should be drawn
+
+    Examples:
+      | total | needed | shown |
+      | 0     | 0      | 0     |
+      | 4     | 0      | 4     |
+      | 20    | 0      | 20    |
+      | 21    | 0      | 20    |
+      | 87    | 0      | 20    |
+      | 87    | 20     | 20    |
+      | 87    | 21     | 40    |
+      | 87    | 40     | 40    |
+      | 87    | 41     | 60    |
+      | 87    | 87     | 87    |
+      | 45    | 45     | 45    |
+
+  Scenario: The paging messages exist in both languages with the same placeholders
+    Then the Pics Viewer's paging messages should be the same in English and Spanish, with the same placeholders
+

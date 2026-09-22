@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
 export function createMemoryStorage() {
   const originals = new Map();
   const web = new Map();
-  const faults = { failPutMatching: null, corruptOriginals: false };
+  const faults = { failPutMatching: null, failDeleteMatching: null, corruptOriginals: false };
   // Every change, in order, as "<bucket>: put <key>" / "<bucket>: delete <key>" (tests check what happens first).
   const events = [];
 
@@ -25,6 +25,7 @@ export function createMemoryStorage() {
       return corruptible && faults.corruptOriginals ? Buffer.concat([object.body, Buffer.from('x')]) : Buffer.from(object.body);
     },
     async delete(key) {
+      if (faults.failDeleteMatching && key.includes(faults.failDeleteMatching)) throw new Error(`simulated delete failure for ${key}`);
       map.delete(key);
       events.push(`${name}: delete ${key}`);
     },
