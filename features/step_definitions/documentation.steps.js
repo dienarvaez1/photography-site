@@ -10,6 +10,7 @@ const featureFiles = () => readdirSync(join(ROOT, 'features')).filter((f) => f.e
 const NUMBER_WORDS = [
   'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen',
   'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'twenty-one', 'twenty-two', 'twenty-three', 'twenty-four', 'twenty-five',
+  'twenty-six',
 ];
 
 Then('every feature file should be described in the README', function () {

@@ -10,16 +10,6 @@ import type { PicRow } from './pics-view';
 export type Removal = { id: string; key: string };
 export type RemoveResult = { id: string; entries: string[]; deleted: string[]; error?: string };
 
-/** Is the local photo service there? (Only while the site runs on the owner's computer.) */
-export async function serviceAvailable(): Promise<boolean> {
-  try {
-    await call('/status');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** Asks the service to delete these photos, each by its id and the key of its original. */
 export async function removePhotos(photos: Removal[]): Promise<RemoveResult[]> {
   const { results } = await call<{ results: RemoveResult[] }>('/remove', {

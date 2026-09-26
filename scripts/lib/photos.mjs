@@ -301,6 +301,55 @@ export async function removePhoto({ entryFile, contentDir, storage, publish, log
   }
 }
 
+/**
+ * Moves entries to a different category: the photo itself, its files in R2 and everything else about the
+ * entry (title, camera, order, placeholderColor, addedAt…) are untouched — only `category` changes, and
+ * where its .md lives (`entryPath` is keyed by category, so the file is written at the new path and the
+ * old one removed, the same rename-in-place `replacePhoto` does for a new photo). A photo can be in more
+ * than one category at once, so each one is named by its id together with the category it is meant to
+ * move *from* — guessing which entry from an id alone would be wrong when there is more than one. An
+ * entry already in `toCategory` is left alone (nothing to do, not an error): a bulk edit that includes one
+ * by mistake, or one where two photos share a category but not every one being moved does, should not fail
+ * the rest. Returns [{ id, from, to, moved }] in the order given, `moved` false for that no-op.
+ */
+export async function changeCategory({ photos, toCategory, contentDir, categories = CATEGORIES.map((c) => c.slug), publish, log = () => {} }) {
+  if (!categories.includes(toCategory)) {
+    throw new Error(`Unknown category "${toCategory}". Configured categories: ${categories.join(', ')}`);
+  }
+  const entries = await listEntries(contentDir);
+  const moves = [];
+  for (const { id, category } of photos) {
+    if (category === toCategory) continue;
+    const oldFile = entryPath(contentDir, category, id);
+    const entry = entries.find((e) => e.file === oldFile);
+    if (!entry) throw new Error(`${oldFile} is not a photo entry`);
+    moves.push({ id, from: category, oldFile, newFile: entryPath(contentDir, toCategory, id), entry });
+  }
+  for (const { newFile } of moves) {
+    if (entries.some((e) => e.file === newFile)) {
+      throw new Error(`${newFile} already exists — that photo is already in "${toCategory}"`);
+    }
+  }
+  // Saved before anything moves, so a publish failure below can put the mirror back exactly as it read —
+  // the same safety net removePhotosById uses, and for the same reason: a person retries, not works around a
+  // half-moved entry by hand.
+  const saved = await Promise.all(moves.map(async (move) => ({ ...move, text: await readFile(move.oldFile, 'utf-8') })));
+  for (const { entry, newFile } of saved) await writeEntry(newFile, { ...entry.data, category: toCategory }, entry.body);
+  for (const { oldFile, newFile } of saved) if (oldFile !== newFile) await unlink(oldFile);
+  try {
+    if (saved.length) await publish?.(); // the site shows every moved entry under its new category, in one write
+  } catch (error) {
+    for (const { oldFile, newFile, text } of saved) {
+      await writeFile(oldFile, text);
+      if (oldFile !== newFile) await unlink(newFile);
+    }
+    throw error;
+  }
+  for (const { id, from, newFile } of saved) log(`  moved ${id} from ${from} to ${toCategory} (${newFile})`);
+  const done = new Map(moves.map((m) => [`${m.from}/${m.id}`, true]));
+  return photos.map(({ id, category }) => ({ id, from: category, to: toCategory, moved: done.get(`${category}/${id}`) ?? false }));
+}
+
 /** The one key an original may have for a photo id: `photos/<id>/original.<extension>` (uploads always use `.jpg`). */
 export const originalKeyPattern = (id) => new RegExp(`^photos/${id}/original\\.[a-z0-9]{1,8}$`);
 

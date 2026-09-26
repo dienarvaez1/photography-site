@@ -36,7 +36,12 @@ const formCategories = CATEGORIES.map(({ slug }) => ({ slug, label: getLocalized
 const knownPhotos = Object.fromEntries(
   (await getPhotos()).map((entry) => [
     entry.data.photo.id,
-    { title: getPhotoTitle(entry.data, locale), category: getLocalizedCategory(entry.data.category, locale)?.label ?? entry.data.category, thumb: photoVariant(entry.data.photo, 'w400') },
+    {
+      title: getPhotoTitle(entry.data, locale),
+      category: getLocalizedCategory(entry.data.category, locale)?.label ?? entry.data.category,
+      categorySlug: entry.data.category,
+      thumb: photoVariant(entry.data.photo, 'w400'),
+    },
   ])
 );
 ---
@@ -173,6 +178,7 @@ const knownPhotos = Object.fromEntries(
   .results-gate input { min-height: 44px; padding: 0.5rem 0.75rem; background: var(--bg-elevated); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; }
   .results-button { min-height: 44px; padding: 0.5rem 1rem; background: none; color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; cursor: pointer; }
   .results-button:hover { border-color: var(--accent); }
+  .results-button:disabled { opacity: 0.45; cursor: not-allowed; }
   .results-button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
   .results-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); justify-content: flex-end; margin-bottom: var(--space-2); }
   .results-back { margin-right: auto; display: inline-flex; align-items: center; min-height: 44px; }
@@ -241,7 +247,6 @@ const knownPhotos = Object.fromEntries(
   .photo-form-done:focus { outline: none; }
   .results-button.danger { background: var(--bad); color: #1a0505; border-color: var(--bad); }
   .results-button.danger:hover:not(:disabled) { filter: brightness(1.08); }
-  .results-button.danger:disabled { opacity: 0.45; cursor: not-allowed; }
   .results-button[aria-pressed='true'] { border-color: var(--accent); }
   .pics-remove-bar { display: grid; gap: var(--space-1); margin: 0 0 var(--space-1); padding: var(--space-1) var(--space-2); border: 1px solid var(--bad); border-radius: var(--radius); background: var(--bg-elevated); }
   .pics-remove-count { margin: 0; color: var(--fg); }
@@ -249,10 +254,18 @@ const knownPhotos = Object.fromEntries(
   .pics-remove-warning:focus { outline: none; }
   .pics-remove-named { margin: 0; padding-left: 1.25rem; color: var(--fg-muted); overflow-wrap: anywhere; }
   .pics-remove-buttons { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+  .pics-edit-bar { display: grid; gap: var(--space-1); margin: 0 0 var(--space-1); padding: var(--space-1) var(--space-2); border: 1px solid var(--accent); border-radius: var(--radius); background: var(--bg-elevated); }
+  .pics-edit-count { margin: 0; color: var(--fg); }
+  .pics-edit-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+  .pics-edit-controls select { min-height: 44px; padding: 0.4rem 0.6rem; background: var(--bg); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; }
   .pics-list.selecting .pic { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; column-gap: 0.25rem; }
   .pic-select { display: grid; place-items: center; width: 44px; min-height: 44px; cursor: pointer; }
   .pic-check { width: 1.4rem; height: 1.4rem; accent-color: var(--bad); cursor: pointer; }
   .pic.selected .pic-link { border-color: var(--bad); }
+  /* Editing a category is not destructive: its checkboxes and selected-row border use the ordinary
+     accent color instead of the Remove Photos bar's warning red. */
+  .pics-list.edit .pic-check { accent-color: var(--accent); }
+  .pics-list.edit .pic.selected .pic-link { border-color: var(--accent); }
   .pics-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); margin-top: var(--space-2); }
   .pics-shown { margin: 0; color: var(--fg-muted); }
   .pics-shown:focus { outline: none; }

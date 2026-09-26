@@ -1,10 +1,12 @@
 // Pure helpers for the Admin page's Pics Viewer (no DOM, so they can be tested in Node).
 
 export type Original = { id: string; key: string; size: number; uploaded: string | null };
-/** What the site knows about a photo (from its content entry): a title and its category. */
+/** What the site knows about a photo (from its content entry): a title and its category — `category` is
+ * the localized label shown in the list, `categorySlug` the config slug the Edit Photos bar needs to name
+ * the category to the local service (which knows nothing about locales). */
 /** `thumb` is the site's own small public copy of the photo (never the private original). */
-export type KnownPhoto = { title: string; category: string; thumb?: { src: string; width: number; height: number } };
-export type PicRow = Original & { title: string | null; category: string | null };
+export type KnownPhoto = { title: string; category: string; categorySlug: string; thumb?: { src: string; width: number; height: number } };
+export type PicRow = Original & { title: string | null; category: string | null; categorySlug: string | null };
 
 /** "3.5 MB", "820 KB", "12 B": the size in the largest unit that keeps it above 1, with the page's number format. */
 export function formatBytes(bytes: number, locale: string): string {
@@ -28,7 +30,7 @@ export const formatExactBytes = (bytes: number, locale: string, unitWord: string
  * originals the site has no entry for, by id. Nothing is dropped and nothing is listed twice.
  */
 export function joinPhotos(originals: Original[], known: Record<string, KnownPhoto>, locale = 'en'): PicRow[] {
-  const rows = originals.map((o) => ({ ...o, title: known[o.id]?.title ?? null, category: known[o.id]?.category ?? null }));
+  const rows = originals.map((o) => ({ ...o, title: known[o.id]?.title ?? null, category: known[o.id]?.category ?? null, categorySlug: known[o.id]?.categorySlug ?? null }));
   const collator = new Intl.Collator(locale);
   return rows.sort((a, b) => {
     if ((a.title === null) !== (b.title === null)) return a.title === null ? 1 : -1;

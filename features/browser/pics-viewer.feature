@@ -168,7 +168,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
       | Copyright | Copyright 2026 Diego Narvaez |
     And the tooltip should be entirely inside the screen
     And the page should not scroll sideways
-    And both action buttons should be entirely inside the screen
+    And every action button should be entirely inside the screen
     When I tap somewhere else on the page
     Then no tooltip should be showing
 
@@ -260,24 +260,25 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
 
   # --- The Upload Photos and Remove Photos buttons (Upload Photos opens the New Photo form: browser/photo-form.feature) -----------------------------------------------------------------------------
 
-  Scenario: Two buttons sit across from the photo counter, at the right
+  Scenario: Three buttons sit across from the photo counter, at the right
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    Then the photo counter should be at the left of its row, with "Upload Photos" then "Remove Photos" across from it at the right, all on one line
+    Then the photo counter should be at the left of its row, with "Upload Photos" then "Edit Photos" then "Remove Photos" across from it at the right, all on one line
 
-  Scenario: The buttons carry an upload icon and a trash icon, and are named by their text alone
+  Scenario: The buttons carry an upload icon, a pencil icon and a trash icon, and are named by their text alone
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     Then the "Upload Photos" button should show the "upload" icon and be named only by its text
+    And the "Edit Photos" button should show the "edit" icon and be named only by its text
     And the "Remove Photos" button should show the "trash" icon and be named only by its text
-    And the two icons should be different drawings
+    And the three icons should be different drawings
 
   Scenario: The buttons are reachable with the keyboard and large enough to tap
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    Then both action buttons should be in the tab order and at least 44 pixels tall
+    Then every action button should be in the tab order and at least 44 pixels tall
 
-  Scenario Outline: Pressing Remove Photos on the deployed site says it only works on the owner's computer, and asks the API for nothing
+  Scenario Outline: Pressing Remove Photos or Edit Photos on the deployed site says it only works on the owner's computer, and asks the API for nothing
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I <how> the "<button>" button
@@ -291,6 +292,9 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
       | click                          | Remove Photos | Removing photos only works while the site runs on your computer |
       | focus and press Space on       | Remove Photos | Removing photos only works while the site runs on your computer |
       | focus and press Enter on       | Remove Photos | Removing photos only works while the site runs on your computer |
+      | click                          | Edit Photos   | Changing a photo's category only works while the site runs on your computer |
+      | focus and press Space on       | Edit Photos   | Changing a photo's category only works while the site runs on your computer |
+      | focus and press Enter on       | Edit Photos   | Changing a photo's category only works while the site runs on your computer |
 
   Scenario: The buttons are also there when the bucket is empty
     Given the originals bucket holds these files:
@@ -298,12 +302,12 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     Then the Pics Viewer should say "0 original photos"
-    And the photo counter should be at the left of its row, with "Upload Photos" then "Remove Photos" across from it at the right, all on one line
+    And the photo counter should be at the left of its row, with "Upload Photos" then "Edit Photos" then "Remove Photos" across from it at the right, all on one line
 
   Scenario: The buttons are not offered before signing in
     When I open "/admin/#pics-viewer"
     Then the Pics Viewer should ask for the admin token
-    And the Pics Viewer should offer no Upload Photos or Remove Photos button
+    And the Pics Viewer should offer no Upload Photos, Edit Photos or Remove Photos button
 
   # --- The thumbnails in the list -----------------------------------------------------------------------------------------------
 
@@ -397,7 +401,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     When I open "/es/admin/#pics-viewer"
     Then the Pics Viewer should ask for the token in Spanish
     When I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    Then the photo counter should be at the left of its row, with "Subir fotos" then "Eliminar fotos" across from it at the right, all on one line
+    Then the photo counter should be at the left of its row, with "Subir fotos" then "Editar fotos" then "Eliminar fotos" across from it at the right, all on one line
     When I click the "Eliminar fotos" button
     Then the Pics Viewer should say "Eliminar fotos solo funciona mientras el sitio se ejecuta en tu computadora"
     Then the Pics Viewer should list 4 original photos in this order: "La Nebulosa de Orion, Media luna, Retrato de un chimpancé, ffffffffffffffff"

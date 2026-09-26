@@ -7,6 +7,9 @@
 //                                                     -> { path, key, entry, id, width, height, camera, order }
 //   POST /__photos/remove    JSON { photos: [{ id, key }] }   (id: the photo id; key: its original's key)
 //                                                     -> { results: [{ id, entries, deleted, error? }] }
+//   POST /__photos/recategorize   JSON { photos: [{ id, category }], toCategory }   (category: which entry, a
+//                                       photo can be in more than one; toCategory: where it moves to)
+//                                                     -> { results: [{ id, from, to, moved }] }
 //
 // The form never invents anything the photo can tell it: the id (a hash of the file), the size as displayed
 // and the camera line all come from the file, through the same code `npm run photos:add` uses (addPhoto),
@@ -27,13 +30,15 @@ import { CATEGORIES } from '../../src/config/categories.ts';
 import { entryKey } from '../../src/config/photo-manifest.ts';
 import { PHOTO_ID_PATTERN } from '../../src/config/photos.ts';
 import { pullEntries, pushEntries } from './entry-sync.mjs';
-import { addPhoto, analyzePhoto, entryPath, listEntries, originalKeyPattern, removePhotosById } from './photos.mjs';
+import { addPhoto, analyzePhoto, changeCategory, entryPath, listEntries, originalKeyPattern, removePhotosById } from './photos.mjs';
 import { readCameraLine } from './exif.mjs';
 
 export const PHOTO_FORM_PREFIX = '/__photos/';
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 /** The most photos one removal may name (a slip must not be able to empty the whole archive). */
 export const MAX_REMOVALS = 100;
+/** The most photos one category change may name (the same reasoning as MAX_REMOVALS). */
+export const MAX_RECATEGORIZE = 100;
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -168,6 +173,48 @@ async function readRemoval(request) {
   });
 }
 
+/** Reads and checks a category-change request: which photos (each by its id and the category it is currently
+ *  filed under — a photo can be in more than one) and the one category to move them all to. */
+async function readRecategorize(request, categories) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    throw new FormError(400, 'bad-request', 'Send the category change as JSON.');
+  }
+  const photos = body?.photos;
+  const toCategory = body?.toCategory;
+  if (!Array.isArray(photos) || !photos.length) throw new FormError(400, 'bad-request', 'Name at least one photo to move.');
+  if (photos.length > MAX_RECATEGORIZE) throw new FormError(400, 'bad-request', `At most ${MAX_RECATEGORIZE} photos can be moved at once.`);
+  if (typeof toCategory !== 'string' || !categories.includes(toCategory)) {
+    throw new FormError(400, 'bad-request', `Unknown category "${toCategory}". Configured categories: ${categories.join(', ')}`);
+  }
+  const seen = new Set();
+  const named = photos.map((photo) => {
+    const id = photo?.id;
+    const category = photo?.category;
+    if (typeof id !== 'string' || !PHOTO_ID_PATTERN.test(id)) throw new FormError(400, 'bad-request', `"${id}" is not a photo id (16 hexadecimal characters).`);
+    if (typeof category !== 'string' || !categories.includes(category)) {
+      throw new FormError(400, 'bad-request', `Unknown category "${category}". Configured categories: ${categories.join(', ')}`);
+    }
+    const key = `${category}/${id}`;
+    if (seen.has(key)) throw new FormError(400, 'bad-request', `Photo ${id} in ${category} is named twice.`);
+    seen.add(key);
+    return { id, category };
+  });
+  return { photos: named, toCategory };
+}
+
+async function recategorize({ request, contentDir, categories, publish, refresh, log }) {
+  const { photos, toCategory } = await readRecategorize(request, categories); // refused before anything is read from R2
+  await refresh();
+  const results = await changeCategory({ photos, toCategory, contentDir, categories, publish, log }).catch((error) => {
+    if (/already exists/.test(error.message)) throw new FormError(409, 'duplicate', error.message);
+    throw error;
+  });
+  return json(200, { results });
+}
+
 async function remove({ request, contentDir, storage, publish, refresh, log }) {
   const photos = await readRemoval(request); // refused before anything is read from R2
   await refresh();
@@ -242,6 +289,8 @@ export function createPhotoFormHandler({ contentDir, storage, sync = false, cate
           });
         case 'POST remove':
           return await inTurn(() => remove({ request, contentDir, storage, publish, refresh, log }));
+        case 'POST recategorize':
+          return await inTurn(() => recategorize({ request, contentDir, categories, publish, refresh, log }));
         default:
           throw new FormError(404, 'not-found', 'Not found.');
       }

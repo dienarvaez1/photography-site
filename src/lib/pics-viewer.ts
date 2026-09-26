@@ -6,6 +6,8 @@
 import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, parseJson, remembered, type Child, type Messages } from './admin-common';
 import type { FormCategory } from './photo-form';
 import type { RemovalBar, RemoveResult } from './photo-remove';
+import type { RecategorizeBar, RecategorizeResult } from './photo-recategorize';
+import { serviceAvailable } from './photo-service';
 import { PICS_PAGE_SIZE } from '../config/admin';
 import { PICS_TAB, formatBytes, formatExactBytes, joinPhotos, rowsToShow, thumbSize, type KnownPhoto, type Original, type PicRow } from './pics-view';
 import { resolveApiUrl } from './results-view';
@@ -38,14 +40,17 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   let shownCount = PICS_PAGE_SIZE;
   let more: HTMLElement | null = null; // "Showing 20 of 87 photos" and the Show more button, while there is more to show
   let pager: IntersectionObserver | null = null;
-  let removing = false;
-  let bar: RemovalBar | null = null;
-  // The removal code is loaded when Remove Photos is first pressed (it is only ever used on the owner's computer), so
-  // the page's own script stays small.
+  // Which bulk action's checkboxes are showing, if either — never both at once (choosing one cancels the other).
+  let mode: 'none' | 'remove' | 'edit' = 'none';
+  let bar: RemovalBar | RecategorizeBar | null = null;
+  // The removal and category-change code are each loaded when their button is first pressed (they are only
+  // ever used on the owner's computer), so the page's own script stays small.
   let removal: typeof import('./photo-remove') | null = null;
+  let recategorization: typeof import('./photo-recategorize') | null = null;
   let deleting = false; // a removal is under way: nothing may redraw the list until it is over
+  let applying = false; // a category change is under way: nothing may redraw the list until it is over
   const selected = new Set<string>();
-  let notice: { text: string; alert: boolean } | null = null; // what the last removal did, shown until the next action
+  let notice: { text: string; alert: boolean } | null = null; // what the last removal or category change did, shown until the next action
   const details = new Map<string, Promise<Details>>(); // one request per photo, however often it is hovered
 
   const api = <T,>(path: string) => apiGet<T>(apiUrl, token, path);
@@ -159,58 +164,64 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     container.querySelector<HTMLElement>('[data-action="upload"]')?.focus();
   }
 
-  /** "<count> original photos" with the two action buttons across from it, at the right. */
+  /** "<count> original photos" with the three action buttons across from it, at the right. */
   function summary(count: number) {
     const status = el('p', { class: 'pics-status', attrs: { role: notice?.alert ? 'alert' : 'status' } });
     if (notice) status.textContent = notice.text;
-    const button = (kind: 'upload' | 'remove', glyph: 'upload' | 'trash') => {
+    const button = (kind: 'upload' | 'edit' | 'remove', glyph: 'upload' | 'edit' | 'trash') => {
       const node = el('button', { class: 'results-button pics-action', attrs: { type: 'button', 'data-action': kind } }, icon(glyph), el('span', { text: m(`pics.${kind}`) }));
-      if (kind === 'remove') node.setAttribute('aria-pressed', String(removing));
-      // Upload Photos opens the New Photo form; Remove Photos shows a checkbox on every photo (see photo-remove.ts).
+      if (kind !== 'upload') node.setAttribute('aria-pressed', String(mode === kind));
+      // Upload Photos opens the New Photo form; Edit Photos and Remove Photos each show a checkbox on every
+      // eligible photo (see photo-recategorize.ts and photo-remove.ts) — only one of the two at a time.
       node.addEventListener('click', () => {
         notice = null;
         if (kind === 'upload') {
           status.textContent = '';
           void openForm();
         } else {
-          void toggleRemoval(status);
+          void toggleMode(kind, status);
         }
       });
       return node;
     };
-    const actions = el('div', { class: 'pics-actions' }, button('upload', 'upload'), button('remove', 'trash'));
+    const actions = el('div', { class: 'pics-actions' }, button('upload', 'upload'), button('edit', 'edit'), button('remove', 'trash'));
     return [el('div', { class: 'pics-summary' }, el('p', { class: 'results-count', text: m('pics.count', { count }) }), actions), status];
   }
 
-  // --- Removing photos in bulk ---------------------------------------------------------------------------------------------
+  // --- Editing or removing photos in bulk -----------------------------------------------------------------------------------
 
-  /** Remove Photos: shows the checkboxes (once the local photo service, which does the deleting, is known to be there), or hides them. */
-  async function toggleRemoval(status: HTMLElement) {
-    if (deleting) return;
-    if (removing) return stopRemoval();
-    status.textContent = m('pics.removal.checking');
-    removal ??= await import('./photo-remove');
-    if (!(await removal.serviceAvailable())) {
-      status.textContent = m('pics.removal.unavailable');
+  const modeKey = { remove: 'removal', edit: 'recategorize' } as const;
+
+  /** Edit Photos / Remove Photos: shows the checkboxes for that action (once the local photo service is known to
+   *  be there), switches directly to the other one if it was showing, or hides them if it was already this one. */
+  async function toggleMode(kind: 'remove' | 'edit', status: HTMLElement) {
+    if (deleting || applying) return;
+    if (mode === kind) return stopMode();
+    status.textContent = m(`pics.${modeKey[kind]}.checking`);
+    if (kind === 'remove') removal ??= await import('./photo-remove');
+    else recategorization ??= await import('./photo-recategorize');
+    if (!(await serviceAvailable())) {
+      status.textContent = m(`pics.${modeKey[kind]}.unavailable`);
       return;
     }
-    removing = true;
+    mode = kind;
     selected.clear();
     paint();
     container.querySelector<HTMLInputElement>('.pic-check')?.focus();
   }
 
-  function stopRemoval() {
-    removing = false;
+  function stopMode() {
+    const was = mode;
+    mode = 'none';
     selected.clear();
     paint();
-    container.querySelector<HTMLElement>('[data-action="remove"]')?.focus();
+    container.querySelector<HTMLElement>(`[data-action="${was}"]`)?.focus();
   }
 
   /** The removal is over (or failed): say what happened, and look at the list again. */
   function removalDone(outcome: RemoveResult[] | Error) {
     deleting = false;
-    removing = false;
+    mode = 'none';
     selected.clear();
     if (outcome instanceof Error) {
       notice = { text: m('pics.removal.requestFailed', { message: outcome.message || m('pics.removal.unreachable') }), alert: true };
@@ -218,6 +229,36 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
       const done = outcome.filter((r) => !r.error).length;
       const failures = outcome.filter((r) => r.error).map((r) => m('pics.removal.failed', { title: `${listing?.rows.find((row) => row.id === r.id)?.title ?? r.id} (${r.id})`, message: r.error ?? '' }));
       notice = { text: [done ? m(done === 1 ? 'pics.removal.doneOne' : 'pics.removal.done', { count: done }) : '', ...failures].filter(Boolean).join(' '), alert: failures.length > 0 };
+    }
+    details.clear();
+    void render();
+  }
+
+  // --- Changing category in bulk ---------------------------------------------------------------------------------------------
+
+  /** The category change is over (or failed): say what happened (moved, already-there, or the request itself
+   *  failing), and look at the list again — every moved photo now shows under its new category. */
+  function recategorizeDone(outcome: RecategorizeResult[] | Error) {
+    applying = false;
+    mode = 'none';
+    selected.clear();
+    if (outcome instanceof Error) {
+      notice = { text: m('pics.recategorize.requestFailed', { message: outcome.message || m('pics.recategorize.unreachable') }), alert: true };
+    } else {
+      const moved = outcome.filter((r) => r.moved);
+      const unchanged = outcome.length - moved.length;
+      const categoryLabel = categories.find((c) => c.slug === outcome[0]?.to)?.label ?? outcome[0]?.to ?? '';
+      // `known` came from the page's own server-rendered data, a snapshot from whenever this page was
+      // loaded — the API's /pics answer never carries a category at all (see thumbnail()'s own comment:
+      // the API only ever returns numbers and text about the ORIGINAL, never the site's own view of it),
+      // so without this, re-fetching the list after a real move would keep showing every moved photo
+      // under its old category until the whole page is reloaded.
+      for (const { id, to } of moved) if (known[id]) known[id] = { ...known[id], category: categoryLabel, categorySlug: to };
+      const parts = [
+        moved.length ? m(moved.length === 1 ? 'pics.recategorize.doneOne' : 'pics.recategorize.done', { count: moved.length, category: categoryLabel }) : '',
+        unchanged ? m(unchanged === 1 ? 'pics.recategorize.unchangedOne' : 'pics.recategorize.unchanged', { count: unchanged }) : '',
+      ];
+      notice = { text: parts.filter(Boolean).join(' '), alert: false };
     }
     details.clear();
     void render();
@@ -237,7 +278,7 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     displayed = true;
   }
 
-  /** One row of the list: thumbnail, title, category, key, the tooltip's triggers and (while removing) its checkbox. */
+  /** One row of the list: thumbnail, title, category, key, the tooltip's triggers and (while a bulk action is showing) its checkbox. */
   function buildRow(row: PicRow) {
     const link = el('a', { class: 'pic-link', attrs: { href: `#${PICS_TAB}` } },
       thumbnail(row.id),
@@ -245,8 +286,10 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
       row.category ? el('span', { class: 'pic-category', text: row.category }) : el('span', { class: 'pic-category', text: m('pics.notOnSite') }),
       el('span', { class: 'pic-key', text: row.key }));
     const item = el('li', { class: 'pic' }, link);
-    if (removing) {
-      const box = el('input', { class: 'pic-check', attrs: { type: 'checkbox', 'data-id': row.id, 'aria-label': m('pics.removal.select', { title: `${row.title ?? row.id} (${row.id})` }) } });
+    // A checkbox during Remove Photos (any original can be deleted, entry or not); during Edit Photos only
+    // for a photo the site actually lists (there is no category to move otherwise).
+    if (mode === 'remove' || (mode === 'edit' && row.categorySlug !== null)) {
+      const box = el('input', { class: 'pic-check', attrs: { type: 'checkbox', 'data-id': row.id, 'aria-label': m(`pics.${modeKey[mode]}.select`, { title: `${row.title ?? row.id} (${row.id})` }) } });
       box.checked = selected.has(row.id);
       item.classList.toggle('selected', box.checked);
       box.addEventListener('change', () => {
@@ -326,52 +369,76 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     return more;
   }
 
-  /** Draws the counter, the buttons, the removal bar (while removing) and the first pages of the list from the last listing. */
+  /** Draws the counter, the buttons, the removal or category-change bar (while one is active) and the first pages of the list from the last listing. */
   function paint() {
     hideTip();
     if (!listing) return;
     const { rows, complete } = listing;
     if (!rows.length) {
-      removing = false;
+      mode = 'none';
       bar = null;
       show(...summary(0), el('p', { class: 'results-empty', text: m('pics.empty') }));
       return;
     }
-    bar = removing && removal
-      ? removal.removalBar({
-          m,
-          rows,
-          selected,
-          shown: () => shownCount,
-          onSelectAll: (all) => {
-            selected.clear();
-            if (all) for (const row of rows.slice(0, shownCount)) selected.add(row.id);
-            for (const box of root.querySelectorAll<HTMLInputElement>('.pic-check')) {
-              box.checked = selected.has(box.dataset.id ?? '');
-              box.closest('.pic')?.classList.toggle('selected', box.checked);
-            }
-            bar?.update();
-          },
-          onCancel: stopRemoval,
-          perform: (photos) => {
-            deleting = true;
-            return removal!.removePhotos(photos);
-          },
-          onDone: removalDone,
-        })
-      : null;
+    bar =
+      mode === 'remove' && removal
+        ? removal.removalBar({
+            m,
+            rows,
+            selected,
+            shown: () => shownCount,
+            onSelectAll: (all) => {
+              selected.clear();
+              if (all) for (const row of rows.slice(0, shownCount)) selected.add(row.id);
+              for (const box of root.querySelectorAll<HTMLInputElement>('.pic-check')) {
+                box.checked = selected.has(box.dataset.id ?? '');
+                box.closest('.pic')?.classList.toggle('selected', box.checked);
+              }
+              bar?.update();
+            },
+            onCancel: stopMode,
+            perform: (photos) => {
+              deleting = true;
+              return removal!.removePhotos(photos);
+            },
+            onDone: removalDone,
+          })
+        : mode === 'edit' && recategorization
+          ? recategorization.recategorizeBar({
+              m,
+              rows,
+              categories,
+              selected,
+              shown: () => shownCount,
+              onSelectAll: (all) => {
+                selected.clear();
+                if (all) for (const row of rows.slice(0, shownCount)) if (row.categorySlug !== null) selected.add(row.id);
+                for (const box of root.querySelectorAll<HTMLInputElement>('.pic-check')) {
+                  box.checked = selected.has(box.dataset.id ?? '');
+                  box.closest('.pic')?.classList.toggle('selected', box.checked);
+                }
+                bar?.update();
+              },
+              onCancel: stopMode,
+              perform: (photos, toCategory) => {
+                applying = true;
+                return recategorization!.changeCategory(photos, toCategory);
+              },
+              onDone: recategorizeDone,
+            })
+          : null;
     show(
       ...summary(rows.length),
       bar?.element ?? null,
       complete ? null : el('p', { class: 'results-error', text: m('pics.incomplete') }),
-      el('ul', { class: `pics-list${removing ? ' selecting' : ''}` }, ...rows.slice(0, shownCount).map(buildRow)),
+      el('ul', { class: `pics-list${mode !== 'none' ? ` selecting ${mode}` : ''}` }, ...rows.slice(0, shownCount).map(buildRow)),
       moreControls()
     );
     updateMore();
   }
 
   async function render() {
-    if (deleting) return; // a removal is under way: it redraws the list itself when it is over
+    if (deleting || applying) return; // a bulk action is under way: it redraws the list itself when it is over
     const run = ++generation;
     hideTip();
     pager?.disconnect(); // the list about to be replaced is not watched any more
@@ -416,7 +483,7 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     details.clear();
     hideTip();
     formHost.replaceChildren(); // signing out (or in as someone else) closes the form
-    removing = false; // ...and the removal checkboxes
+    mode = 'none'; // ...and any bulk-action checkboxes
     selected.clear();
     notice = null;
     listing = null;

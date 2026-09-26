@@ -56,7 +56,7 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against twenty-five areas. The
+tests bake in sample photos instead), then checks that built output against twenty-six areas. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
@@ -137,6 +137,15 @@ against every page in both English and Spanish**; expected text is read from
   unpublishable manifest deletes nothing and puts the local entries back; and one photo whose files cannot be deleted
   fails alone, the rest go, and it can be retried. (Also checked by breaking the code on purpose: an unchecked key, a
   delete by id prefix and deleting before unpublishing each fail these scenarios.)
+- **`photo-recategorize.feature`** — bulk category change (the Admin page's Edit Photos button), through the same
+  request handler and a fake R2: an entry's file is renamed into the new category's folder (its photo, and every
+  other field, untouched) and the manifest republished once; a photo already in the target category is left alone
+  and reported as such, alongside a real move in the same request; a photo in two categories moves only the entry
+  named, leaving its other entry as it was; moving to a category another entry of the same photo already occupies
+  is refused with 409; a photo named under a category it is not actually filed under is refused, and nothing moves;
+  malformed requests (no photos, an unknown category, a bad id, the same photo and category twice, more than 100
+  photos, not JSON) are refused; only the form's own page on localhost may ask; unpublished local changes stop it;
+  and an unpublishable manifest leaves the site showing the old category, retryable once R2 works again.
 - **`photo-exif.feature`** — the camera line built from real JPEGs' EXIF: formatting rules, what is
   (and is never) stored, overrides, replace behaviour, and filling in missing camera lines.
 - **`localization.feature`** — locale files define identical keys, hreflang (`en`/`es`/`x-default`),
@@ -292,6 +301,13 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   passes the accessibility audit and fits a phone; and nothing but the site and the results API is requested. In a list of
   45, "Select all" ticks only the 20 shown (and says so), the whole list once it has all been drawn, and deleting the
   20 shown removes exactly those and carries on from what is left.
+- **`photo-recategorize.feature`** (browser) — the Edit Photos screens, with the real photo service over the very
+  buckets the Pics Viewer lists: a checkbox only on photos the site actually lists, and a bar with the count, Select
+  all, a category select and Change category (disabled until a photo is ticked and a category chosen) and Cancel;
+  Edit Photos and Remove Photos are mutually exclusive (choosing one while the other shows switches to it directly);
+  changing one photo, or several at once, moves them and updates the list in place, without a page reload; choosing
+  the category a photo is already in says so instead of moving it; Spanish; every state passes the accessibility
+  audit; and nothing but the site and the results API is requested.
 - **`admin-timeout.feature`** (browser) — with the page's clock under the test's control: still signed in at
   4:55 and signed out at 5:00 (both tabs, whichever is showing, header buttons gone, token forgotten, tooltip
   closed, no more requests); a mouse move, key press, scroll, click or tap restarts the 5 minutes but the
@@ -692,12 +708,34 @@ button; scrolling down to the end of the list draws the next 20 by itself (an `I
 before the end, and keeps going while the end is still in view), and the button does the same for the keyboard (focus
 stays put; at the end the button gives way to *"Showing all 87 photos"*). A list of 20 or fewer has no paging. The
 counter above the buttons still says how many there are in all, Refresh starts again from the first page, and a photo
-drawn later behaves like the first ones (tooltip, checkbox). **Select all (in a bulk removal) only ticks the photos
-shown** — the button then reads *"Select the 20 shown"* — so a removal can never include a photo nobody has seen.
+drawn later behaves like the first ones (tooltip, checkbox). **Select all (in a bulk removal or category change) only
+ticks the photos shown** — the button then reads *"Select the 20 shown"* — so neither can ever include a photo
+nobody has seen.
 
-Across from the photo counter ("20 original photos"), at the right, are two buttons: **Upload Photos**
-(upload icon) and **Remove Photos** (trash icon). Upload Photos opens the **New Photo form** (below). Remove
-Photos starts a **bulk removal** (next).
+Across from the photo counter ("20 original photos"), at the right, are three buttons: **Upload Photos**
+(upload icon), **Edit Photos** (pencil icon) and **Remove Photos** (trash icon). Upload Photos opens the **New
+Photo form** (below). Edit Photos starts a **bulk category change** (next), Remove Photos a **bulk removal** (after
+that) — only one of the two at a time: choosing one while the other is showing switches to it directly.
+
+#### Changing a photo's category in bulk
+
+Press **Edit Photos** and every photo the site actually lists (an entry, not just a file in the originals bucket —
+there is no category to move otherwise) gets a checkbox, with a bar above the list: *N selected*, **Select all /
+Select none**, a **category select** and **Change category** (off until something is ticked and a category is
+chosen) and **Cancel**. Unlike a removal there is no confirmation step first: moving a photo to the wrong category by
+mistake costs nothing to put right (choose it again), so **Change category** moves them right away.
+
+For each photo ticked, the site's own category-change (`scripts/lib/photos.mjs`'s `changeCategory`) renames its
+entry's file into the new category's folder and republishes the manifest once — the photo itself, its files in R2,
+and every other field of its entry (title, camera, order, `placeholderColor`, `addedAt`) are untouched. A photo
+already in the category chosen is left alone and reported as such, alongside any real moves in the same request
+(useful since the same photo can be in more than one category at once — moving one entry never touches the other).
+Moving a photo to a category another entry of the same photo already occupies is refused, and so is naming more than
+100 photos at once. If the manifest cannot be published, the site keeps showing every photo under its old category,
+and the change can be retried once R2 works again.
+
+Like the New Photo form, **it only works on your own computer, in `npm run dev`**: on the deployed site, Edit
+Photos says so instead of showing checkboxes.
 
 #### Removing photos in bulk
 
