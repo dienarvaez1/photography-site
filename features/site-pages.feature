@@ -100,6 +100,8 @@ Feature: Site pages render correctly (English and Spanish)
       | /work/pets/           |
       | /work/portrait/       |
       | /work/real-estate/    |
+      | /work/cityscape/      |
+      | /work/abstract/       |
       | /es/work/astro/       |
       | /es/work/events/      |
       | /es/work/landscape/   |
@@ -109,6 +111,8 @@ Feature: Site pages render correctly (English and Spanish)
       | /es/work/pets/        |
       | /es/work/portrait/    |
       | /es/work/real-estate/ |
+      | /es/work/cityscape/   |
+      | /es/work/abstract/    |
 
   Scenario Outline: The homepage category cards use each category's first photo as the cover
     Given all photo content entries

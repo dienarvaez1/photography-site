@@ -58,6 +58,14 @@
       "label": "Otros",
       "description": "Todo lo que no encaja en las demás categorías."
     },
+    "cityscape": {
+      "label": "Paisaje urbano",
+      "description": "Horizontes, calles y la arquitectura de las ciudades."
+    },
+    "abstract": {
+      "label": "Abstracto",
+      "description": "Patrones, luz y textura, por sí mismos."
+    },
     "drafts": {
       "label": "Borradores",
       "description": "No se muestra en el sitio; existe solo para que las herramientas siempre tengan una categoría oculta con la que probar."

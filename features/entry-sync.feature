@@ -336,6 +336,8 @@ Feature: The photo entries live in R2, and the local folder is only a mirror
       | nature      |
       | events      |
       | other       |
+      | cityscape   |
+      | abstract    |
 
   Scenario: Every configured category, including any added later, publishes its photos the same way
     Then adding a photo to every configured category with the entries in R2 should publish each one under its own category folder and list it in the manifest

@@ -84,9 +84,14 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
       )}
     </div>
 
-    {/* Hidden until the script reveals it: a sort control that does nothing without JS is worse
-        than no control at all. */}
-    <div class="sort-control" id="gallery-controls" hidden>
+    {/* Invisible (not `hidden`) until the script reveals it: a sort control that does nothing
+        without JS is worse than no control at all — but its box stays in flow from the very first
+        paint, at its final size, so revealing it only flips a paint property, never adds or removes
+        space. It used to be `hidden` (display: none, no box at all) until the category filter picked
+        up two more pills: the same shared flex row then had less room once JS revealed the control,
+        wrapping the pills onto an extra line and pushing the gallery down — a real, measured
+        Cumulative Layout Shift (features/browser/security-and-performance.feature), not a flake. */}
+    <div class="sort-control" id="gallery-controls">
       <label for="gallery-sort">{t('work.sortLabel')}</label>
       <select id="gallery-sort">
         <option value="order">{t('work.sortCurated')}</option>
@@ -152,18 +157,22 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
     color: var(--fg);
   }
 
+  /* visibility, not display: none — its box stays in flow (and the space it needs stays reserved
+     in the shared flex row with .category-filter) from the very first paint, whether or not the
+     script ever runs; initCategorySwitcher() only ever adds .is-ready, once, which flips this to
+     visible without changing its size or position. A no-JS visitor sees the same pill layout as
+     everyone else, just with a quiet gap where a working control would be, not a squeezed one. */
   .sort-control {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     font-size: 0.85rem;
     color: var(--fg-muted);
+    visibility: hidden;
   }
 
-  /* Without this, the class rule's own `display: flex` above (a higher-specificity selector than
-     the UA stylesheet's own `[hidden] { display: none }`) would win and show it anyway. */
-  .sort-control[hidden] {
-    display: none;
+  .sort-control.is-ready {
+    visibility: visible;
   }
 
   .sort-control select {
@@ -370,7 +379,7 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
     filterNav.querySelectorAll<HTMLAnchorElement>('a.filter-pill').forEach((a) => a.addEventListener('click', onPillClick));
 
     if (controls && sortSelect) {
-      controls.hidden = false;
+      controls.classList.add('is-ready');
       sortSelect.addEventListener('change', () => {
         currentSort = sortSelect.value === 'newest' ? 'newest' : 'order';
         renderCategory(currentSlug, currentSort);

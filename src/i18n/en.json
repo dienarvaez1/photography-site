@@ -58,6 +58,14 @@
       "label": "Other",
       "description": "Everything that doesn't fit the other categories."
     },
+    "cityscape": {
+      "label": "Cityscape",
+      "description": "Skylines, streets, and the architecture of cities."
+    },
+    "abstract": {
+      "label": "Abstract",
+      "description": "Patterns, light, and texture, for their own sake."
+    },
     "drafts": {
       "label": "Drafts",
       "description": "Not shown on the site; kept here only so the tools always have a hidden category to test against."

@@ -98,6 +98,8 @@ Feature: The New Photo form adds a photo from what the photo itself says
       | nature      |
       | events      |
       | other       |
+      | cityscape   |
+      | abstract    |
 
   Scenario: Two photos submitted at the same moment get different orders
     Given the category "astro" already has photos with the orders "1, 2"

@@ -73,6 +73,8 @@ Feature: The site renders its photo pages from R2 when they are requested
       | /work/nature/            | Nature · Diego Narvaez Photography                |
       | /work/events/            | Public Events · Diego Narvaez Photography        |
       | /work/other/             | Other · Diego Narvaez Photography                 |
+      | /work/cityscape/         | Cityscape · Diego Narvaez Photography             |
+      | /work/abstract/          | Abstract · Diego Narvaez Photography              |
       | /es/work/real-estate/    | Bienes raíces · Diego Narvaez Fotografía          |
       | /es/work/landscape/      | Paisajes · Diego Narvaez Fotografía               |
       | /es/work/portrait/       | Retratos · Diego Narvaez Fotografía               |
@@ -81,6 +83,8 @@ Feature: The site renders its photo pages from R2 when they are requested
       | /es/work/nature/         | Naturaleza · Diego Narvaez Fotografía             |
       | /es/work/events/         | Eventos públicos · Diego Narvaez Fotografía       |
       | /es/work/other/          | Otros · Diego Narvaez Fotografía                  |
+      | /es/work/cityscape/      | Paisaje urbano · Diego Narvaez Fotografía         |
+      | /es/work/abstract/       | Abstracto · Diego Narvaez Fotografía              |
 
   Scenario: The Other category lists its photos, in each language
     When I request "/work/other/"

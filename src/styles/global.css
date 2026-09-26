@@ -171,12 +171,16 @@ img {
 
 /* Scroll-reveal (src/lib/scroll-reveal.ts): the hidden state is JS-applied only, so content stays
    visible by default if the script never runs. `prefers-reduced-motion` needs no override here —
-   the blanket rule above already collapses this transition to ~0s. */
+   the blanket rule above already collapses this transition to ~0s. Opacity only, no translateY:
+   the Layout Instability API counts a transform's rendered position same as any other move, so a
+   slide-up here was a real (if previously small) contributor to Cumulative Layout Shift — one that
+   grows with the revealed section's own on-screen size, and tipped security-and-performance.feature's
+   CLS budget once the home page's category grid gained two more rows (10 categories, not 8). A fade
+   needs no motion at all to read as a reveal, so it's the fix rather than a budget increase. */
 [data-reveal] {
-  transition: opacity 0.7s ease, transform 0.7s ease;
+  transition: opacity 0.7s ease;
 }
 
 [data-reveal].is-reveal-hidden {
   opacity: 0;
-  transform: translateY(1.25rem);
 }
