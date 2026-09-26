@@ -10,6 +10,19 @@ import {
   useTranslations,
 } from '../i18n';
 
+interface Props {
+  /**
+   * Forces every link here to do a real navigation instead of an Astro view-transition swap.
+   * Admin passes this: it mounts several viewers that each attach their own window/document
+   * listeners with no way to tear them down (see admin.astro's script), and a fetch-based swap
+   * away from it while those are still doing async work can be aborted mid-flight — Astro's own
+   * fallback for that has been observed leaving a blank page rather than completing the real
+   * navigation it's meant to fall back to. A full reload sidesteps the race entirely.
+   */
+  forceReload?: boolean;
+}
+
+const { forceReload = false } = Astro.props;
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
 
@@ -35,6 +48,7 @@ const alternates = getAlternates(Astro.url.pathname);
             hreflang={alt.locale}
             title={LOCALE_INFO[alt.locale].name}
             aria-label={LOCALE_INFO[alt.locale].name}
+            data-astro-reload={forceReload}
           >
             {LOCALE_INFO[alt.locale].short}
           </a>
@@ -42,7 +56,7 @@ const alternates = getAlternates(Astro.url.pathname);
       )}
     </div>
 
-    <a href={localizePath('/', locale)} class="brand">
+    <a href={localizePath('/', locale)} class="brand" data-astro-reload={forceReload}>
       <img src="/logo.png" width="800" height="231" alt={SITE.author} class="brand-logo" fetchpriority="high" decoding="async" />
       <img src="/aperture-logo.png" width="240" height="244" alt="" class="aperture-logo" decoding="async" />
     </a>
@@ -68,16 +82,17 @@ const alternates = getAlternates(Astro.url.pathname);
             <a
               href={localizePath(`/work/${c.slug}/`, locale)}
               class:list={{ active: currentPath === `/work/${c.slug}` }}
+              data-astro-reload={forceReload}
             >
               {c.label}
             </a>
           ))}
         </div>
       </div>
-      <a href={localizePath('/about/', locale)} class:list={{ active: currentPath === '/about' }}>
+      <a href={localizePath('/about/', locale)} class:list={{ active: currentPath === '/about' }} data-astro-reload={forceReload}>
         {t('nav.about')}
       </a>
-      <a href={localizePath('/contact/', locale)} class:list={{ active: currentPath === '/contact' }}>
+      <a href={localizePath('/contact/', locale)} class:list={{ active: currentPath === '/contact' }} data-astro-reload={forceReload}>
         {t('nav.contact')}
       </a>
       {/* The Admin page is deliberately not linked here: it stays reachable directly at /admin/, just not advertised. */}
@@ -336,41 +351,62 @@ const alternates = getAlternates(Astro.url.pathname);
 <script>
   import { storeLocale } from '../i18n/geo.ts';
 
-  const toggle = document.getElementById('nav-toggle');
-  const nav = document.getElementById('primary-nav');
-  const navGroup = nav?.querySelector('.nav-group');
-  const navLabel = navGroup?.querySelector('.nav-label');
+  // Astro bundles this script to one stable URL shared by every page, so the browser's module
+  // cache only ever evaluates it once per tab — a direct top-level call here would only ever wire
+  // up the very first page's header. `astro:page-load` fires again on every later view-transition
+  // navigation (and once for the very first load too, via the native `load` event), each time
+  // against that page's own fresh #nav-toggle/#primary-nav elements, so re-querying and
+  // re-attaching on every firing is what makes the mobile menu and language switcher keep working
+  // after a client-routed navigation.
+  let removeKeydown: (() => void) | null = null;
 
-  toggle?.addEventListener('click', () => {
-    const isOpen = nav?.classList.toggle('open');
-    toggle.setAttribute('aria-expanded', String(Boolean(isOpen)));
-  });
+  function initHeader() {
+    // `document` persists across transitions; without removing the previous page's handler first,
+    // each navigation would stack another Escape listener that still (harmlessly, but wastefully)
+    // matches against whichever header is currently live.
+    removeKeydown?.();
+    removeKeydown = null;
 
-  // Escape closes the open mobile menu and hands focus back to its button.
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && nav?.classList.contains('open')) {
-      nav.classList.remove('open');
-      toggle?.setAttribute('aria-expanded', 'false');
-      (toggle as HTMLElement | null)?.focus();
-    }
-  });
+    const toggle = document.getElementById('nav-toggle');
+    const nav = document.getElementById('primary-nav');
+    const navGroup = nav?.querySelector('.nav-group');
+    const navLabel = navGroup?.querySelector('.nav-label');
 
-  navLabel?.addEventListener('click', () => {
-    if (window.innerWidth <= 720) {
-      const isOpen = navGroup?.classList.toggle('open');
-      navLabel.setAttribute('aria-expanded', String(Boolean(isOpen)));
-    }
-  });
+    toggle?.addEventListener('click', () => {
+      const isOpen = nav?.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', String(Boolean(isOpen)));
+    });
 
-  // Clicking the language switcher is an explicit choice: remember it so the
-  // location-based default on the home page never overrides it.
-  document.querySelectorAll<HTMLAnchorElement>('.lang-switcher a[hreflang]').forEach((link) => {
-    link.addEventListener('click', () => {
-      try {
-        storeLocale(window.localStorage, link.hreflang);
-      } catch {
-        // Storage unavailable: navigation still works, the choice just isn't remembered.
+    // Escape closes the open mobile menu and hands focus back to its button.
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && nav?.classList.contains('open')) {
+        nav.classList.remove('open');
+        toggle?.setAttribute('aria-expanded', 'false');
+        (toggle as HTMLElement | null)?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeydown);
+    removeKeydown = () => document.removeEventListener('keydown', onKeydown);
+
+    navLabel?.addEventListener('click', () => {
+      if (window.innerWidth <= 720) {
+        const isOpen = navGroup?.classList.toggle('open');
+        navLabel.setAttribute('aria-expanded', String(Boolean(isOpen)));
       }
     });
-  });
+
+    // Clicking the language switcher is an explicit choice: remember it so the
+    // location-based default on the home page never overrides it.
+    document.querySelectorAll<HTMLAnchorElement>('.lang-switcher a[hreflang]').forEach((link) => {
+      link.addEventListener('click', () => {
+        try {
+          storeLocale(window.localStorage, link.hreflang);
+        } catch {
+          // Storage unavailable: navigation still works, the choice just isn't remembered.
+        }
+      });
+    });
+  }
+
+  document.addEventListener('astro:page-load', initHeader);
 </script>

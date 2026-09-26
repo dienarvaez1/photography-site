@@ -52,7 +52,12 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   }
 
   // Refresh and Sign out are buttons at the top of the page (admin-actions.ts); here only the way back from a run.
-  const backBar = () => el('div', { class: 'results-toolbar' }, el('a', { class: 'results-back', text: m('back'), attrs: { href: LIST_HASH } }));
+  // `data-astro-reload`: this is a same-page hash link, and its render() below is driven entirely
+  // by the native `hashchange` event (see the listener near the bottom of this file). Without this
+  // attribute, Astro's <ClientRouter/> (astro:transitions) intercepts the click itself and updates
+  // the URL via `history.pushState`, which never fires `hashchange` — the link would then visibly
+  // update the address bar but never actually navigate back to the list.
+  const backBar = () => el('div', { class: 'results-toolbar' }, el('a', { class: 'results-back', text: m('back'), attrs: { href: LIST_HASH, 'data-astro-reload': '' } }));
 
   // --- Small building blocks --------------------------------------------------------------------------------
 
@@ -66,7 +71,8 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   type IndexEntry = { runId: string; startedAt: string; source: string; commit: string; branch: string; dirty: boolean; ok: boolean; totals: Totals; failures?: { suite: string; name: string }[] };
 
   function runLink(entry: IndexEntry) {
-    const link = el('a', { class: 'results-run', attrs: { href: runHash(entry.runId), 'aria-label': m('runs.open', { id: entry.runId }) } });
+    // `data-astro-reload`: see the comment on `backBar` above — same reasoning applies here.
+    const link = el('a', { class: 'results-run', attrs: { href: runHash(entry.runId), 'aria-label': m('runs.open', { id: entry.runId }), 'data-astro-reload': '' } });
     link.append(
       el('span', { class: 'run-when', text: formatDate(entry.startedAt, locale) }),
       badge(entry.ok),

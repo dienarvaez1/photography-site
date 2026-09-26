@@ -74,6 +74,10 @@ export default defineConfig({
     photoForm({ contentDir: fileURLToPath(new URL(`./${PHOTO_ENTRIES_DIR}`, import.meta.url)) }),
   ],
   adapter: cloudflare(),
+  // <ClientRouter/> (astro:transitions, in BaseLayout.astro) turns prefetch on by default, which
+  // injects its own inline <script type="speculationrules">; the CSP (public/_headers) forbids
+  // inline scripts, so the browser blocks it. Not something this redesign asked for anyway.
+  prefetch: false,
   vite: {
     define: { 'import.meta.env.PHOTOS_SNAPSHOT': JSON.stringify(SNAPSHOT) },
     build: {

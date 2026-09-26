@@ -1,4 +1,5 @@
 ---
+import { ClientRouter } from 'astro:transitions';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import SEO from '../components/SEO.astro';
@@ -15,9 +16,11 @@ interface Props {
   jsonLd?: object[];
   /** Error pages: keep them out of search results. */
   noindex?: boolean;
+  /** Admin passes this: see the comment on Header's own `forceReload` prop. */
+  reloadNavLinks?: boolean;
 }
 
-const { title, description, image, imageAlt, imageWidth, imageHeight, jsonLd, noindex = false } = Astro.props;
+const { title, description, image, imageAlt, imageWidth, imageHeight, jsonLd, noindex = false, reloadNavLinks = false } = Astro.props;
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
 ---
@@ -30,6 +33,7 @@ const t = useTranslations(locale);
     <meta name="theme-color" content="#0a0a09" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preload" href="/fonts/fraunces-variable-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <ClientRouter />
     <SEO
       title={title}
       description={description}
@@ -44,10 +48,24 @@ const t = useTranslations(locale);
   </head>
   <body>
     <a href="#main-content" class="skip-link">{t('nav.skipToContent')}</a>
-    <Header />
+    <Header forceReload={reloadNavLinks} />
     <main id="main-content">
       <slot />
     </main>
     <Footer />
+    <script>
+      import { initScrollReveal } from '../lib/scroll-reveal';
+      import { trackTransitionOrigin } from '../lib/transition-referrer';
+
+      // Not a direct top-level call: this script is bundled to one stable URL shared by every
+      // page, so the browser's module cache only ever evaluates it once per tab. `astro:page-load`
+      // is what fires again on each later view-transition navigation (and once for the very first
+      // load too, via the native `load` event) — see the fuller explanation in Header.astro's script.
+      document.addEventListener('astro:page-load', () => initScrollReveal(document));
+
+      // Registered once, ever (same reasoning) — it needs to fire on every future transition, not
+      // re-run per page, so this one call is outside the astro:page-load listener above.
+      trackTransitionOrigin();
+    </script>
   </body>
 </html>

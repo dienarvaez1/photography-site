@@ -41,6 +41,17 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And I reload the page
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
 
+  Scenario: The Admin page still works after leaving it and returning with the browser's Back button
+    # Nothing links to /admin/, so this is the only way back to it once view transitions are on:
+    # its own mount logic can't simply run again the way it would after a real page load, since the
+    # viewers it starts attach window/document listeners with no way to tear them down.
+    When I open "/admin/"
+    And I sign in with the token "browser-test-admin-token"
+    Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
+    When I click the header link "Contact"
+    And I go back in the browser
+    Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
+
   Scenario: Signing out forgets the token
     When I open "/admin/"
     And I sign in with the token "browser-test-admin-token"

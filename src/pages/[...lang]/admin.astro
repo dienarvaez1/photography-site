@@ -42,7 +42,7 @@ const knownPhotos = Object.fromEntries(
 ---
 
 <!-- Not for search engines, and not in the sitemap. It is public: put Cloudflare Access in front of it before it shows real data. -->
-<BaseLayout title={t('admin.title')} description={t('admin.description')} noindex>
+<BaseLayout title={t('admin.title')} description={t('admin.description')} noindex reloadNavLinks>
   <!-- Without JavaScript the tabs can't switch, so show every panel instead of hiding all but the first. -->
   <noscript slot="head">
     <style is:inline>
@@ -266,47 +266,76 @@ const knownPhotos = Object.fromEntries(
   import { mountAdminActions } from '../../lib/admin-actions';
   import { mountIdleTimeout } from '../../lib/admin-session';
 
-  const viewer = document.querySelector<HTMLElement>('[data-results]');
-  if (viewer) mountResultsViewer(viewer, viewer.closest<HTMLElement>('[role="tabpanel"]')!);
-  mountIdleTimeout();
-  const actions = document.querySelector<HTMLElement>('[data-admin-actions]');
-  if (actions) mountAdminActions(actions);
-  const pics = document.querySelector<HTMLElement>('[data-pics]');
-  if (pics) mountPicsViewer(pics, pics.closest<HTMLElement>('[role="tabpanel"]')!);
-
-  // Tabs pattern (WAI-ARIA): one tab in the tab order at a time; arrow keys, Home and End move between
-  // tabs; the selected tab is shown in the URL (#pics-viewer) so it can be linked to.
-  document.querySelectorAll<HTMLElement>('[data-tabs]').forEach((root) => {
-    const tabs = Array.from(root.querySelectorAll<HTMLElement>('[role="tab"]'));
-    const panels = tabs.map((tab) => document.getElementById(tab.getAttribute('aria-controls') ?? '') as HTMLElement);
-    const idOf = (tab: HTMLElement) => tab.id.replace(/^tab-/, '');
-
-    function select(index: number, { focus = false, updateHash = false } = {}) {
-      tabs.forEach((tab, i) => {
-        const selected = i === index;
-        tab.setAttribute('aria-selected', String(selected));
-        tab.tabIndex = selected ? 0 : -1;
-        panels[i].hidden = !selected;
-      });
-      if (focus) tabs[index].focus();
-      if (updateHash) history.replaceState(null, '', `#${idOf(tabs[index])}`);
+  declare global {
+    interface Window {
+      // Set the first (and only intended) time this page's script runs in this tab — see below.
+      __adminMounted?: boolean;
     }
+  }
 
-    // `#test-results/run/<id>` (a run inside the tab) selects the same tab as `#test-results`.
-    const fromHash = () => tabs.findIndex((tab) => idOf(tab) === location.hash.slice(1).split('/')[0]);
+  // Astro bundles this script to one stable URL, so the browser's module cache only ever evaluates
+  // it once per tab; `astro:page-load` (not a direct top-level call) is what re-runs it on every
+  // later view-transition navigation, the same as Header/Gallery/contact.astro. Admin is different
+  // from those, though: mountResultsViewer/mountPicsViewer/mountAdminActions/mountIdleTimeout each
+  // attach their own listeners to `window`/`document` with no way to tear them down, since normally
+  // a page load only ever happens once per visit. Simply re-running them on a second SPA visit to
+  // this page (e.g. clicking a nav link away, then the browser Back button) would stack duplicates
+  // of every one of them rather than replacing them. Nothing in the site currently links to
+  // /admin/, so the only way back here is that Back button — cheaply and safely handled by forcing
+  // a real reload the first time it happens, which is no worse than what every visit here already
+  // did before view transitions existed, rather than auditing/adding teardown to four already
+  // well-tested library files for a private, owner-only page.
+  function initAdmin() {
+    if (window.__adminMounted) {
+      location.reload();
+      return;
+    }
+    window.__adminMounted = true;
 
-    tabs.forEach((tab, index) => {
-      tab.addEventListener('click', () => select(index, { updateHash: true }));
-      tab.addEventListener('keydown', (event) => {
-        const last = tabs.length - 1;
-        const target = { ArrowRight: index === last ? 0 : index + 1, ArrowLeft: index === 0 ? last : index - 1, Home: 0, End: last }[event.key];
-        if (target === undefined) return;
-        event.preventDefault();
-        select(target, { focus: true, updateHash: true });
+    const viewer = document.querySelector<HTMLElement>('[data-results]');
+    if (viewer) mountResultsViewer(viewer, viewer.closest<HTMLElement>('[role="tabpanel"]')!);
+    mountIdleTimeout();
+    const actions = document.querySelector<HTMLElement>('[data-admin-actions]');
+    if (actions) mountAdminActions(actions);
+    const pics = document.querySelector<HTMLElement>('[data-pics]');
+    if (pics) mountPicsViewer(pics, pics.closest<HTMLElement>('[role="tabpanel"]')!);
+
+    // Tabs pattern (WAI-ARIA): one tab in the tab order at a time; arrow keys, Home and End move between
+    // tabs; the selected tab is shown in the URL (#pics-viewer) so it can be linked to.
+    document.querySelectorAll<HTMLElement>('[data-tabs]').forEach((root) => {
+      const tabs = Array.from(root.querySelectorAll<HTMLElement>('[role="tab"]'));
+      const panels = tabs.map((tab) => document.getElementById(tab.getAttribute('aria-controls') ?? '') as HTMLElement);
+      const idOf = (tab: HTMLElement) => tab.id.replace(/^tab-/, '');
+
+      function select(index: number, { focus = false, updateHash = false } = {}) {
+        tabs.forEach((tab, i) => {
+          const selected = i === index;
+          tab.setAttribute('aria-selected', String(selected));
+          tab.tabIndex = selected ? 0 : -1;
+          panels[i].hidden = !selected;
+        });
+        if (focus) tabs[index].focus();
+        if (updateHash) history.replaceState(null, '', `#${idOf(tabs[index])}`);
+      }
+
+      // `#test-results/run/<id>` (a run inside the tab) selects the same tab as `#test-results`.
+      const fromHash = () => tabs.findIndex((tab) => idOf(tab) === location.hash.slice(1).split('/')[0]);
+
+      tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => select(index, { updateHash: true }));
+        tab.addEventListener('keydown', (event) => {
+          const last = tabs.length - 1;
+          const target = { ArrowRight: index === last ? 0 : index + 1, ArrowLeft: index === 0 ? last : index - 1, Home: 0, End: last }[event.key];
+          if (target === undefined) return;
+          event.preventDefault();
+          select(target, { focus: true, updateHash: true });
+        });
       });
-    });
 
-    if (fromHash() >= 0) select(fromHash());
-    window.addEventListener('hashchange', () => fromHash() >= 0 && select(fromHash()));
-  });
+      if (fromHash() >= 0) select(fromHash());
+      window.addEventListener('hashchange', () => fromHash() >= 0 && select(fromHash()));
+    });
+  }
+
+  document.addEventListener('astro:page-load', initAdmin);
 </script>

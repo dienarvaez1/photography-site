@@ -5,6 +5,7 @@
 
 <script>
   import { runGeoRedirect } from '../i18n/geo.ts';
+  import { effectiveReferrer } from '../lib/transition-referrer';
 
   function getStorage(): Storage | null {
     try {
@@ -20,7 +21,10 @@
     location: window.location,
     userAgent: navigator.userAgent,
     languages: navigator.languages,
-    referrer: document.referrer,
+    // document.referrer alone would miss a same-site navigation that arrived via a client-side
+    // transition (Astro's <ClientRouter/> swaps the page without a real navigation, so the browser
+    // never updates it) — see transition-referrer.ts.
+    referrer: effectiveReferrer(),
     origin: window.location.origin,
     // Dev only, e.g. http://localhost:4321/?geo=MX (Cloudflare's trace endpoint doesn't exist locally).
     countryOverride: import.meta.env.DEV ? new URLSearchParams(window.location.search).get('geo') : null,

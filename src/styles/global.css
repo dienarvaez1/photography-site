@@ -168,3 +168,15 @@ img {
   font-size: 0.75rem;
   color: var(--fg-muted);
 }
+
+/* Scroll-reveal (src/lib/scroll-reveal.ts): the hidden state is JS-applied only, so content stays
+   visible by default if the script never runs. `prefers-reduced-motion` needs no override here —
+   the blanket rule above already collapses this transition to ~0s. */
+[data-reveal] {
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+[data-reveal].is-reveal-hidden {
+  opacity: 0;
+  transform: translateY(1.25rem);
+}

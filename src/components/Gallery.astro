@@ -231,7 +231,23 @@ const tiles = photos.map((photo, index) => ({
 </style>
 
 <script>
+  // Astro bundles this script to one stable URL shared by every gallery-bearing page, so the
+  // browser's module cache only ever evaluates it once per tab — a direct top-level call here
+  // would only ever wire up the very first gallery seen. `astro:page-load` fires again on every
+  // later view-transition navigation (and once for the very first load too, via the native `load`
+  // event), each time against that page's own fresh tiles/lightbox, so re-querying and
+  // re-attaching on every firing is what keeps the gallery working after a client-routed
+  // navigation. See Header.astro's script for the fuller explanation.
+  let removeKeydown: (() => void) | null = null;
+
   function initGallery(root: Document | HTMLElement) {
+    // `document` persists across transitions; without removing the previous page's handler first,
+    // each navigation would stack another keydown listener that still (harmlessly, but wastefully)
+    // matches against whichever lightbox is currently live — worse, a stacked Escape/Arrow handler
+    // would fire once per navigation visited so far, advancing the photo more than one step per key.
+    removeKeydown?.();
+    removeKeydown = null;
+
     const tiles = Array.from(root.querySelectorAll<HTMLButtonElement>('.tile'));
     if (!tiles.length) return;
 
@@ -281,7 +297,7 @@ const tiles = photos.map((photo, index) => ({
       if (event.target === lightbox) close();
     });
 
-    document.addEventListener('keydown', (event) => {
+    const onKeydown = (event: KeyboardEvent) => {
       if (lightbox.hidden) return;
       if (event.key === 'Escape') close();
       if (event.key === 'ArrowLeft') show(currentIndex - 1);
@@ -302,9 +318,10 @@ const tiles = photos.map((photo, index) => ({
           first.focus();
         }
       }
-    });
+    };
+    document.addEventListener('keydown', onKeydown);
+    removeKeydown = () => document.removeEventListener('keydown', onKeydown);
   }
 
-  initGallery(document);
   document.addEventListener('astro:page-load', () => initGallery(document));
 </script>

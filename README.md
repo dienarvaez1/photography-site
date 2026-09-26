@@ -794,8 +794,8 @@ than a large screen (`photoSrcSet` never lists the same width twice for small ph
 gallery photos load eagerly (the first with high priority); the rest lazily. Every image declares its
 width and height so the page can't jump while loading; the header logos are right-sized (the small
 icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
-10 KB, styles 25 KB — current pages are about half that; the Admin pages, which carry the results
-viewer and are opened only by you, may have 30 KB of scripts). If you change `PHOTO_VARIANTS`, run
+24 KB, styles 25 KB — most of the 24 KB is Astro's View Transitions runtime itself; the Admin pages,
+which carry the results viewer and are opened only by you, may have 48 KB of scripts). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 
 ## Deployment to Cloudflare Pages (free)

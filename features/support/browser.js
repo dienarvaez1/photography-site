@@ -216,7 +216,14 @@ export async function open(world) {
     if (message.type() === 'error' && !url.endsWith('/cdn-cgi/trace') && !url.includes('/__photos/') && !notFoundPages.has(url)) b.consoleErrors.push(message.text());
   });
   page.on('response', (response) => {
-    if (response.request().isNavigationRequest() && response.frame() === page.mainFrame()) {
+    const request = response.request();
+    // A real top-level navigation, or — since Astro's <ClientRouter/> (astro:transitions) swaps
+    // pages in place with a fetch() rather than a real navigation — its own same-origin fetch of a
+    // page's HTML, which is functionally equivalent from a visitor's point of view. Astro's own
+    // fetchHTML() only ever accepts a text/html (or xhtml+xml) response for this, which is a
+    // reliable enough signature to tell it apart from an ordinary JSON/asset request.
+    const isPageFetch = request.resourceType() === 'fetch' && /^text\/html|^application\/xhtml\+xml/.test(response.headers()['content-type'] ?? '');
+    if ((request.isNavigationRequest() && response.frame() === page.mainFrame()) || isPageFetch) {
       b.lastStatus = response.status();
       if (response.status() === 404) notFoundPages.add(response.url());
     }

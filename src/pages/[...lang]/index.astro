@@ -91,13 +91,13 @@ const covers = sortedCategories.map((category) => {
   </section>
 
   {featured.length > 0 && (
-    <section class="wrap section">
+    <section class="wrap section" data-reveal>
       <h2>{t('home.featured')}</h2>
       <Gallery photos={featured} />
     </section>
   )}
 
-  <section class="wrap section">
+  <section class="wrap section" data-reveal>
     <h2>{t('home.exploreByCategory')}</h2>
     <div class="category-grid">
       {covers.map(({ category, cover }) => (
