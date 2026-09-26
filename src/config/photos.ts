@@ -67,6 +67,9 @@ export function variantSize(photo: PhotoRef, variant: PhotoVariant): { width: nu
 /** The sizes offered to the browser for gallery thumbnails and for category-card covers. */
 export const THUMB_SRCSET: PhotoVariant[] = ['w400', 'thumb', 'w1000'];
 export const COVER_SRCSET: PhotoVariant[] = ['w400', 'cover', 'w1000'];
+// The home page's full-bleed hero: full width on most screens, so it skips straight to the two
+// largest variants rather than also offering the smaller gallery/card sizes.
+export const HERO_SRCSET: PhotoVariant[] = ['w1000', 'full'];
 
 /**
  * A `srcset` value for some variants: "<url> 400w, <url> 700w, ...", smallest first. A photo

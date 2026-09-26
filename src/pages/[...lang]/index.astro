@@ -4,6 +4,7 @@ import Gallery from '../../components/Gallery.astro';
 import CategoryCard from '../../components/CategoryCard.astro';
 import GeoRedirect from '../../components/GeoRedirect.astro';
 import { VISIBLE_CATEGORIES } from '../../config/categories';
+import { HERO_SRCSET, photoSrcSet, photoVariant } from '../../config/photos';
 import { SITE } from '../../config/site';
 import { notFound } from '../../lib/not-found';
 import { getPhotos } from '../../lib/photo-entries';
@@ -76,17 +77,45 @@ const covers = sortedCategories.map((category) => {
     .sort((a, b) => a.data.order - b.data.order);
   return { category, cover: inCategory[0] };
 });
+
+// The hero's crossfade: featured photos when there are any (a deliberate choice of what to lead
+// with), otherwise just whatever's curated first, so the hero never has nothing to show.
+const heroPhotos = (featured.length > 0 ? featured : allPhotos.slice().sort((a, b) => a.data.order - b.data.order)).slice(0, 3);
 ---
 
 <BaseLayout title={t('site.title')} description={t('site.description')} jsonLd={jsonLd}>
   {locale === DEFAULT_LOCALE && <GeoRedirect />}
-  <section class="hero wrap">
-    <p class="eyebrow">{t('site.tagline')}</p>
-    <h1>{t('home.heroTitle')}</h1>
-    <p class="hero-copy">{t('home.heroCopy')}</p>
-    <div class="hero-actions">
-      <a class="btn btn-primary" href={localizePath('/work/landscape/', locale)}>{t('home.viewWork')}</a>
-      <a class="btn" href={localizePath('/contact/', locale)}>{t('home.bookSession')}</a>
+  <section class="hero">
+    {heroPhotos.length > 0 && (
+      <div class="hero-media" aria-hidden="true">
+        {heroPhotos.map((photo, index) => {
+          const full = photoVariant(photo.data.photo, 'full');
+          return (
+            <img
+              src={full.src}
+              srcset={photoSrcSet(photo.data.photo, HERO_SRCSET)}
+              sizes="100vw"
+              width={full.width}
+              height={full.height}
+              alt=""
+              class:list={{ 'is-active': index === 0 }}
+              loading={index === 0 ? 'eager' : 'lazy'}
+              fetchpriority={index === 0 ? 'high' : undefined}
+              decoding="async"
+            />
+          );
+        })}
+        <div class="hero-scrim"></div>
+      </div>
+    )}
+    <div class="wrap hero-content">
+      <p class="eyebrow">{t('site.tagline')}</p>
+      <h1>{t('home.heroTitle')}</h1>
+      <p class="hero-copy">{t('home.heroCopy')}</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href={localizePath('/work/landscape/', locale)}>{t('home.viewWork')}</a>
+        <a class="btn" href={localizePath('/contact/', locale)}>{t('home.bookSession')}</a>
+      </div>
     </div>
   </section>
 
@@ -109,17 +138,53 @@ const covers = sortedCategories.map((category) => {
 
 <style>
   .hero {
-    padding-block: var(--space-5) var(--space-4);
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    min-height: 88svh;
+    overflow: hidden;
+  }
+
+  .hero-media {
+    position: absolute;
+    inset: 0;
+  }
+
+  .hero-media img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 2.5s ease;
+  }
+
+  .hero-media img.is-active {
+    opacity: 1;
+  }
+
+  .hero-scrim {
+    position: absolute;
+    inset: 0;
+    /* Strongest where the text sits (bottom-left), fading out toward the top so the photo itself
+       still reads clearly higher up. */
+    background: linear-gradient(to top, rgba(10, 10, 9, 0.92) 15%, rgba(10, 10, 9, 0.45) 60%, rgba(10, 10, 9, 0.55));
+  }
+
+  .hero-content {
+    position: relative;
+    padding-block: var(--space-6) var(--space-5);
     max-width: 760px;
   }
 
   .hero h1 {
-    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-size: clamp(2.2rem, 6vw, 4rem);
     margin-block: 0.5rem 1rem;
   }
 
   .hero-copy {
-    font-size: 1.05rem;
+    font-size: 1.1rem;
     max-width: 56ch;
   }
 
@@ -131,12 +196,12 @@ const covers = sortedCategories.map((category) => {
   }
 
   .section {
-    padding-block: var(--space-4);
+    padding-block: var(--space-6);
   }
 
   .section h2 {
-    margin-bottom: var(--space-3);
-    font-size: 1.5rem;
+    margin-bottom: var(--space-4);
+    font-size: 1.7rem;
   }
 
   .category-grid {
@@ -145,3 +210,11 @@ const covers = sortedCategories.map((category) => {
     gap: var(--space-3);
   }
 </style>
+
+<script>
+  import { initHeroCrossfade } from '../../lib/hero-crossfade';
+
+  // Not a direct top-level call: this script is bundled to one stable URL, so the browser's module
+  // cache only ever evaluates it once per tab — see the fuller explanation in Header.astro's script.
+  document.addEventListener('astro:page-load', () => initHeroCrossfade(document));
+</script>
