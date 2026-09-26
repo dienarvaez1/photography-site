@@ -22,7 +22,8 @@
     "openPhoto": "Open photo: {title}",
     "close": "Close",
     "previous": "Previous photo",
-    "next": "Next photo"
+    "next": "Next photo",
+    "counter": "{current} of {total}"
   },
   "categories": {
     "real-estate": {

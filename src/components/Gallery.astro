@@ -34,9 +34,11 @@ const tiles = photos.map((photo, index) => ({
     <button
       type="button"
       class="tile"
+      data-id={tile.data.photo.id}
       data-full={tile.full.src}
       data-caption={tile.title}
       data-title={tile.title}
+      data-camera={tile.data.camera ?? ''}
       aria-label={t('gallery.openPhoto', { title: tile.title })}
     >
       <img
@@ -68,14 +70,18 @@ const tiles = photos.map((photo, index) => ({
   role="dialog"
   aria-modal="true"
   aria-labelledby="lightbox-caption"
+  data-counter-template={t('gallery.counter')}
   hidden
 >
   <button type="button" class="lightbox-close" id="lightbox-close" aria-label={t('gallery.close')}>&times;</button>
   <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label={t('gallery.previous')}>&#8249;</button>
   <figure class="lightbox-figure">
     <img id="lightbox-img" alt="" src={BLANK_IMAGE} />
-    <figcaption id="lightbox-caption"></figcaption>
+    <figcaption id="lightbox-caption">
+      <span id="lightbox-title"></span><span id="lightbox-camera"></span>
+    </figcaption>
   </figure>
+  <p class="lightbox-counter" id="lightbox-counter" aria-hidden="true"></p>
   <button type="button" class="lightbox-nav lightbox-next" id="lightbox-next" aria-label={t('gallery.next')}>&#8250;</button>
 </div>
 
@@ -153,8 +159,10 @@ const tiles = photos.map((photo, index) => ({
     inset: 0;
     z-index: 100;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: var(--space-1);
     background: rgba(6, 6, 7, 0.94);
     padding: var(--space-3);
   }
@@ -183,6 +191,27 @@ const tiles = photos.map((photo, index) => ({
   .lightbox-figure figcaption {
     color: var(--fg-muted);
     font-size: 0.9rem;
+    text-align: center;
+  }
+
+  #lightbox-title {
+    color: var(--fg);
+  }
+
+  #lightbox-camera {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.8rem;
+  }
+
+  #lightbox-camera:empty {
+    display: none;
+  }
+
+  .lightbox-counter {
+    margin: 0;
+    color: var(--fg-muted);
+    font-size: 0.8rem;
     text-align: center;
   }
 
@@ -238,70 +267,123 @@ const tiles = photos.map((photo, index) => ({
   // event), each time against that page's own fresh tiles/lightbox, so re-querying and
   // re-attaching on every firing is what keeps the gallery working after a client-routed
   // navigation. See Header.astro's script for the fuller explanation.
+  // The URL holds the open photo's id as ?photo=<id> (deep-linkable and shareable), synced both
+  // ways: opening pushes/replaces it, and a page loaded with it already set (including a fresh
+  // load, before any click) opens straight to that photo. This never goes through Astro's own
+  // navigate() — the whole point is to stay on this page, not fetch/swap it — so it manipulates
+  // `history` directly instead, always with a `null` state. Astro's own popstate handler explicitly
+  // ignores a `null` state (its documented way of marking a history entry it doesn't own), so this
+  // never confuses its separate index-based bookkeeping for real page-to-page transitions.
+  const PHOTO_PARAM = 'photo';
+
+  function urlWithPhoto(id: string | null): string {
+    const url = new URL(location.href);
+    if (id) url.searchParams.set(PHOTO_PARAM, id);
+    else url.searchParams.delete(PHOTO_PARAM);
+    return `${url.pathname}${url.search}${url.hash}`;
+  }
+
   let removeKeydown: (() => void) | null = null;
+  let removePopstate: (() => void) | null = null;
 
   function initGallery(root: Document | HTMLElement) {
-    // `document` persists across transitions; without removing the previous page's handler first,
-    // each navigation would stack another keydown listener that still (harmlessly, but wastefully)
-    // matches against whichever lightbox is currently live — worse, a stacked Escape/Arrow handler
-    // would fire once per navigation visited so far, advancing the photo more than one step per key.
+    // `document`/`window` persist across transitions; without removing the previous page's
+    // handlers first, each navigation would stack another one that still (harmlessly, but
+    // wastefully) matches against whichever lightbox is currently live — worse, a stacked
+    // Escape/Arrow handler would fire once per navigation visited so far, advancing the photo more
+    // than one step per key.
     removeKeydown?.();
     removeKeydown = null;
+    removePopstate?.();
+    removePopstate = null;
 
     const tiles = Array.from(root.querySelectorAll<HTMLButtonElement>('.tile'));
     if (!tiles.length) return;
 
     const lightbox = document.getElementById('lightbox') as HTMLDivElement | null;
     const img = document.getElementById('lightbox-img') as HTMLImageElement | null;
-    const caption = document.getElementById('lightbox-caption');
+    const titleEl = document.getElementById('lightbox-title');
+    const cameraEl = document.getElementById('lightbox-camera');
+    const counterEl = document.getElementById('lightbox-counter');
     const closeBtn = document.getElementById('lightbox-close');
     const prevBtn = document.getElementById('lightbox-prev');
     const nextBtn = document.getElementById('lightbox-next');
-    if (!lightbox || !img || !caption) return;
+    const figure = lightbox?.querySelector('.lightbox-figure') as HTMLElement | null;
+    if (!lightbox || !img || !titleEl || !cameraEl) return;
 
+    const counterTemplate = lightbox.dataset.counterTemplate ?? '';
     let currentIndex = 0;
+    let currentScale = 1;
     let lastFocused: HTMLElement | null = null;
 
-    function show(index: number) {
+    function resetZoom() {
+      currentScale = 1;
+      img!.style.transform = '';
+    }
+
+    // `history` mode: 'push' for a fresh open (a new dialog interaction worth a Back step),
+    // 'replace' for moving to a different photo while already open (so Back doesn't step through
+    // every photo visited), 'none' when only syncing the UI to a URL that's already correct
+    // (initial load, or reacting to the browser's own back/forward).
+    function show(index: number, history_: 'push' | 'replace' | 'none') {
       const total = tiles.length;
       currentIndex = (index + total) % total;
       const tile = tiles[currentIndex];
       img!.src = tile.dataset.full ?? '';
       img!.alt = tile.dataset.title ?? '';
-      caption!.textContent = tile.dataset.caption ?? '';
+      titleEl!.textContent = tile.dataset.caption ?? '';
+      cameraEl!.textContent = tile.dataset.camera ? ` — ${tile.dataset.camera}` : '';
+      if (counterEl) counterEl.textContent = counterTemplate.replace('{current}', String(currentIndex + 1)).replace('{total}', String(total));
+      resetZoom();
+      if (history_ === 'push') history.pushState(null, '', urlWithPhoto(tile.dataset.id ?? null));
+      else if (history_ === 'replace') history.replaceState(null, '', urlWithPhoto(tile.dataset.id ?? null));
     }
 
-    function open(index: number) {
+    function open(index: number, history_: 'push' | 'none') {
       lastFocused = document.activeElement as HTMLElement;
-      show(index);
+      show(index, history_);
       lightbox!.hidden = false;
       document.body.style.overflow = 'hidden';
       closeBtn?.focus();
     }
 
-    function close() {
+    function close(history_: 'replace' | 'none') {
       lightbox!.hidden = true;
       document.body.style.overflow = '';
       lastFocused?.focus();
+      if (history_ === 'replace') history.replaceState(null, '', urlWithPhoto(null));
+    }
+
+    // Reacts to the browser's own Back/Forward buttons: the URL has already changed by the time
+    // this fires, so this only ever syncs the UI to match it, never touches `history` itself.
+    function syncToUrl() {
+      const id = new URLSearchParams(location.search).get(PHOTO_PARAM);
+      const index = id ? tiles.findIndex((tile) => tile.dataset.id === id) : -1;
+      if (index >= 0) {
+        if (lightbox!.hidden) open(index, 'none');
+        else show(index, 'none');
+      } else if (!lightbox!.hidden) {
+        close('none');
+      }
     }
 
     tiles.forEach((tile, index) => {
-      tile.addEventListener('click', () => open(index));
+      tile.addEventListener('click', () => open(index, 'push'));
     });
 
-    closeBtn?.addEventListener('click', close);
-    prevBtn?.addEventListener('click', () => show(currentIndex - 1));
-    nextBtn?.addEventListener('click', () => show(currentIndex + 1));
+    closeBtn?.addEventListener('click', () => close('replace'));
+    prevBtn?.addEventListener('click', () => show(currentIndex - 1, 'replace'));
+    nextBtn?.addEventListener('click', () => show(currentIndex + 1, 'replace'));
 
     lightbox.addEventListener('click', (event) => {
-      if (event.target === lightbox) close();
+      if (event.target === lightbox) close('replace');
     });
 
     const onKeydown = (event: KeyboardEvent) => {
       if (lightbox.hidden) return;
-      if (event.key === 'Escape') close();
-      if (event.key === 'ArrowLeft') show(currentIndex - 1);
-      if (event.key === 'ArrowRight') show(currentIndex + 1);
+      if (event.key === 'Escape') close('replace');
+      if (event.key === 'ArrowLeft') show(currentIndex - 1, 'replace');
+      if (event.key === 'ArrowRight') show(currentIndex + 1, 'replace');
 
       if (event.key === 'Tab') {
         const focusable = [closeBtn, prevBtn, nextBtn].filter(
@@ -321,6 +403,54 @@ const tiles = photos.map((photo, index) => ({
     };
     document.addEventListener('keydown', onKeydown);
     removeKeydown = () => document.removeEventListener('keydown', onKeydown);
+
+    window.addEventListener('popstate', syncToUrl);
+    removePopstate = () => window.removeEventListener('popstate', syncToUrl);
+
+    // --- touch: swipe left/right between photos, pinch to zoom the open photo -------------------
+    let gesture: 'swipe' | 'pinch' | 'none' = 'none';
+    let swipeStartX = 0;
+    let swipeStartY = 0;
+    let pinchStartDistance = 0;
+
+    const touchDistance = (a: Touch, b: Touch) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+
+    figure?.addEventListener('touchstart', (event) => {
+      if (event.touches.length === 2) {
+        gesture = 'pinch';
+        pinchStartDistance = touchDistance(event.touches[0], event.touches[1]);
+      } else if (event.touches.length === 1 && currentScale <= 1) {
+        gesture = 'swipe';
+        swipeStartX = event.touches[0].clientX;
+        swipeStartY = event.touches[0].clientY;
+      } else {
+        gesture = 'none';
+      }
+    }, { passive: true });
+
+    figure?.addEventListener('touchmove', (event) => {
+      if (gesture !== 'pinch' || event.touches.length !== 2) return;
+      // Stops the whole page from also pinch-zooming while the photo does.
+      event.preventDefault();
+      const scale = touchDistance(event.touches[0], event.touches[1]) / pinchStartDistance;
+      currentScale = Math.min(4, Math.max(1, scale));
+      img!.style.transform = currentScale > 1 ? `scale(${currentScale})` : '';
+    }, { passive: false });
+
+    figure?.addEventListener('touchend', (event) => {
+      if (gesture === 'swipe' && event.changedTouches.length === 1) {
+        const dx = event.changedTouches[0].clientX - swipeStartX;
+        const dy = event.changedTouches[0].clientY - swipeStartY;
+        // Mostly horizontal and far enough to be a deliberate swipe, not an incidental wobble.
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) show(currentIndex + (dx < 0 ? 1 : -1), 'replace');
+      }
+      if (event.touches.length === 0) gesture = 'none';
+    });
+
+    // A page freshly loaded (or arrived at via a client-routed transition) with ?photo=<id>
+    // already in its URL opens straight to that photo — including with JS present but before any
+    // click, since this runs as part of the same initGallery() call that wires up the tiles above.
+    syncToUrl();
   }
 
   document.addEventListener('astro:page-load', () => initGallery(document));

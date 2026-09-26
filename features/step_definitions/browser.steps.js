@@ -2,7 +2,7 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { AxeBuilder } from '@axe-core/playwright';
-import { ROOT, listBuiltRoutes, listNotFoundRoutes, loadMessages } from '../support/lib.js';
+import { ROOT, listBuiltRoutes, listNotFoundRoutes, loadContentEntries, loadMessages } from '../support/lib.js';
 import { open, useDevice } from '../support/browser.js';
 
 const photos = await import(join(ROOT, 'src/config/photos.ts'));
@@ -125,7 +125,11 @@ When('I click the dark background of the lightbox', async function () {
 });
 
 const captionOfTile = (world, n) => tile(world, n).getAttribute('data-caption');
-const shownCaption = (world) => page(world).locator('#lightbox-caption').textContent();
+// The title only: #lightbox-caption also holds the camera line (#lightbox-camera), a separate
+// element so this comparison — and the aria-label / focus-restoration checks that reuse
+// captionOfTile() — stay about the title alone.
+const shownCaption = (world) => page(world).locator('#lightbox-title').textContent();
+const shownCamera = (world) => page(world).locator('#lightbox-camera').textContent();
 
 Then('the lightbox should be open showing photo number {int} of the page', async function (n) {
   await page(this).waitForSelector('#lightbox:not([hidden])');
@@ -143,6 +147,106 @@ Then('the lightbox should show the last photo of the page', async function () {
 
 Then('the lightbox photo should be the full-size version', async function () {
   assert.match(await page(this).locator('#lightbox-img').getAttribute('src'), /\/full\.webp$/);
+});
+
+Then('the lightbox should show photo number {int}\'s camera line', async function (n) {
+  const camera = await tile(this, n).getAttribute('data-camera');
+  assert.ok(camera, `photo number ${n} has no camera info to check against`);
+  assert.ok((await shownCamera(this)).includes(camera), `camera line missing or wrong: ${await shownCamera(this)}`);
+});
+
+Then('the lightbox should show it is photo {int} of {int}', async function (current, total) {
+  const { gallery } = loadMessages(await htmlLang(this));
+  const expected = gallery.counter.replace('{current}', String(current)).replace('{total}', String(total));
+  assert.equal(await page(this).locator('#lightbox-counter').textContent(), expected);
+});
+
+Then('the address should have a {string} parameter', async function (name) {
+  assert.ok(new URL(page(this).url()).searchParams.has(name), page(this).url());
+});
+
+Then('the address should have no {string} parameter', async function (name) {
+  assert.ok(!new URL(page(this).url()).searchParams.has(name), page(this).url());
+});
+
+// Finds the real id of the photo at this position in this category — same order Gallery.astro
+// renders them in (work/[category].astro sorts by `order`) — without a UI round-trip first, so a
+// deep link can be opened completely fresh, the way following a shared link would work.
+function idOfPhotoInCategory(category, position) {
+  const inCategory = loadContentEntries()
+    .map((e) => e.frontmatter)
+    .filter((f) => f.category === category)
+    .sort((a, b) => a.order - b.order);
+  return inCategory[position - 1]?.photo?.id;
+}
+
+When('I open the direct link to photo number {int} of {string}', async function (n, path) {
+  const category = path.replace(/^\/(es\/)?work\/|\/$/g, '');
+  const id = idOfPhotoInCategory(category, n);
+  assert.ok(id, `no photo number ${n} in category "${category}"`);
+  await goto(this, `${path}?photo=${id}`);
+});
+
+// Playwright has no built-in swipe/pinch helper (only tap()), so multi-touch gestures are
+// dispatched as synthetic Touch/TouchEvent sequences directly on the lightbox's figure, matching
+// how a real touchscreen's events look to the page's own touchstart/touchmove/touchend listeners.
+async function dispatchTouchSequence(world, steps) {
+  await page(world).locator('.lightbox-figure').evaluate((figure, steps_) => {
+    let nextId = 0;
+    const idOf = new Map();
+    for (const step of steps_) {
+      const list = step.points.map((p, i) => {
+        if (!idOf.has(i)) idOf.set(i, nextId++);
+        return new Touch({ identifier: idOf.get(i), target: figure, clientX: p.x, clientY: p.y });
+      });
+      const ended = step.phase === 'end';
+      figure.dispatchEvent(new TouchEvent(`touch${step.phase}`, {
+        touches: ended ? [] : list,
+        targetTouches: ended ? [] : list,
+        changedTouches: list,
+        bubbles: true,
+        cancelable: true,
+      }));
+    }
+  }, steps);
+}
+
+When(/^I swipe (left|right) on the lightbox photo$/, async function (direction) {
+  const dx = direction === 'left' ? -140 : 140;
+  const [x, y] = [200, 400];
+  await dispatchTouchSequence(this, [
+    { phase: 'start', points: [{ x, y }] },
+    { phase: 'move', points: [{ x: x + dx / 2, y }] },
+    { phase: 'end', points: [{ x: x + dx, y }] },
+  ]);
+});
+
+When(/^I pinch (out|in) on the lightbox photo$/, async function (direction) {
+  const [cx, cy] = [200, 400];
+  const [startGap, endGap] = direction === 'out' ? [40, 200] : [200, 20];
+  const points = (gap) => [{ x: cx - gap / 2, y: cy }, { x: cx + gap / 2, y: cy }];
+  await dispatchTouchSequence(this, [
+    { phase: 'start', points: points(startGap) },
+    { phase: 'move', points: points((startGap + endGap) / 2) },
+    { phase: 'move', points: points(endGap) },
+    { phase: 'end', points: points(endGap) },
+  ]);
+});
+
+const lightboxImgScale = async (world) =>
+  page(world).locator('#lightbox-img').evaluate((el) => {
+    const t = getComputedStyle(el).transform;
+    if (t === 'none') return 1;
+    // A 2D matrix() transform's first value is the horizontal scale.
+    return Number(t.match(/matrix\(([^,]+),/)?.[1] ?? 1);
+  });
+
+Then('the lightbox photo should appear zoomed', async function () {
+  assert.ok((await lightboxImgScale(this)) > 1.5, await lightboxImgScale(this));
+});
+
+Then('the lightbox photo should not appear zoomed', async function () {
+  assert.equal(await lightboxImgScale(this), 1);
 });
 
 Then('the lightbox should be closed', async function () {
