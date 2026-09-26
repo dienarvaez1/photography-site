@@ -161,6 +161,7 @@ Feature: The Admin page's New Photo form adds a photo from its own metadata, in 
       placeholderColor: "<placeholderColor>"
       featured: false
       order: 5
+      addedAt: "<addedAt>"
       ---
       """
     And the private originals bucket should hold 1 object

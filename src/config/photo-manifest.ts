@@ -32,6 +32,16 @@ export interface PhotoData {
   placeholderColor?: string;
   featured: boolean;
   order: number;
+  /**
+   * When this entry was added, as an ISO 8601 timestamp — set once, when the photo is first added
+   * (see `addPhoto` in scripts/lib/photos.mjs), and never changed by `photos:replace`, which swaps
+   * the photo but not when the entry itself joined the site. Optional so an entry from before this
+   * field existed still validates; a category page's "Newest" sort falls back to `order` for one
+   * without it (there's no reliable way to recover a real timestamp after the fact — unlike
+   * `placeholderColor`, which is always re-derivable from the photo itself, so that one field does
+   * get a `photos:colors` backfill command and this one doesn't).
+   */
+  addedAt?: string;
 }
 
 /** An entry as the pages use it: `id` is unique across the site (`<category>/<photo id>`). */
@@ -68,6 +78,7 @@ export function problemWith(entry: unknown): string | null {
   if (data.titles !== undefined && (!isObject(data.titles) || Object.values(data.titles).some((t) => typeof t !== 'string'))) return 'has invalid titles';
   if (data.camera !== undefined && typeof data.camera !== 'string') return 'has an invalid camera line';
   if (data.placeholderColor !== undefined && (typeof data.placeholderColor !== 'string' || !/^#[0-9a-f]{6}$/i.test(data.placeholderColor))) return 'has an invalid placeholder color';
+  if (data.addedAt !== undefined && (typeof data.addedAt !== 'string' || Number.isNaN(Date.parse(data.addedAt)))) return 'has an invalid added-at time';
   if (typeof data.featured !== 'boolean') return 'has no featured flag';
   if (typeof data.order !== 'number' || !Number.isFinite(data.order)) return 'has no order';
   return null;

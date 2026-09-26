@@ -138,6 +138,7 @@ Feature: The New Photo form adds a photo from what the photo itself says
       placeholderColor: "<placeholderColor>"
       featured: false
       order: 3
+      addedAt: "<addedAt>"
       ---
       """
     And the entry "astro/half-moon" should be stored as "astro/images" named after its photo id
@@ -160,7 +161,7 @@ Feature: The New Photo form adds a photo from what the photo itself says
       | category | astro     |
       | featured | true      |
     Then the entry "astro/half-moon" should be featured
-    And the entry "astro/half-moon" should only have these fields: title, category, photo, placeholderColor, featured, order
+    And the entry "astro/half-moon" should only have these fields: title, category, photo, placeholderColor, featured, order, addedAt
 
   Scenario: The camera line typed into the form replaces the one in the photo
     Given a photo file "moon.jpg" of 1200x700 with EXIF:

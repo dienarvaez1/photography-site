@@ -94,3 +94,21 @@ export function photoVariant(
 ): { src: string; width: number; height: number } {
   return { src: `${baseUrl}/${photoKey(photo.id, variant)}`, ...variantSize(photo, variant) };
 }
+
+/**
+ * The justified gallery's tile shapes (Gallery.astro): a fixed, small set of CSS classes, one per
+ * aspect ratio rounded to the nearest tenth from 0.4 to 2.6 — a per-photo inline style isn't
+ * allowed (see the fuller explanation in Gallery.astro), and one flex-grow gallery can't tell the
+ * difference between e.g. a 1.52 and a 1.5 ratio anyway. Shared between the server-rendered
+ * template and the category page's client-side category switcher, which builds the same tiles
+ * from fetched data instead of server-rendered props.
+ */
+export const RATIO_STEP = 0.1;
+export const RATIO_MIN = 0.4;
+export const RATIO_MAX = 2.6;
+
+export function ratioClass(ratio: number): string {
+  const clamped = Math.min(RATIO_MAX, Math.max(RATIO_MIN, ratio));
+  const bucket = Math.round(clamped / RATIO_STEP);
+  return `ratio-${bucket}`;
+}

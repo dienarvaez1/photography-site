@@ -225,7 +225,14 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
 
 - **`lightbox.feature`** — opening moves focus into the dialog; Escape closes and returns focus;
   arrow keys wrap around; Tab and Shift+Tab stay inside; backdrop and buttons close; page scroll is
-  locked while open; Spanish labels; works on a phone.
+  locked while open; Spanish labels; works on a phone; the deep-linkable `?photo=` address (opening
+  it, reloading it, a direct shared link, the Back button, history not growing per photo); swipe
+  between photos and pinch-to-zoom on a phone.
+- **`category-switcher.feature`** — clicking another category on a category page swaps the grid in
+  place (no full-page navigation, the manifest fetched once), relabels the page, and updates the
+  address; the Back button returns to the previous category; the sort control reorders the photos
+  without touching the address, and is hidden without JavaScript rather than shown inert; works in
+  Spanish; the lightbox still works on a category switched to client-side.
 - **`navigation.feature`** — the mobile menu opens and collapses (Escape returns focus to its
   button); the Work submenu; keyboard tab order; the dropdown on keyboard focus; the skip link; the
   active page is marked; works in Spanish.
@@ -798,8 +805,9 @@ than a large screen (`photoSrcSet` never lists the same width twice for small ph
 gallery photos load eagerly (the first with high priority); the rest lazily. Every image declares its
 width and height so the page can't jump while loading; the header logos are right-sized (the small
 icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
-24 KB, styles 25 KB — most of the 24 KB is Astro's View Transitions runtime itself; the Admin pages,
-which carry the results viewer and are opened only by you, may have 48 KB of scripts). If you change `PHOTO_VARIANTS`, run
+26 KB, styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
+page's client-side category switcher; the Admin pages, which carry the results viewer and are opened
+only by you, may have 48 KB of scripts). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 
 ## Deployment to Cloudflare Pages (free)
@@ -868,6 +876,7 @@ src/
 │   └── BaseLayout.astro
 └── pages/
     ├── robots.txt.ts   # generated from SITE.url
+    ├── api/photos.json.ts # every category's photos, same-origin (the category switcher can't read R2 directly: no CORS)
     └── [...lang]/      # one file serves both / and /es/
         ├── index.astro, about.astro, contact.astro, 404.astro
         └── work/[category].astro   # generates /work/<slug>/ for every category

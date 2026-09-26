@@ -19,6 +19,7 @@ const ALLOWED_FRONTMATTER_FIELDS = new Set([
   'placeholderColor',
   'featured',
   'order',
+  'addedAt',
 ]);
 
 /** Recursively find every *.md file under a directory. */

@@ -28,9 +28,18 @@ const photos = defineCollection({
     // The camera line shown on the gallery, read from the photo's EXIF when it is added
     // (`npm run photos:add`). No copyright, dates, GPS or serial numbers are stored.
     camera: z.string().optional(),
+    // The photo's average color as `#rrggbb`, computed once at ingest time (see photo-manifest.ts's
+    // own copy of this field for the fuller explanation — this schema must accept the same fields
+    // R2's manifest does, or a real entry's data silently loses them when read from this collection).
+    placeholderColor: z
+      .string()
+      .regex(/^#[0-9a-f]{6}$/i)
+      .optional(),
     featured: z.boolean().default(false),
     // Lower numbers sort first within a category; ties fall back to date desc.
     order: z.number().default(0),
+    // When this entry was added (see photo-manifest.ts's own copy of this field).
+    addedAt: z.iso.datetime().optional(),
   }),
 });
 

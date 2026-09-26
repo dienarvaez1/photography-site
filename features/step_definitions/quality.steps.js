@@ -145,7 +145,7 @@ function referencedBytes(root, pattern, attribute, extraImports = false) {
   return total;
 }
 
-Then("no page's HTML should exceed 30 KB, its scripts 24 KB, or its styles 25 KB, except that the Admin pages' scripts may reach 48 KB", function () {
+Then("no page's HTML should exceed 30 KB, its scripts 26 KB, or its styles 25 KB, except that the Admin pages' scripts may reach 48 KB", function () {
   const problems = [];
   for (const { route, page } of this.data.pages) {
     const html = Buffer.byteLength(page.html);
@@ -154,10 +154,12 @@ Then("no page's HTML should exceed 30 KB, its scripts 24 KB, or its styles 25 KB
     const css = referencedBytes(page.root, 'link[rel="stylesheet"]', 'href') + inlineCss;
     if (kb(html) > 30) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
     // Astro's <ClientRouter/> runtime (View Transitions) alone is ~16 KB raw, which is why this
-    // budget is no longer 10/30 KB — see the redesign plan's Phase 2 notes. It's still meaningfully
-    // capped, and still rules out any off-the-shelf gallery library, which is the point of having
-    // it at all. The Admin pages carry the results viewer; nobody but the owner loads them.
-    if (kb(js) > (/\/admin\/$/.test(route) ? 48 : 24)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
+    // budget is no longer 10/30 KB — see the redesign plan's Phase 2 notes. Category pages need a
+    // little more still, for the client-side category switcher (Phase 6: fetches photos/index.json,
+    // filters/sorts and rebuilds the grid in place). It's still meaningfully capped, and still rules
+    // out any off-the-shelf gallery or filter library, which is the point of having it at all. The
+    // Admin pages carry the results viewer; nobody but the owner loads them.
+    if (kb(js) > (/\/admin\/$/.test(route) ? 48 : 26)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
     if (kb(css) > 25) problems.push(`${route}: styles ${kb(css).toFixed(1)} KB`);
   }
   assert.deepEqual(problems, [], 'A page grew past its budget — check for an oversized script, style or inlined asset');

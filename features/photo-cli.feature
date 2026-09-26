@@ -101,7 +101,7 @@ Feature: Photo command line places entries consistently
     And the entry "nature/all-options" should have the camera line "Custom Camera"
     And the entry "nature/all-options" should still have order 3
     And the entry "nature/all-options" should be featured
-    And the entry "nature/all-options" should only have these fields: title, titles, category, photo, camera, placeholderColor, featured, order
+    And the entry "nature/all-options" should only have these fields: title, titles, category, photo, camera, placeholderColor, featured, order, addedAt
 
   Scenario Outline: Options that no longer exist are rejected and nothing is created
     Given a photo file "sunset.jpg" of 1200x800
@@ -134,7 +134,7 @@ Feature: Photo command line places entries consistently
     When I run the command: add tagged.jpg --category nature --title "Tagged"
     Then the command should succeed
     And the entry "nature/tagged" should have the camera line "Nikon Z 7 · 140mm · ISO 110"
-    And the entry "nature/tagged" should only have these fields: title, category, photo, camera, placeholderColor, featured, order
+    And the entry "nature/tagged" should only have these fields: title, category, photo, camera, placeholderColor, featured, order, addedAt
 
   Scenario: A camera line can be set when replacing from the command line
     Given a photo file "one.jpg" of 900x600

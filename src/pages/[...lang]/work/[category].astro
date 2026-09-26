@@ -5,12 +5,16 @@ import { CATEGORIES } from '../../../config/categories';
 import { photoVariant } from '../../../config/photos';
 import { notFound } from '../../../lib/not-found';
 import { getPhotos } from '../../../lib/photo-entries';
+import en from '../../../i18n/en.json';
+import es from '../../../i18n/es.json';
 import {
   getLocale,
   getLocalizedCategory,
   getPhotoTitle,
+  getSortedVisibleCategories,
   isLangParam,
   localeStaticParams,
+  localizePath,
   useTranslations,
 } from '../../../i18n';
 
@@ -29,6 +33,19 @@ const photos = (await getPhotos()).filter((p) => p.data.category === slug).sort(
 // Share this category's first photo when the page is linked on social media / messaging apps.
 const first = photos[0];
 const share = first ? photoVariant(first.data.photo, 'full') : undefined;
+
+// Every other visible category, for the on-page filter bar: clicking one is a real link (works
+// with no JS, exactly like the header's Work dropdown), progressively enhanced by the script below
+// to swap the grid in place instead of navigating. `data-categories` carries what the script needs
+// to relabel the page for a category it wasn't server-rendered for — just the small amount of
+// per-category text (label, description), not the photos themselves (those come from the manifest,
+// fetched separately — see the script).
+const sortedCategories = getSortedVisibleCategories(locale);
+const categoriesData = JSON.stringify(sortedCategories.map((c) => ({ slug: c.slug, label: c.label, description: c.description })));
+// The one string the script needs to build a tile's aria-label for a photo it fetched itself,
+// rather than pulling in the whole i18n module (with both locales' full message trees) into the
+// client bundle just for this.
+const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
 ---
 
 <BaseLayout
@@ -41,26 +58,328 @@ const share = first ? photoVariant(first.data.photo, 'full') : undefined;
 >
   <section class="wrap header">
     <p class="eyebrow">{t('work.eyebrow')}</p>
-    <h1>{category.label}</h1>
-    <p>{category.description}</p>
+    <h1 id="work-heading">{category.label}</h1>
+    <p id="work-description">{category.description}</p>
   </section>
 
+  <div class="wrap controls">
+    {/* A group of links, not a `<nav>`: the header already has the site's one navigation landmark,
+        and axe-core's unique-landmark rule wants every `<nav>` on a page distinctly named — these
+        pills are a content-level filter for the gallery below, not a second section of the site to
+        navigate, so `role="group"` names them without adding a second landmark. */}
+    <div
+      class="category-filter"
+      id="category-filter"
+      role="group"
+      aria-label={t('work.filterLabel')}
+      data-categories={categoriesData}
+      data-open-photo-template={openPhotoTemplate}
+    >
+      {sortedCategories.map((c) =>
+        c.slug === slug ? (
+          <span class="filter-pill is-current" data-slug={c.slug} aria-current="page">{c.label}</span>
+        ) : (
+          <a class="filter-pill" data-slug={c.slug} href={localizePath(`/work/${c.slug}/`, locale)}>{c.label}</a>
+        )
+      )}
+    </div>
+
+    {/* Hidden until the script reveals it: a sort control that does nothing without JS is worse
+        than no control at all. */}
+    <div class="sort-control" id="gallery-controls" hidden>
+      <label for="gallery-sort">{t('work.sortLabel')}</label>
+      <select id="gallery-sort">
+        <option value="order">{t('work.sortCurated')}</option>
+        <option value="newest">{t('work.sortNewest')}</option>
+      </select>
+    </div>
+  </div>
+
   <section class="wrap section">
-    {photos.length > 0 ? (
-      <Gallery photos={photos} />
-    ) : (
-      <p>{t('work.empty')}</p>
-    )}
+    <p id="empty-message" class="empty-message" hidden={photos.length > 0}>{t('work.empty')}</p>
+    <Gallery photos={photos} />
   </section>
 </BaseLayout>
 
-<style>
+<style is:global>
+  /* Global, not Astro's default scoped CSS: the category switcher script below rebuilds the pills
+     (and reveals the sort control) with document.createElement(), and elements built that way never
+     get the data-astro-cid attribute scoped CSS selectors require — see the longer explanation in
+     Gallery.astro's own <style> block, which has the identical reason. Every class/id here
+     (.category-filter, .filter-pill, .sort-control, #gallery-controls, #gallery-sort, …) is specific
+     to this page, so nothing else on the site can collide with it.
+  */
   .header {
     padding-block: var(--space-4) var(--space-2);
     max-width: 700px;
   }
 
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+
+  .category-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .filter-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    text-decoration: none;
+    color: var(--fg-muted);
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+
+  a.filter-pill:hover {
+    border-color: var(--accent);
+    color: var(--fg);
+  }
+
+  .filter-pill.is-current {
+    border-color: var(--accent);
+    color: var(--fg);
+  }
+
+  .sort-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+  }
+
+  /* Without this, the class rule's own `display: flex` above (a higher-specificity selector than
+     the UA stylesheet's own `[hidden] { display: none }`) would win and show it anyway. */
+  .sort-control[hidden] {
+    display: none;
+  }
+
+  .sort-control select {
+    min-height: 36px;
+    padding: 0.3rem 0.6rem;
+    background: var(--bg-elevated);
+    color: var(--fg);
+    border: 1px solid var(--field-border);
+    border-radius: var(--radius);
+    font: inherit;
+  }
+
   .section {
     padding-block: var(--space-3) var(--space-5);
   }
+
+  .empty-message[hidden] {
+    display: none;
+  }
 </style>
+
+<script>
+  import type { ManifestEntry } from '../../../config/photo-manifest';
+  import { THUMB_SRCSET, photoSrcSet, photoVariant, ratioClass } from '../../../config/photos';
+  import { DEFAULT_LOCALE } from '../../../i18n/config';
+
+  // The site's own origin, not R2 directly: the public web bucket sends no
+  // Access-Control-Allow-Origin header, so a cross-origin fetch() to it is blocked by CORS (unlike
+  // an <img src>, which isn't subject to that check). This endpoint re-serves getPhotos() same-origin
+  // — see src/pages/api/photos.json.ts.
+  const PHOTOS_API_URL = '/api/photos.json';
+  const EAGER_TILES = 3;
+  type SortMode = 'order' | 'newest';
+
+  const localizePath = (path: string, locale: string) => (locale === DEFAULT_LOCALE ? path : `/${locale}${path}`);
+  const photoTitle = (data: { title: string; titles?: Record<string, string> }, locale: string) => data.titles?.[locale] ?? data.title;
+  const categorySlugFromPath = (pathname: string) => pathname.match(/\/work\/([a-z0-9-]+)\/?$/)?.[1] ?? null;
+  // A lighter check than photo-manifest.ts's own problemWith() — worth its own copy here (not an
+  // import) for the bytes: this is the manifest the server itself just wrote and already validated
+  // that way when it rendered this very page, not untrusted input, so the client only needs to
+  // rule out an entry it would otherwise crash on (a missing size breaks ratioClass()'s division).
+  const isUsable = (e: unknown): e is ManifestEntry => {
+    const entry = e as { category?: unknown; data?: { photo?: { id?: unknown; width?: unknown; height?: unknown } } };
+    return Boolean(entry.category && entry.data?.photo?.id && entry.data.photo.width && entry.data.photo.height);
+  };
+
+  // Every category's photos, for this page's filter/sort to switch between — fetched at most once
+  // per tab (module-cache reasoning: see Header.astro's script), reused for every switch after that.
+  let entriesPromise: Promise<ManifestEntry[]> | null = null;
+  function fetchManifestEntries(): Promise<ManifestEntry[]> {
+    entriesPromise ??= fetch(PHOTOS_API_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`${PHOTOS_API_URL}: ${response.status}`);
+        return response.json();
+      })
+      .then((entries) => (Array.isArray(entries) ? entries.filter(isUsable) : []))
+      .catch((error) => {
+        entriesPromise = null; // a network hiccup shouldn't permanently break later switches
+        throw error;
+      });
+    return entriesPromise;
+  }
+
+  // A minimal DOM builder, local to this script (not a shared import — the whole point is bytes):
+  // a tag name, plain IDL properties (className, textContent, etc.) and children. `dataset` needs
+  // its own merge, not a plain assignment — it's a getter-only accessor, so `Object.assign(node,
+  // { dataset })` would try to replace it outright and throw.
+  function el<K extends keyof HTMLElementTagNameMap>(tag: K, { dataset, ...props }: Record<string, unknown> & { dataset?: Record<string, string> }, ...children: (Node | string)[]): HTMLElementTagNameMap[K] {
+    const node = document.createElement(tag);
+    Object.assign(node, props);
+    if (dataset) Object.assign(node.dataset, dataset);
+    node.append(...children);
+    return node;
+  }
+
+  function buildTile(entry: ManifestEntry, locale: string, openPhotoTemplate: string, index: number): HTMLButtonElement {
+    const thumb = photoVariant(entry.data.photo, 'thumb');
+    const full = photoVariant(entry.data.photo, 'full');
+    const title = photoTitle(entry.data, locale);
+    const camera = entry.data.camera;
+
+    const img = el('img', {
+      src: thumb.src, width: thumb.width, height: thumb.height,
+      srcset: photoSrcSet(entry.data.photo, THUMB_SRCSET), sizes: '(max-width: 600px) 100vw, 350px',
+      alt: title, loading: index < EAGER_TILES ? 'eager' : 'lazy', decoding: 'async',
+    });
+    const caption = el('span', { className: 'tile-caption' },
+      el('span', { className: 'tile-title', textContent: title }),
+      ...(camera ? [el('span', { className: 'tile-meta' }, el('span', { className: 'meta-row', textContent: camera }))] : [])
+    );
+    const button = el('button', {
+      type: 'button',
+      className: `tile ${ratioClass(entry.data.photo.width / entry.data.photo.height)}`,
+      dataset: { id: entry.data.photo.id, full: full.src, caption: title, title, camera: camera ?? '', placeholder: entry.data.placeholderColor ?? '' },
+    }, img, caption);
+    button.setAttribute('aria-label', openPhotoTemplate.replace('{title}', title));
+    return button;
+  }
+
+  function sortEntries(entries: ManifestEntry[], mode: SortMode): ManifestEntry[] {
+    return [...entries].sort((a, b) =>
+      mode === 'newest'
+        ? Date.parse(b.data.addedAt ?? '') - Date.parse(a.data.addedAt ?? '') || a.data.order - b.data.order
+        : a.data.order - b.data.order
+    );
+  }
+
+  let removePopstate: (() => void) | null = null;
+
+  function initCategorySwitcher(root: Document | HTMLElement) {
+    removePopstate?.();
+    removePopstate = null;
+
+    const filterNav = root.querySelector<HTMLElement>('#category-filter');
+    const galleryEl = root.querySelector<HTMLElement>('.gallery');
+    const controls = root.querySelector<HTMLElement>('#gallery-controls');
+    const sortSelect = root.querySelector<HTMLSelectElement>('#gallery-sort');
+    const headingEl = root.querySelector<HTMLElement>('#work-heading');
+    const descriptionEl = root.querySelector<HTMLElement>('#work-description');
+    const emptyMessageEl = root.querySelector<HTMLElement>('#empty-message');
+    if (!filterNav || !galleryEl || !headingEl || !descriptionEl || !emptyMessageEl) return;
+
+    const categories: { slug: string; label: string; description: string }[] = JSON.parse(filterNav.dataset.categories ?? '[]');
+    const openPhotoTemplate = filterNav.dataset.openPhotoTemplate ?? '{title}';
+    const locale = document.documentElement.lang || DEFAULT_LOCALE;
+
+    let currentSlug = categorySlugFromPath(location.pathname) ?? categories[0]?.slug;
+    let currentSort: SortMode = 'order';
+
+    function renderPills(activeSlug: string) {
+      filterNav!.innerHTML = '';
+      for (const c of categories) {
+        if (c.slug === activeSlug) {
+          const span = document.createElement('span');
+          span.className = 'filter-pill is-current';
+          span.dataset.slug = c.slug;
+          span.setAttribute('aria-current', 'page');
+          span.textContent = c.label;
+          filterNav!.append(span);
+        } else {
+          const a = document.createElement('a');
+          a.className = 'filter-pill';
+          a.dataset.slug = c.slug;
+          a.href = localizePath(`/work/${c.slug}/`, locale);
+          a.addEventListener('click', onPillClick);
+          a.textContent = c.label;
+          filterNav!.append(a);
+        }
+      }
+    }
+
+    // Returns whether it actually updated anything: the pills and the URL (below) must stay exactly
+    // as they were, not half-switched to a category whose photos never arrived, when this fails.
+    async function renderCategory(slug: string, sort: SortMode): Promise<boolean> {
+      const category = categories.find((c) => c.slug === slug);
+      if (!category) return false;
+      let entries: ManifestEntry[];
+      try {
+        entries = await fetchManifestEntries();
+      } catch {
+        return false; // offline or the manifest is unreachable: stay on whatever is already shown
+      }
+      const filtered = sortEntries(entries.filter((e) => e.category === slug), sort);
+
+      headingEl!.textContent = category.label;
+      descriptionEl!.textContent = category.description;
+      emptyMessageEl!.hidden = filtered.length > 0;
+      galleryEl!.innerHTML = '';
+      filtered.forEach((entry, index) => galleryEl!.append(buildTile(entry, locale, openPhotoTemplate, index)));
+      // Gallery.astro's own script owns the lightbox and blur-up placeholders; this just tells it
+      // the tiles it already knows about were replaced (see the fuller explanation in its script).
+      document.dispatchEvent(new Event('gallery:refresh'));
+      return true;
+    }
+
+    function onPillClick(event: MouseEvent) {
+      // A modified click (new tab, etc.) should behave like a normal link, not a client-side swap.
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      const slug = (event.currentTarget as HTMLElement).dataset.slug;
+      if (!slug || slug === currentSlug) return;
+      event.preventDefault();
+      switchTo(slug, 'push');
+    }
+
+    async function switchTo(slug: string, history_: 'push' | 'replace' | 'none') {
+      const ok = await renderCategory(slug, currentSort);
+      if (!ok) return; // leave the pills, the URL and the page exactly as they were
+      currentSlug = slug;
+      renderPills(slug);
+      const url = localizePath(`/work/${slug}/`, locale);
+      if (history_ === 'push') history.pushState(null, '', url);
+      else if (history_ === 'replace') history.replaceState(null, '', url);
+    }
+
+    // Reacts to the browser's own Back/Forward buttons: the URL has already changed by the time
+    // this fires, so this only ever syncs the UI to match it, never touches `history` itself.
+    function onPopState() {
+      const slug = categorySlugFromPath(location.pathname);
+      if (slug && slug !== currentSlug && categories.some((c) => c.slug === slug)) switchTo(slug, 'none');
+    }
+    window.addEventListener('popstate', onPopState);
+    removePopstate = () => window.removeEventListener('popstate', onPopState);
+
+    filterNav.querySelectorAll<HTMLAnchorElement>('a.filter-pill').forEach((a) => a.addEventListener('click', onPillClick));
+
+    if (controls && sortSelect) {
+      controls.hidden = false;
+      sortSelect.addEventListener('change', () => {
+        currentSort = sortSelect.value === 'newest' ? 'newest' : 'order';
+        renderCategory(currentSlug, currentSort);
+      });
+    }
+
+    // Warms the cache so the first actual switch is instant, without blocking anything above.
+    fetchManifestEntries().catch(() => {});
+  }
+
+  document.addEventListener('astro:page-load', () => initCategorySwitcher(document));
+</script>

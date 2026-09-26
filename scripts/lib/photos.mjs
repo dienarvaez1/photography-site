@@ -141,7 +141,7 @@ export async function listEntries(contentDir) {
   return entries;
 }
 
-const FIELD_ORDER = ['title', 'titles', 'category', 'photo', 'camera', 'placeholderColor', 'featured', 'order'];
+const FIELD_ORDER = ['title', 'titles', 'category', 'photo', 'camera', 'placeholderColor', 'featured', 'order', 'addedAt'];
 
 /** YAML lines for `key: value`; nested objects become an indented block (no trailing space after the key). */
 function yamlLines(key, value, indent) {
@@ -245,6 +245,10 @@ export async function addPhoto({ source, category, title, titleEs, camera, order
     placeholderColor,
     featured,
     order,
+    // When this entry joined the site, not the photo's own EXIF capture date (never stored — see
+    // the policy notes elsewhere in this file). Set once, here, and never touched by replacePhoto:
+    // swapping an entry's photo doesn't change when the entry itself was added.
+    addedAt: new Date().toISOString(),
   });
   await publish?.();
   if (!keepSource) {

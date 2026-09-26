@@ -73,7 +73,11 @@
   },
   "work": {
     "eyebrow": "Portafolio",
-    "empty": "Aún no hay fotos en esta categoría. Vuelve pronto."
+    "empty": "Aún no hay fotos en esta categoría. Vuelve pronto.",
+    "filterLabel": "Categorías",
+    "sortLabel": "Ordenar por",
+    "sortCurated": "Orden curado",
+    "sortNewest": "Más recientes primero"
   },
   "about": {
     "title": "Sobre mí",

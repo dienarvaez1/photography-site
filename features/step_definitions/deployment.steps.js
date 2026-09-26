@@ -270,7 +270,9 @@ Then('the Content-Security-Policy should forbid plugins, framing and foreign bas
 });
 
 Then('the Content-Security-Policy should allow the photo host configured in the site', function () {
-  assert.ok(csp()['img-src'].includes(new URL(photos.PHOTOS_BASE_URL).origin), 'img-src must list the R2 host from src/config/photos.ts');
+  const policy = csp();
+  const origin = new URL(photos.PHOTOS_BASE_URL).origin;
+  assert.ok(policy['img-src'].includes(origin), 'img-src must list the R2 host from src/config/photos.ts');
 });
 
 Then("the Content-Security-Policy should allow the contact form's API in connect-src and form-action", function () {
@@ -311,11 +313,13 @@ Then('every external address the built pages and scripts load should be allowed 
       if (/^https?:/.test(url) && origin(url) !== new URL(site.url).origin) problems.push(`${route}: script/style from ${origin(url)}`);
     }
   }
-  // Addresses the scripts fetch at runtime.
+  // Addresses the scripts fetch at runtime — or, for the category page's client-built <img> tags
+  // (work/[category].astro), only ever assign to img.src/srcset, which img-src governs, not
+  // connect-src; either directive allowing an address means the built JS won't hit a CSP wall.
   const dir = join(DIST_DIR, '_astro');
   for (const file of readdirSync(dir).filter((f) => f.endsWith('.js'))) {
     for (const url of readFileSync(join(dir, file), 'utf-8').match(/https:\/\/[a-z0-9.-]+\.[a-z]{2,}[^\s"'`)]*/gi) ?? []) {
-      if (!allowed('connect-src').has(origin(url)) && !url.includes('w3.org') && !url.includes('reactjs.org')) problems.push(`${file}: ${origin(url)}`);
+      if (!allowed('connect-src').has(origin(url)) && !allowed('img-src').has(origin(url)) && !url.includes('w3.org') && !url.includes('reactjs.org')) problems.push(`${file}: ${origin(url)}`);
     }
   }
   assert.deepEqual([...new Set(problems)], [], 'The policy would block these');

@@ -9,6 +9,11 @@ import { asR2Binding } from './r2-binding.js';
 import { publishRuns } from './results-fixtures.js';
 import { fakeOriginals } from './originals-fixtures.js';
 
+// The category page's client-side category switcher (Phase 6) fetches /api/photos.json from the
+// site's own origin (see src/pages/api/photos.json.ts) — a real route the snapshot build already
+// generates from the same sample library every other offline scenario tests against, so it needs no
+// mocking of its own: it's just another same-origin file the static server (below) serves as built.
+
 // The results API is the real Worker code answering from a fake bucket of really-published runs, so the
 // browser tests cover the actual contract between the publisher, the API and the Admin page.
 const { handle: handleResultsRequest } = await import(join(ROOT, 'workers/results-api/src/index.mjs'));
@@ -70,6 +75,8 @@ Before({ tags: '@browser' }, function () {
     photoService: null,
     traceRequests: 0,
     photoRequests: [],
+    manifestRequests: [],
+    pageRequests: [],
     blocked: [],
     consoleErrors: [],
     context: null,
@@ -163,6 +170,13 @@ export async function open(world) {
         return route.fulfill({ status: 200, contentType: 'text/plain', body: `fl=1\n${b.trace}\ntls=TLSv1.3\n` });
       }
       if (b.imageDelayMs && /\.(png|webp|jpg)$/.test(url.pathname)) await new Promise((r) => setTimeout(r, b.imageDelayMs));
+      // Every real page navigation on this origin — the category switcher (Phase 6) is supposed to
+      // swap categories with fetch() + history.pushState, never a real navigation, so a scenario
+      // can check this stayed at exactly one entry (the page's own initial load).
+      if (request.isNavigationRequest()) b.pageRequests.push(url.pathname);
+      // The category switcher's own manifest fetch (same-origin: see src/pages/api/photos.json.ts) —
+      // no mocking needed, just noting it happened; route.continue() below serves the real built file.
+      if (url.pathname === '/api/photos.json') b.manifestRequests.push(request.url());
       return route.continue();
     }
     if (/\.r2\.dev$/.test(url.hostname)) {

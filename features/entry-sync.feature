@@ -108,6 +108,24 @@ Feature: The photo entries live in R2, and the local folder is only a mirror
     Then the command should succeed
     And the manifest entry "nature/swap" should have a placeholder color close to the color of "two.jpg"
 
+  # --- Added-at (the category page's "Newest" sort) --------------------------------------------------------------------------------
+
+  Scenario: Adding a photo records when it joined the site
+    Given a photo file "moon.jpg" of 1200x700
+    When I run the command: add moon.jpg --category astro --title "Half Moon"
+    Then the command should succeed
+    And the manifest entry "astro/half-moon" should carry the same data as the local entry
+    And the manifest entry "astro/half-moon" should have an added-at time close to now
+
+  Scenario: Replacing a photo does not change when the entry itself was added
+    Given a photo file "one.jpg" of 900x600
+    And a photo file "two.jpg" of 950x600
+    When I run the command: add one.jpg --category nature --title "Swap"
+    And I remember the added-at time of "nature/swap"
+    And I run the command: replace "Swap" two.jpg
+    Then the command should succeed
+    And the manifest entry "nature/swap" should have the remembered added-at time
+
   # --- Pulling -------------------------------------------------------------------------------------------------------------------------
 
   Scenario: A fresh folder gets every entry from R2, as the same text the tools write
@@ -194,6 +212,7 @@ Feature: The photo entries live in R2, and the local folder is only a mirror
       | an order that is missing            | has no order                |
       | a size that is missing              | has no valid photo          |
       | a placeholder color that is invalid | has an invalid placeholder color |
+      | an added-at time that is invalid    | has an invalid added-at time     |
 
   Scenario: An entry that cannot be published is refused with the reason
     Given an entry "astro/legacy" with no photo id
