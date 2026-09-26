@@ -584,6 +584,13 @@ Then('every page and both error pages should pass the automated accessibility au
   const problems = [];
   for (const route of await everyRoute()) {
     const p = await goto(this, route);
+    // Fraunces (the self-hosted display font) uses font-display: swap, so `load` can resolve before
+    // it has actually swapped in — a heading briefly sized/positioned by its fallback font, then
+    // reflowing once Fraunces arrives. Scanning mid-reflow is a real, seen-in-CI source of flaky
+    // color-contrast false positives (a stale box sampled after the swap shifted it), worse on a
+    // slower/more loaded CI runner than a local machine; waiting for every font the page asked for
+    // removes the race instead of chasing whichever element it happens to land on next.
+    await p.evaluate(() => document.fonts.ready);
     const { violations } = await new AxeBuilder({ page: p }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
     for (const v of violations) problems.push(`${route}: ${v.id} (${v.impact}) x${v.nodes.length} — ${v.help} — ${v.nodes[0].target.join(' ')}`);
   }
