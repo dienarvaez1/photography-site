@@ -237,6 +237,12 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   locked while open; Spanish labels; works on a phone; the deep-linkable `?photo=` address (opening
   it, reloading it, a direct shared link, the Back button, history not growing per photo); swipe
   between photos and pinch-to-zoom on a phone.
+- **`gallery-layout.feature`** — a category with only one photo doesn't stretch its tile far past its
+  own shape: Gallery.astro's justified rows use flex-grow to fill a row's width, and a narrow
+  (portrait-oriented) tile sharing a mostly-empty row used to be stretched several times past its own
+  width before object-fit: cover cropped it down to size, cropping away most of a photo (a portrait's
+  subject, often its head) to fill the now much wider box; checked across a narrow, a square-ish and
+  two wide ratios, each alone in its category.
 - **`category-switcher.feature`** — clicking another category on a category page swaps the grid in
   place (no full-page navigation, the manifest fetched once), relabels the page, and updates the
   address; the Back button returns to the previous category; the sort control reorders the photos
