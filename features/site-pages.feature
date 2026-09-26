@@ -124,6 +124,17 @@ Feature: Site pages render correctly (English and Spanish)
       | /     |
       | /es/  |
 
+  Scenario Outline: The homepage hero only ever shows landscape or cityscape photos, in monochrome
+    Given all photo content entries
+    When I load the built page "<route>"
+    Then every hero photo should be from the landscape or cityscape category
+    And the hero photos should be shown in monochrome
+
+    Examples:
+      | route |
+      | /     |
+      | /es/  |
+
   Scenario: The footer shows the current copyright year on every page
     When I load every built page
     Then the footer on every page should show the current year

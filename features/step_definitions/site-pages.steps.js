@@ -1,7 +1,9 @@
 import { When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  DIST_DIR,
   listBuiltRoutes,
   listNotFoundRoutes,
   listDistRoutes,
@@ -244,4 +246,32 @@ Then('each category card should use the first photo of its category as the cover
     const src = card.querySelector('img')?.getAttribute('src') ?? null;
     assert.equal(src, first ? photos.photoVariant(first.frontmatter.photo, 'cover').src : null, `${category.slug}: cover image`);
   }
+});
+
+const HERO_CATEGORIES = new Set(['landscape', 'cityscape']);
+
+Then('every hero photo should be from the landscape or cityscape category', function () {
+  const heroImgs = this.data.page.root.querySelectorAll('.hero-media img');
+  assert.ok(heroImgs.length > 0, 'expected at least one hero photo');
+  for (const img of heroImgs) {
+    const src = img.getAttribute('src');
+    const entry = this.data.entries.find((e) => photos.photoVariant(e.frontmatter.photo, 'full').src === src);
+    assert.ok(entry, `no photo content entry matches hero image src ${src}`);
+    assert.ok(HERO_CATEGORIES.has(entry.frontmatter.category), `hero photo "${entry.frontmatter.title}" is from category "${entry.frontmatter.category}", not landscape/cityscape`);
+  }
+});
+
+/** Every built CSS file's text, concatenated (small enough here to read fresh each call). */
+function allBuiltCss() {
+  const dir = join(DIST_DIR, '_astro');
+  return readdirSync(dir).filter((f) => f.endsWith('.css')).map((f) => readFileSync(join(dir, f), 'utf-8')).join('\n');
+}
+
+Then('the hero photos should be shown in monochrome', function () {
+  const css = allBuiltCss();
+  // Astro's scoped CSS inserts a data-astro-cid attribute selector between .hero-media and img; the
+  // minifier normalizes grayscale(1) to grayscale() (the CSS spec default is already 100%).
+  const rule = css.match(/\.hero-media(?:\[[^\]]*\])?\s+img[^{]*\{([^}]*)\}/)?.[1] ?? '';
+  assert.ok(rule, 'no .hero-media img rule in the built CSS');
+  assert.match(rule, /filter:\s*grayscale\(1?\)/);
 });
