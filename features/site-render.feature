@@ -48,7 +48,7 @@ Feature: The site renders its photo pages from R2 when they are requested
     When I request "/"
     Then the site should answer 200
     And the page should list these photos, in this order: "Rockfish, Orion Nebula"
-    And the category cards should show these covers: "Astrophotography: Half Moon, Nature: Rockfish, Other: Street Market, Public Events: Quinceañera"
+    And the category cards should show these covers: "Astrophotography: Half Moon, Nature: Rockfish, Public Events: Quinceañera"
 
   Scenario: A category with no photos says so, and a hidden category is still a page
     When I request "/work/pets/"

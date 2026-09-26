@@ -16,7 +16,9 @@ export const CATEGORIES: Category[] = [
   { slug: 'pets' },
   { slug: 'nature' },
   { slug: 'events' },
-  { slug: 'other' },
+  // Hidden from nav and the homepage grid at the owner's request; the category, its page and its
+  // photos otherwise work exactly as before — a direct link to /work/other/ still shows them.
+  { slug: 'other', hidden: true },
   { slug: 'cityscape' },
   { slug: 'abstract' },
   // Permanently hidden: never linked from the nav or the homepage grid, on purpose. It has no photos, so it keeps
