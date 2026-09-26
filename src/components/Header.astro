@@ -21,6 +21,27 @@ const alternates = getAlternates(Astro.url.pathname);
 
 <header class="site-header">
   <div class="wrap bar">
+    {/* Its own top-left corner, outside <nav>: always visible, even with the mobile menu collapsed. */}
+    <div class="lang-switcher" role="group" aria-label={t('nav.language')}>
+      {alternates.map((alt) =>
+        alt.current ? (
+          <span class="lang-current" lang={alt.locale} aria-current="true" title={LOCALE_INFO[alt.locale].name}>
+            {LOCALE_INFO[alt.locale].short}
+          </span>
+        ) : (
+          <a
+            href={alt.path}
+            lang={alt.locale}
+            hreflang={alt.locale}
+            title={LOCALE_INFO[alt.locale].name}
+            aria-label={LOCALE_INFO[alt.locale].name}
+          >
+            {LOCALE_INFO[alt.locale].short}
+          </a>
+        )
+      )}
+    </div>
+
     <a href={localizePath('/', locale)} class="brand">
       <img src="/logo.png" width="800" height="231" alt={SITE.author} class="brand-logo" fetchpriority="high" decoding="async" />
       <img src="/aperture-logo.png" width="240" height="244" alt="" class="aperture-logo" decoding="async" />
@@ -60,25 +81,6 @@ const alternates = getAlternates(Astro.url.pathname);
         {t('nav.contact')}
       </a>
       {/* The Admin page is deliberately not linked here: it stays reachable directly at /admin/, just not advertised. */}
-      <div class="lang-switcher" role="group" aria-label={t('nav.language')}>
-        {alternates.map((alt) =>
-          alt.current ? (
-            <span class="lang-current" lang={alt.locale} aria-current="true" title={LOCALE_INFO[alt.locale].name}>
-              {LOCALE_INFO[alt.locale].short}
-            </span>
-          ) : (
-            <a
-              href={alt.path}
-              lang={alt.locale}
-              hreflang={alt.locale}
-              title={LOCALE_INFO[alt.locale].name}
-              aria-label={LOCALE_INFO[alt.locale].name}
-            >
-              {LOCALE_INFO[alt.locale].short}
-            </a>
-          )
-        )}
-      </div>
     </nav>
   </div>
 </header>
@@ -145,11 +147,11 @@ const alternates = getAlternates(Astro.url.pathname);
   .lang-switcher {
     --lang-switch: #ffe600;
     --lang-switch-hover: #fff27a;
+    grid-column: 1;
+    justify-self: start;
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    padding-left: var(--space-3);
-    border-left: 1px solid var(--border);
     font-size: 0.85rem;
     letter-spacing: 0.05em;
   }
@@ -308,12 +310,6 @@ const alternates = getAlternates(Astro.url.pathname);
 
     .nav-group {
       padding: var(--space-2) var(--space-3);
-      border-top: 1px solid var(--border);
-    }
-
-    .lang-switcher {
-      padding: var(--space-2) var(--space-3);
-      border-left: none;
       border-top: 1px solid var(--border);
     }
 

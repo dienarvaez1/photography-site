@@ -35,12 +35,12 @@ Feature: The navigation works on phones and with the keyboard
     When I open "/"
     Then tabbing through the page should reach these in order:
       | skip link     |
+      | Español       |
       | home          |
       | Work          |
       | each category |
       | About         |
       | Contact       |
-      | Español       |
 
   Scenario: The skip link appears when focused and jumps to the main content
     When I open "/about/"

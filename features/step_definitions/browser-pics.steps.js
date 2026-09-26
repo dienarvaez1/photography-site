@@ -504,6 +504,10 @@ Then('the thumbnail of the 21st photo of the list should not have been requested
 });
 
 When('I scroll to the end of the list', async function () {
+  // Right after signing in, the list is still an async fetch away: scrolling before it (and the sentinel the
+  // IntersectionObserver watches) exist would scroll a much shorter page, leaving the real bottom - once the
+  // list renders - outside the observer's rootMargin, so it would never fire. Wait for real rows first.
+  await panel(this).locator('.pics-list').waitFor({ state: 'visible', timeout: 8000 });
   const before = await rows(this).count();
   await page(this).evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   // The next page is drawn once the end is near; give it a moment (the last scroll of a scenario has nothing more to draw).
