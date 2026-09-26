@@ -196,9 +196,14 @@ Then('the entry {string} should only have these fields: {}', async function (ref
 });
 
 Then('the entry {string} should look like this, with the id filled in:', async function (ref, expected) {
-  const { photo } = await readEntry(this, ref);
+  const { photo, placeholderColor } = await readEntry(this, ref);
   const actual = await readFile(await entryFile(this, ref), 'utf-8');
-  assert.equal(actual.trimEnd(), expected.replace('<id>', photo.id).trimEnd());
+  // The placeholder color is computed from the photo's actual pixels (see analyzePhoto in
+  // photos.mjs); this scenario is about the entry's overall shape and style, not that value, so
+  // it's filled in the same way <id> is rather than hardcoded (and possibly JPEG-drifted) in the
+  // Gherkin.
+  const withValues = expected.replace('<id>', photo.id).replace('<placeholderColor>', placeholderColor);
+  assert.equal(actual.trimEnd(), withValues.trimEnd());
 });
 
 Then('the category folder {string} should contain only the folder {string}', async function (category, folder) {

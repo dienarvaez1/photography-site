@@ -91,6 +91,23 @@ Feature: The photo entries live in R2, and the local folder is only a mirror
     And the manifest entry "astro/half-moon" should carry the same data as the local entry
     And the manifest entry "astro/half-moon" should have the camera line "Nikon Z 8"
 
+  # --- Placeholder color (the justified gallery's blur-up stand-in) ----------------------------------------------------------------
+
+  Scenario: Adding a photo computes and publishes its placeholder color
+    Given a photo file "moon.jpg" of 1200x700
+    When I run the command: add moon.jpg --category astro --title "Half Moon"
+    Then the command should succeed
+    And the manifest entry "astro/half-moon" should carry the same data as the local entry
+    And the manifest entry "astro/half-moon" should have a placeholder color close to the color of "moon.jpg"
+
+  Scenario: Replacing a photo recomputes its placeholder color from the new photo
+    Given a photo file "one.jpg" of 900x600
+    And a photo file "two.jpg" of 950x600
+    When I run the command: add one.jpg --category nature --title "Swap"
+    And I run the command: replace "Swap" two.jpg
+    Then the command should succeed
+    And the manifest entry "nature/swap" should have a placeholder color close to the color of "two.jpg"
+
   # --- Pulling -------------------------------------------------------------------------------------------------------------------------
 
   Scenario: A fresh folder gets every entry from R2, as the same text the tools write
@@ -171,11 +188,12 @@ Feature: The photo entries live in R2, and the local folder is only a mirror
     And the error output should mention "<message>"
 
     Examples:
-      | what                       | message                     |
-      | a title that is missing    | has no title                |
-      | a photo id that is invalid | has no valid photo id       |
-      | an order that is missing   | has no order                |
-      | a size that is missing     | has no valid photo          |
+      | what                                | message                     |
+      | a title that is missing             | has no title                |
+      | a photo id that is invalid          | has no valid photo id       |
+      | an order that is missing            | has no order                |
+      | a size that is missing              | has no valid photo          |
+      | a placeholder color that is invalid | has an invalid placeholder color |
 
   Scenario: An entry that cannot be published is refused with the reason
     Given an entry "astro/legacy" with no photo id

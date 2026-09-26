@@ -135,6 +135,7 @@ Feature: The New Photo form adds a photo from what the photo itself says
         width: 1200
         height: 700
       camera: "Nikon Z 8 · NIKKOR Z 100-400mm f/4.5-5.6 VR S + TC-2.0x · 800mm · f/11 · 1/125s · ISO 640"
+      placeholderColor: "<placeholderColor>"
       featured: false
       order: 3
       ---
@@ -159,7 +160,7 @@ Feature: The New Photo form adds a photo from what the photo itself says
       | category | astro     |
       | featured | true      |
     Then the entry "astro/half-moon" should be featured
-    And the entry "astro/half-moon" should only have these fields: title, category, photo, featured, order
+    And the entry "astro/half-moon" should only have these fields: title, category, photo, placeholderColor, featured, order
 
   Scenario: The camera line typed into the form replaces the one in the photo
     Given a photo file "moon.jpg" of 1200x700 with EXIF:

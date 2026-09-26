@@ -68,7 +68,7 @@ Feature: The camera line is built from each photo's EXIF, and nothing else is st
       | ISOSpeedRatings | 110                          |
     When I add "nikon.jpg" to the category "nature" with the title "Bird"
     Then the entry "nature/bird" should have the camera line "Nikon Z 7 · NIKKOR Z 70-200mm f/2.8 VR S · 140mm · f/5.6 · 1/125s · ISO 110"
-    And the entry "nature/bird" should only have these fields: title, category, photo, camera, featured, order
+    And the entry "nature/bird" should only have these fields: title, category, photo, camera, placeholderColor, featured, order
 
   Scenario: An entry never gets an exif block or a copyright, whatever the JPEG contains
     Given a photo file "everything.jpg" of 900x600 with EXIF:
@@ -82,7 +82,7 @@ Feature: The camera line is built from each photo's EXIF, and nothing else is st
       | DateTimeOriginal | 2023:11:27 18:42:10          |
       | Copyright        | (C) Test Photographer        |
     When I add "everything.jpg" to the category "nature" with the title "Everything"
-    Then the entry "nature/everything" should only have these fields: title, category, photo, camera, featured, order
+    Then the entry "nature/everything" should only have these fields: title, category, photo, camera, placeholderColor, featured, order
     And the entry "nature/everything" should not contain "exif"
     And the entry "nature/everything" should not contain "copyright"
     And the entry "nature/everything" should not contain "Test Photographer"
@@ -135,7 +135,7 @@ Feature: The camera line is built from each photo's EXIF, and nothing else is st
     Given a photo file "bare.jpg" of 900x600
     When I add "bare.jpg" to the category "nature" with the title "Bare"
     Then the entry "nature/bare" should not have the field "camera"
-    And the entry "nature/bare" should only have these fields: title, category, photo, featured, order
+    And the entry "nature/bare" should only have these fields: title, category, photo, placeholderColor, featured, order
 
   Scenario: A photo whose EXIF holds only a copyright and a date gets no camera line
     Given a photo file "rights.jpg" of 900x600 with EXIF:
@@ -190,7 +190,7 @@ Feature: The camera line is built from each photo's EXIF, and nothing else is st
     And I have added "first.jpg" to the category "nature" with the title "Swap"
     When I replace the photo of "nature/swap" with "second.jpg"
     Then the entry "nature/swap" should have the camera line "Canon EOS R5 · 85mm · ISO 400"
-    And the entry "nature/swap" should only have these fields: title, category, photo, camera, featured, order
+    And the entry "nature/swap" should only have these fields: title, category, photo, camera, placeholderColor, featured, order
 
   Scenario: Replacing a photo can set the camera line explicitly
     Given a photo file "one.jpg" of 900x600 with EXIF:
@@ -218,7 +218,7 @@ Feature: The camera line is built from each photo's EXIF, and nothing else is st
     And I have added "before.jpg" to the category "nature" with the title "Leftovers"
     And the entry "nature/leftovers" has these leftover fields from an older version: exif, copyright
     When I replace the photo of "nature/leftovers" with "after.jpg"
-    Then the entry "nature/leftovers" should only have these fields: title, category, photo, featured, order
+    Then the entry "nature/leftovers" should only have these fields: title, category, photo, placeholderColor, featured, order
 
   # --- Filling in missing camera lines from R2 --------------------------------------
 
@@ -233,7 +233,7 @@ Feature: The camera line is built from each photo's EXIF, and nothing else is st
     When I fill in the missing camera lines
     Then filling should report 1 updated and 0 unchanged and no problems
     And the entry "nature/older" should have the camera line "Nikon Z 7 · 200mm · ISO 640"
-    And the entry "nature/older" should only have these fields: title, category, photo, camera, featured, order
+    And the entry "nature/older" should only have these fields: title, category, photo, camera, placeholderColor, featured, order
 
   Scenario: A camera line that is already there is never touched
     Given a photo file "hand.jpg" of 900x600 with EXIF:

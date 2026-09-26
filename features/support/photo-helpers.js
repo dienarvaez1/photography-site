@@ -62,6 +62,28 @@ function colourFor(name) {
   return { r: h & 255, g: (h >> 8) & 255, b: (h >> 16) & 255 };
 }
 
+/** The `placeholderColor` a solid-colour test fixture should analyze to (JPEG is lossy even on a
+ * flat colour, so callers compare with some tolerance rather than this exact string). */
+export function expectedPlaceholderColor(name) {
+  const { r, g, b } = colourFor(name);
+  return `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
+const hexToRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+/** Is `actual` (a `#rrggbb` placeholder color) close enough to `expected` to be "the same" colour,
+ * allowing for JPEG's lossiness even on a flat source colour? Throws with both values if not. */
+export function assertColorClose(actual, expected, assert) {
+  assert.match(actual, /^#[0-9a-f]{6}$/i, `"${actual}" is not a valid placeholder color`);
+  const [ar, ag, ab] = hexToRgb(actual);
+  const [er, eg, eb] = hexToRgb(expected);
+  const tolerance = 6;
+  assert.ok(
+    Math.abs(ar - er) <= tolerance && Math.abs(ag - eg) <= tolerance && Math.abs(ab - eb) <= tolerance,
+    `${actual} is not close to ${expected}`
+  );
+}
+
 // Where each EXIF tag lives in the file: IFD0 = main image, IFD2 = Exif sub-block, IFD3 = GPS.
 export const IFD = {
   Make: 'IFD0', Model: 'IFD0', Copyright: 'IFD0', Artist: 'IFD0',

@@ -43,7 +43,18 @@ export function contentId(buffer) {
   return createHash('sha256').update(buffer).digest('hex').slice(0, 16);
 }
 
-/** Reads a photo file: its content id and its size as displayed (EXIF rotation applied). */
+/**
+ * The photo's average color, as `#rrggbb`: a cheap stand-in for a blurred placeholder (one hex
+ * string instead of a second image payload) shown behind its gallery tile until the real thumbnail
+ * loads. Resizing to 1x1 has libvips average every pixel for us; orientation doesn't matter for an
+ * average, so this skips the `.rotate()` the real web variants need.
+ */
+export async function dominantColor(buffer) {
+  const { data } = await sharp(buffer).resize(1, 1, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true });
+  return `#${[data[0], data[1], data[2]].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Reads a photo file: its content id, its size as displayed (EXIF rotation applied), and its placeholder color. */
 export async function analyzePhoto(file) {
   const buffer = await readFile(file);
   const meta = await sharp(buffer).metadata();
@@ -54,6 +65,7 @@ export async function analyzePhoto(file) {
     id: contentId(buffer),
     width: rotated ? meta.height : meta.width,
     height: rotated ? meta.width : meta.height,
+    placeholderColor: await dominantColor(buffer),
   };
 }
 
@@ -129,7 +141,7 @@ export async function listEntries(contentDir) {
   return entries;
 }
 
-const FIELD_ORDER = ['title', 'titles', 'category', 'photo', 'camera', 'featured', 'order'];
+const FIELD_ORDER = ['title', 'titles', 'category', 'photo', 'camera', 'placeholderColor', 'featured', 'order'];
 
 /** YAML lines for `key: value`; nested objects become an indented block (no trailing space after the key). */
 function yamlLines(key, value, indent) {
@@ -214,7 +226,7 @@ export async function addPhoto({ source, category, title, titleEs, camera, order
   }
   if (!title) throw new Error('--title is required');
 
-  const { buffer, id, width, height } = await analyzePhoto(source);
+  const { buffer, id, width, height, placeholderColor } = await analyzePhoto(source);
   const file = entryPath(contentDir, category, id);
   if ((await listEntries(contentDir)).some((e) => e.file === file)) {
     throw new Error(`${file} already exists — this photo is already in "${category}" (use "photos:replace" to change an entry's photo)`);
@@ -230,6 +242,7 @@ export async function addPhoto({ source, category, title, titleEs, camera, order
     category,
     photo: { id, width, height },
     ...(cameraLine ? { camera: cameraLine } : {}),
+    placeholderColor,
     featured,
     order,
   });
@@ -252,7 +265,7 @@ export async function replacePhoto({ entryFile, source, camera, contentDir, stor
   if (!entry) throw new Error(`${entryFile} is not a photo entry`);
   const old = entry.data.photo;
 
-  const { buffer, id, width, height } = await analyzePhoto(source);
+  const { buffer, id, width, height, placeholderColor } = await analyzePhoto(source);
   const newFile = join(dirname(entryFile), `${id}.md`);
   if (newFile !== entryFile && (await listEntries(contentDir)).some((e) => e.file === newFile)) {
     throw new Error(`${newFile} already exists — that photo is already in this category`);
@@ -261,7 +274,7 @@ export async function replacePhoto({ entryFile, source, camera, contentDir, stor
   await uploadPhoto({ buffer, photo: { id, width, height }, storage, log });
 
   const cameraLine = camera ?? (await readCameraLine(buffer)) ?? entry.data.camera;
-  const data = { ...entry.data, photo: { id, width, height } };
+  const data = { ...entry.data, photo: { id, width, height }, placeholderColor };
   if (cameraLine) data.camera = cameraLine; else delete data.camera;
   await writeEntry(newFile, data, entry.body);
   if (newFile !== entryFile) await unlink(entryFile);
@@ -428,6 +441,42 @@ export async function fillCameraLines({ contentDir, storage, entryFiles, publish
     await writeEntry(entry.file, { ...rest, camera }, entry.body);
     updated.push(entry.file);
     log(`camera line added to ${basename(entry.file)}`);
+  }
+  if (updated.length) await publish?.();
+  return { updated, unchanged, problems };
+}
+
+/**
+ * Fills in a missing placeholder color from the entry's own `thumb` web variant (already public and
+ * small — no need for the private original just to average its pixels). An entry that already has
+ * one is never touched. Pass `entryFiles` to limit it to some entries. A one-off backfill for
+ * entries added before this field existed; every new photo gets one from `analyzePhoto` already.
+ * Returns { updated, unchanged, problems }.
+ */
+export async function fillPlaceholderColors({ contentDir, storage, entryFiles, publish, log = () => {} }) {
+  const updated = [];
+  const unchanged = [];
+  const problems = [];
+  for (const entry of await listEntries(contentDir)) {
+    if (entryFiles && !entryFiles.includes(entry.file)) continue;
+    if (typeof entry.data.placeholderColor === 'string' && entry.data.placeholderColor) {
+      unchanged.push(entry.file);
+      continue;
+    }
+    const photo = entry.data.photo;
+    if (!photo?.id || !PHOTO_ID_PATTERN.test(photo.id)) {
+      problems.push({ file: entry.file, message: 'has no valid photo.id' });
+      continue;
+    }
+    const thumb = await storage.web.get(photoKey(photo.id, 'thumb'));
+    if (!thumb) {
+      problems.push({ file: entry.file, message: 'thumb web size missing in R2 — cannot compute a placeholder color' });
+      continue;
+    }
+    const placeholderColor = await dominantColor(thumb);
+    await writeEntry(entry.file, { ...entry.data, placeholderColor }, entry.body);
+    updated.push(entry.file);
+    log(`placeholder color ${placeholderColor} added to ${basename(entry.file)}`);
   }
   if (updated.length) await publish?.();
   return { updated, unchanged, problems };

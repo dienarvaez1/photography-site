@@ -427,6 +427,7 @@ npm run photos:add -- ~/Desktop/rockfish.jpg --category nature --title "Rockfish
 npm run photos:replace -- rockfish ~/Desktop/rockfish-v2.jpg   # new photo; the entry moves to the new id
 npm run photos:remove  -- rockfish                             # entry + its R2 files
 npm run photos:camera                                          # fill in camera lines that are missing
+npm run photos:colors                                          # fill in placeholder colors that are missing
 npm run photos:verify                                          # is every entry's photo and entry file in R2?
 npm run photos:verify -- --deep                                # also re-download originals and check hashes
 npm run photos:sync                                            # rebuild missing web sizes from the original in R2
@@ -456,6 +457,9 @@ What keeps entry and R2 in sync:
 - **`photos:sync`** is the repair tool, e.g. after changing `PHOTO_VARIANTS` widths.
 - **`photos:camera`** fills in a *missing* camera line from the original in R2 (all entries, or one:
   `photos:camera rockfish`). An entry that already has a camera line is never touched.
+- **`photos:colors`** fills in a *missing* `placeholderColor` from the entry's own thumb size in R2
+  (all entries, or one). A one-off backfill for entries added before this field existed — every new
+  photo gets one from its own pixels when it's added, same as the camera line comes from its EXIF.
 - The same file added twice gets the same id, so uploads are idempotent and shared safely.
 
 ### Camera line

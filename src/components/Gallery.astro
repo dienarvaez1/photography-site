@@ -18,6 +18,24 @@ const BLANK_IMAGE = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABA
 // The first row is above the fold on most screens: load it right away, the rest lazily.
 const EAGER_TILES = 3;
 
+// The justified-row layout's tile widths (CSS, no JS — see the .tile rules below) need each
+// photo's own shape, but the strict policy this site holds itself to (features/deployment.feature)
+// forbids inline `style="..."` attributes, tighter than the CSP itself (which does allow
+// 'unsafe-inline' styles) — and a per-instance dynamic <style> tag isn't valid content in this
+// position either (html-validate: a <style> can't appear inside a <section>). So instead of a
+// continuous inline value, each photo's ratio is rounded to the nearest tenth and matched to one
+// of a fixed, small set of ordinary CSS classes (declared once, statically, below) — one flex-grow
+// gallery can't tell the difference between e.g. a 1.52 and a 1.5 aspect ratio.
+const RATIO_STEP = 0.1;
+const RATIO_MIN = 0.4;
+const RATIO_MAX = 2.6;
+
+function ratioClass(ratio: number): string {
+  const clamped = Math.min(RATIO_MAX, Math.max(RATIO_MIN, ratio));
+  const bucket = Math.round(clamped / RATIO_STEP);
+  return `ratio-${bucket}`;
+}
+
 // Photos live in R2; the URLs are derived from each entry's photo id (no network at build time).
 const tiles = photos.map((photo, index) => ({
   index,
@@ -26,6 +44,10 @@ const tiles = photos.map((photo, index) => ({
   full: photoVariant(photo.data.photo, 'full'),
   data: photo.data,
   title: getPhotoTitle(photo.data, locale),
+  // The photo's own shape, from its real dimensions — not the (rounded) thumb's. Falls back to a
+  // generic landscape shape if a photo somehow lacks real dimensions (problemWith() rejects that
+  // at ingest, so this is only ever a defensive fallback).
+  ratioClass: ratioClass(photo.data.photo.width && photo.data.photo.height ? photo.data.photo.width / photo.data.photo.height : 1.5),
 }));
 ---
 
@@ -33,12 +55,13 @@ const tiles = photos.map((photo, index) => ({
   {tiles.map((tile) => (
     <button
       type="button"
-      class="tile"
+      class:list={['tile', tile.ratioClass]}
       data-id={tile.data.photo.id}
       data-full={tile.full.src}
       data-caption={tile.title}
       data-title={tile.title}
       data-camera={tile.data.camera ?? ''}
+      data-placeholder={tile.data.placeholderColor ?? ''}
       aria-label={t('gallery.openPhoto', { title: tile.title })}
     >
       <img
@@ -86,9 +109,19 @@ const tiles = photos.map((photo, index) => ({
 </div>
 
 <style>
+  /* Justified-row gallery, in pure CSS: every tile gets its own photo's real aspect ratio
+     (--tile-ratio, an inline style set server-side) at a shared row height, and flex-wrap breaks
+     them into rows on its own. flex-grow then stretches each row's tiles to fill the leftover
+     width — not perfectly evenly per photo the way a real justified-layout algorithm would (a
+     row's slack is split equally across its tiles, not in proportion to each one's own ratio), but
+     object-fit: cover absorbs that small a mismatch as an ordinary crop, the same as it always has.
+     This needed no JavaScript specifically so it never resizes an already-rendered tile: an
+     earlier version computed exact rows in a script, and even run as early as technically
+     possible, that one-time resize was large enough to fail the layout-shift budget in
+     features/browser/security-and-performance.feature. */
   .gallery {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
   }
 
@@ -99,16 +132,62 @@ const tiles = photos.map((photo, index) => ({
     border: none;
     background: var(--bg-elevated);
     cursor: zoom-in;
-    aspect-ratio: 3 / 2;
     overflow: hidden;
     border-radius: var(--radius);
+    --row-height: 260px;
+    height: var(--row-height);
+    flex-grow: 1;
   }
+
+  @media (max-width: 640px) {
+    .tile {
+      --row-height: 200px;
+    }
+  }
+
+  /* One class per ratio bucket (a photo's width/height rounded to the nearest tenth — see
+     ratioClass() in the frontmatter above): flex-basis is this tile's natural width at the row's
+     current height, before flex-grow distributes any leftover row width across it and its
+     row-mates (see the .gallery/.tile comment above for what that trade-off means in practice). */
+  .ratio-4 { flex-basis: calc(var(--row-height) * 0.4); }
+  .ratio-5 { flex-basis: calc(var(--row-height) * 0.5); }
+  .ratio-6 { flex-basis: calc(var(--row-height) * 0.6); }
+  .ratio-7 { flex-basis: calc(var(--row-height) * 0.7); }
+  .ratio-8 { flex-basis: calc(var(--row-height) * 0.8); }
+  .ratio-9 { flex-basis: calc(var(--row-height) * 0.9); }
+  .ratio-10 { flex-basis: calc(var(--row-height) * 1.0); }
+  .ratio-11 { flex-basis: calc(var(--row-height) * 1.1); }
+  .ratio-12 { flex-basis: calc(var(--row-height) * 1.2); }
+  .ratio-13 { flex-basis: calc(var(--row-height) * 1.3); }
+  .ratio-14 { flex-basis: calc(var(--row-height) * 1.4); }
+  .ratio-15 { flex-basis: calc(var(--row-height) * 1.5); }
+  .ratio-16 { flex-basis: calc(var(--row-height) * 1.6); }
+  .ratio-17 { flex-basis: calc(var(--row-height) * 1.7); }
+  .ratio-18 { flex-basis: calc(var(--row-height) * 1.8); }
+  .ratio-19 { flex-basis: calc(var(--row-height) * 1.9); }
+  .ratio-20 { flex-basis: calc(var(--row-height) * 2.0); }
+  .ratio-21 { flex-basis: calc(var(--row-height) * 2.1); }
+  .ratio-22 { flex-basis: calc(var(--row-height) * 2.2); }
+  .ratio-23 { flex-basis: calc(var(--row-height) * 2.3); }
+  .ratio-24 { flex-basis: calc(var(--row-height) * 2.4); }
+  .ratio-25 { flex-basis: calc(var(--row-height) * 2.5); }
+  .ratio-26 { flex-basis: calc(var(--row-height) * 2.6); }
 
   .tile img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.4s ease;
+    transition: transform 0.4s ease, opacity 0.3s ease;
+  }
+
+  /* Blur-up stand-in: the tile's own background-color (its placeholderColor, applied by the script
+     below from data-placeholder — not a server-rendered inline style, which the strict policy this
+     site holds itself to, features/deployment.feature, forbids) shows through until the real
+     thumbnail loads, instead of a flash of the plain tile background. The `.is-loading` class that
+     hides the image is only ever added by the same script, never present by default, so a photo
+     stays visible with no JS at all — nothing here can leave one permanently hidden. */
+  .tile img.is-loading {
+    opacity: 0;
   }
 
   .tile:hover img {
@@ -283,6 +362,23 @@ const tiles = photos.map((photo, index) => ({
     return `${url.pathname}${url.search}${url.hash}`;
   }
 
+  // --- Blur-up placeholder: each tile's background-color (its placeholderColor, from
+  // data-placeholder — not a server-rendered inline style, which the strict policy this site holds
+  // itself to, features/deployment.feature, forbids) shows through until its thumbnail has
+  // actually loaded. Setting it here, and the `.is-loading` class that hides the image, are both
+  // paint-only changes (never affecting layout), so — unlike a resize — there's no ordering
+  // constraint tying this to before-first-paint; and the `.is-loading` class is only ever added
+  // here, never present in the server-rendered HTML, so a photo stays visible with no JS at all.
+  function initPlaceholders(root: Document | HTMLElement) {
+    for (const tile of Array.from(root.querySelectorAll<HTMLElement>('.tile'))) {
+      if (tile.dataset.placeholder) tile.style.backgroundColor = tile.dataset.placeholder;
+      const img = tile.querySelector('img');
+      if (!img || img.complete) continue;
+      img.classList.add('is-loading');
+      img.addEventListener('load', () => img.classList.remove('is-loading'), { once: true });
+    }
+  }
+
   let removeKeydown: (() => void) | null = null;
   let removePopstate: (() => void) | null = null;
 
@@ -453,5 +549,18 @@ const tiles = photos.map((photo, index) => ({
     syncToUrl();
   }
 
-  document.addEventListener('astro:page-load', () => initGallery(document));
+  // Run immediately — as soon as this module evaluates, which for a deferred module script is
+  // right after the DOM finishes parsing — rather than waiting only for astro:page-load, which for
+  // this, the very first page, doesn't fire until the native `load` event: after every image has
+  // already finished downloading. Waiting that long would mean every image is already `.complete`
+  // by the time initPlaceholders looks, so the fade-in-from-placeholder-color would never actually
+  // show on a first visit. It's idempotent, so also running it again below for every later
+  // view-transition navigation (where this direct call, part of a script that only evaluates once
+  // per tab, never fires a second time) is harmless.
+  initPlaceholders(document);
+
+  document.addEventListener('astro:page-load', () => {
+    initGallery(document);
+    initPlaceholders(document);
+  });
 </script>

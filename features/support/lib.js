@@ -16,6 +16,7 @@ const ALLOWED_FRONTMATTER_FIELDS = new Set([
   'category',
   'photo',
   'camera',
+  'placeholderColor',
   'featured',
   'order',
 ]);

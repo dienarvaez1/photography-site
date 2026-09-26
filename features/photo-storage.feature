@@ -117,7 +117,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
   Scenario: An entry holds only the fields the site uses
     Given a photo file "fields.jpg" of 900x600
     When I add "fields.jpg" to the category "nature" with the title "Fields" and the Spanish title "Campos" and camera "Nikon Z 7" and order 2
-    Then the entry "nature/fields" should only have these fields: title, titles, category, photo, camera, featured, order
+    Then the entry "nature/fields" should only have these fields: title, titles, category, photo, camera, placeholderColor, featured, order
 
   Scenario: Entries are written in the repository's existing style
     Given a photo file "style.jpg" of 900x600
@@ -134,6 +134,7 @@ Feature: Photo storage in R2 stays in sync with the photo entries
         width: 900
         height: 600
       camera: "Nikon Z 7"
+      placeholderColor: "<placeholderColor>"
       featured: false
       order: 2
       ---

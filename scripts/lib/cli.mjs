@@ -4,7 +4,7 @@
 import { basename, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { pullEntries, pushEntries } from './entry-sync.mjs';
-import { addPhoto, fillCameraLines, listEntries, removePhoto, replacePhoto, slugify, syncPhotos, verifyPhotos } from './photos.mjs';
+import { addPhoto, fillCameraLines, fillPlaceholderColors, listEntries, removePhoto, replacePhoto, slugify, syncPhotos, verifyPhotos } from './photos.mjs';
 
 export const HELP = `Photo workflow — photos AND their entries live in Cloudflare R2 (the web bucket: photos/categories/<category>/<id>.md
 and photos/index.json, which the site reads when a page is requested). Nothing is committed to git and nothing is
@@ -32,6 +32,11 @@ The folder .photo-entries/ is only a local mirror of those entries, kept in step
   npm run photos:camera [-- <entry>]
       Fills in a missing camera line from the original's EXIF in R2 (all entries, or
       one). Entries that already have a camera line are never touched.
+
+  npm run photos:colors [-- <entry>]
+      Fills in a missing placeholder color from the entry's own thumb size in R2 (all
+      entries, or one). A one-off backfill for entries added before this field existed;
+      entries that already have one are never touched.
 
   npm run photos:remove -- <entry>
       Removes the entry from the site, then deletes its photo from R2.
@@ -63,7 +68,7 @@ export async function run(args, { contentDir, storage, sync = false, log = conso
 
   // With `sync`, the entries live in R2 and `contentDir` is their mirror: bring it up to date before a command reads
   // it, and publish it after a command changes it (see entry-sync.mjs). Without, `contentDir` is all there is.
-  const READS_ENTRIES = ['add', 'replace', 'camera', 'remove', 'verify', 'sync'];
+  const READS_ENTRIES = ['add', 'replace', 'camera', 'colors', 'remove', 'verify', 'sync'];
   const publish = sync ? async () => {
     const { published, removed } = await pushEntries({ contentDir, storage, log });
     if (published || removed) log(`  published: ${published} entr${published === 1 ? 'y' : 'ies'}${removed ? `, ${removed} removed` : ''}`);
@@ -140,6 +145,16 @@ export async function run(args, { contentDir, storage, sync = false, log = conso
         });
         report(problems);
         log(`✓ camera lines: ${updated.length} added, ${unchanged.length} unchanged`);
+        if (problems.length) exitCode = 1;
+        break;
+      }
+      case 'colors': {
+        if (rest.length > 1) throw new Error('Usage: photos:colors [entry]');
+        const { updated, unchanged, problems } = await fillPlaceholderColors({
+          contentDir, storage, publish, log, entryFiles: rest.length ? [await findEntry(rest[0])] : undefined,
+        });
+        report(problems);
+        log(`✓ placeholder colors: ${updated.length} added, ${unchanged.length} unchanged`);
         if (problems.length) exitCode = 1;
         break;
       }

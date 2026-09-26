@@ -158,6 +158,7 @@ Feature: The Admin page's New Photo form adds a photo from its own metadata, in 
         width: 1200
         height: 700
       camera: "Nikon Z 8 · NIKKOR Z 100-400mm f/4.5-5.6 VR S + TC-2.0x · 800mm · f/11 · 1/125s · ISO 640"
+      placeholderColor: "<placeholderColor>"
       featured: false
       order: 5
       ---

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import matter from 'gray-matter';
-import { config, entryFile, findEntry, lib, readEntry, sourcePath, state } from '../support/photo-helpers.js';
+import { assertColorClose, config, entryFile, expectedPlaceholderColor, findEntry, lib, readEntry, sourcePath, state } from '../support/photo-helpers.js';
 import { ROOT } from '../support/lib.js';
 import { pushEntries } from '../../scripts/lib/entry-sync.mjs';
 import { makeJpeg } from '../support/photo-helpers.js';
@@ -49,6 +49,7 @@ Given('R2 holds a manifest with a broken entry: {}', function (what) {
     'a photo id that is invalid': () => (data.photo.id = 'nope'),
     'an order that is missing': () => delete data.order,
     'a size that is missing': () => delete data.photo.width,
+    'a placeholder color that is invalid': () => (data.placeholderColor = 'not-a-color'),
   }[what];
   broken();
   putWeb(this, MANIFEST_KEY, JSON.stringify({ version: 1, updatedAt: 'x', entries: [{ category: 'astro', id: what === 'a photo id that is invalid' ? 'nope' : id, data }] }), 'application/json');
@@ -113,6 +114,11 @@ Then('the manifest entry {string} should have the camera line {string}', functio
 
 Then('the manifest entry {string} should have order {int}', function (ref, order) {
   assert.equal(manifestIn(this).entries.find((e) => slugOf(e) === ref).data.order, order);
+});
+
+Then('the manifest entry {string} should have a placeholder color close to the color of {string}', function (ref, fixtureName) {
+  const actual = manifestIn(this).entries.find((e) => slugOf(e) === ref).data.placeholderColor;
+  assertColorClose(actual, expectedPlaceholderColor(fixtureName), assert);
 });
 
 Then('the manifest in R2 should be JSON of version 1 holding, for each entry, its category, photo id and data', function () {
@@ -247,7 +253,10 @@ Then('the manifest in R2 should hold exactly these entries:', function (table) {
     const { id, ...photo } = entry.data.photo;
     assert.equal(id, entry.id, 'the entry names the photo it holds');
     assert.equal(entry.category, entry.data.category);
-    return { ...entry.data, photo };
+    // Every entry gets one (see analyzePhoto in photos.mjs) — this table is about the fields
+    // above, not this one, which has its own dedicated scenarios.
+    const { placeholderColor: _placeholderColor, ...rest } = entry.data;
+    return { ...rest, photo };
   });
   assert.deepEqual(actual, expected);
 });

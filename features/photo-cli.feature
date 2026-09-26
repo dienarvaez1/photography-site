@@ -101,7 +101,7 @@ Feature: Photo command line places entries consistently
     And the entry "nature/all-options" should have the camera line "Custom Camera"
     And the entry "nature/all-options" should still have order 3
     And the entry "nature/all-options" should be featured
-    And the entry "nature/all-options" should only have these fields: title, titles, category, photo, camera, featured, order
+    And the entry "nature/all-options" should only have these fields: title, titles, category, photo, camera, placeholderColor, featured, order
 
   Scenario Outline: Options that no longer exist are rejected and nothing is created
     Given a photo file "sunset.jpg" of 1200x800
@@ -134,7 +134,7 @@ Feature: Photo command line places entries consistently
     When I run the command: add tagged.jpg --category nature --title "Tagged"
     Then the command should succeed
     And the entry "nature/tagged" should have the camera line "Nikon Z 7 · 140mm · ISO 110"
-    And the entry "nature/tagged" should only have these fields: title, category, photo, camera, featured, order
+    And the entry "nature/tagged" should only have these fields: title, category, photo, camera, placeholderColor, featured, order
 
   Scenario: A camera line can be set when replacing from the command line
     Given a photo file "one.jpg" of 900x600
@@ -188,6 +188,7 @@ Feature: Photo command line places entries consistently
     Then the command should succeed
     And the output should mention "photos:add"
     And the output should mention "photos:camera"
+    And the output should mention "photos:colors"
     And the output should mention "photos/categories/<category>/<photo id>.md"
     And the output should mention "photos:push"
     When I run the command: frobnicate
@@ -240,3 +241,24 @@ Feature: Photo command line places entries consistently
     And I run the command: sync
     Then the command should succeed
     And the output should mention "repaired 1 entry"
+
+  Scenario: The colors command fills in a missing placeholder color and reports what it did
+    Given a photo file "c.jpg" of 900x600
+    When I run the command: add c.jpg --category nature --title "Colored"
+    And the entry "nature/colored" has no placeholder color
+    And I run the command: colors colored
+    Then the command should succeed
+    And the output should mention "1 added, 0 unchanged"
+    And the entry "nature/colored" should have a placeholder color close to the color of "c.jpg"
+    When I run the command: colors
+    Then the command should succeed
+    And the output should mention "0 added, 1 unchanged"
+
+  Scenario: The colors command fails when the thumb size is missing
+    Given a photo file "d.jpg" of 900x600
+    When I run the command: add d.jpg --category nature --title "Dim"
+    And the entry "nature/dim" has no placeholder color
+    And the "thumb" size disappears from R2
+    And I run the command: colors
+    Then the command should fail with exit code 1
+    And the error output should mention "thumb web size missing"

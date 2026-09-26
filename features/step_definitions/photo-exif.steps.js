@@ -2,7 +2,7 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import exifr from 'exifr';
-import { entryFile, exifLib, findEntry, lib, makeJpeg, readEntry, state } from '../support/photo-helpers.js';
+import { assertColorClose, entryFile, exifLib, expectedPlaceholderColor, findEntry, lib, makeJpeg, readEntry, state } from '../support/photo-helpers.js';
 
 const orNull = (value) => (value === 'none' ? null : value);
 
@@ -53,6 +53,10 @@ Then('the entry {string} should not have the field {string}', async function (re
   assert.ok(!(field in (await readEntry(this, ref))), `${ref} should not have "${field}"`);
 });
 
+Then('the entry {string} should have a placeholder color close to the color of {string}', async function (ref, fixtureName) {
+  assertColorClose((await readEntry(this, ref)).placeholderColor, expectedPlaceholderColor(fixtureName), assert);
+});
+
 Then('the original stored in R2 should still contain its EXIF make {string}', async function (make) {
   const [object] = [...state(this).storage.objects.originals.values()];
   const exif = await exifr.parse(object.body, { pick: ['Make'] });
@@ -73,6 +77,10 @@ Given('the entry {string} has its camera line edited by hand to {string}', async
 
 Given('the entry {string} has no camera line', async function (ref) {
   await rewrite(this, ref, ({ camera, ...rest }) => rest);
+});
+
+Given('the entry {string} has no placeholder color', async function (ref) {
+  await rewrite(this, ref, ({ placeholderColor, ...rest }) => rest);
 });
 
 Given('the entry {string} has these leftover fields from an older version: {}', async function (ref, list) {

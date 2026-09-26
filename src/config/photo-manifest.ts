@@ -21,6 +21,15 @@ export interface PhotoData {
   category: string;
   photo: { id: string; width: number; height: number };
   camera?: string;
+  /**
+   * The photo's average color as `#rrggbb`, computed once at ingest time (see `analyzePhoto` in
+   * scripts/lib/photos.mjs). Optional so an entry from before this field existed still validates;
+   * the gallery falls back to the plain tile background for one without it. A justified-layout
+   * tile shows this as its background the moment it's placed, fading to the real thumbnail once
+   * that loads — a cheap stand-in for a blurred placeholder that costs one hex string per photo
+   * instead of a second image payload.
+   */
+  placeholderColor?: string;
   featured: boolean;
   order: number;
 }
@@ -58,6 +67,7 @@ export function problemWith(entry: unknown): string | null {
   if (!isObject(photo) || photo.id !== id || !isPositiveInt(photo.width) || !isPositiveInt(photo.height)) return 'has no valid photo';
   if (data.titles !== undefined && (!isObject(data.titles) || Object.values(data.titles).some((t) => typeof t !== 'string'))) return 'has invalid titles';
   if (data.camera !== undefined && typeof data.camera !== 'string') return 'has an invalid camera line';
+  if (data.placeholderColor !== undefined && (typeof data.placeholderColor !== 'string' || !/^#[0-9a-f]{6}$/i.test(data.placeholderColor))) return 'has an invalid placeholder color';
   if (typeof data.featured !== 'boolean') return 'has no featured flag';
   if (typeof data.order !== 'number' || !Number.isFinite(data.order)) return 'has no order';
   return null;
