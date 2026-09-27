@@ -135,6 +135,9 @@ Feature: Site pages render correctly (English and Spanish)
       | /     |
       | /es/  |
 
+  Scenario: Every sub-heading site-wide is the same size as the About page's
+    Then every h2 and h3 sub-heading site-wide should be the same size as the About page's own
+
   Scenario: The footer shows the current copyright year on every page
     When I load every built page
     Then the footer on every page should show the current year

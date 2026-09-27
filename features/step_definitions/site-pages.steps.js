@@ -275,3 +275,27 @@ Then('the hero photos should be shown in monochrome', function () {
   assert.ok(rule, 'no .hero-media img rule in the built CSS');
   assert.match(rule, /filter:\s*grayscale\(1?\)/);
 });
+
+// Every place a sub-heading (h2 or h3, never a page's own h1) gets its own font-size, site-wide.
+// .about h2 is the reference: every other one here is meant to match it exactly.
+const SUB_HEADING_RULES = [
+  { file: 'about.astro', selector: '.about h2' },
+  { file: 'index.astro', selector: '.section h2' },
+  { file: 'admin.astro', selector: '.tabpanel h2' },
+  { file: 'admin.astro', selector: '.results h3' },
+  { file: 'CategoryCard.astro', selector: '.label h3' },
+];
+
+Then("every h2 and h3 sub-heading site-wide should be the same size as the About page's own", function () {
+  const css = allBuiltCss();
+  const sizes = SUB_HEADING_RULES.map(({ file, selector }) => {
+    // Astro's scoped CSS inserts a data-astro-cid attribute selector after each class in the source.
+    const pattern = selector.replace(/(\.[\w-]+)/g, '$1(?:\\[[^\\]]*\\])?').replace(/ /g, '\\s+');
+    const rule = css.match(new RegExp(`${pattern}[^{]*\\{([^}]*)\\}`))?.[1] ?? '';
+    const size = rule.match(/font-size:\s*([\d.]+rem)/)?.[1];
+    assert.ok(size, `${file}'s "${selector}" rule (or its font-size) not found in the built CSS`);
+    return { file, selector, size };
+  });
+  const reference = sizes[0].size;
+  for (const { file, selector, size } of sizes) assert.equal(size, reference, `${file}'s "${selector}" is ${size}, not ${reference}`);
+});

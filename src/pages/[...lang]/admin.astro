@@ -163,7 +163,8 @@ const knownPhotos = Object.fromEntries(
   }
 
   .tabpanel h2 {
-    font-size: 1.3rem;
+    /* Matches every sub-heading site-wide — see .about h2's own comment. */
+    font-size: 1.4rem;
     margin-bottom: var(--space-1);
   }
 </style>
@@ -171,7 +172,7 @@ const knownPhotos = Object.fromEntries(
 <style is:global>
   /* The viewer builds its own elements at run time, so its styles can't be scoped to this page's markup. */
   .results { --ok: #86d99a; --bad: #ff9b9b; }
-  .results h3 { font-size: 1.15rem; margin: var(--space-3) 0 var(--space-1); }
+  .results h3 { font-size: 1.4rem; margin: var(--space-3) 0 var(--space-1); }
   .results h4 { font-size: 1rem; margin: var(--space-2) 0 0.25rem; overflow-wrap: anywhere; }
   .results-intro, .results-hint, .results-count, .results-loading { color: var(--fg-muted); }
   .results-gate { display: grid; gap: var(--space-1); max-width: 26rem; }
