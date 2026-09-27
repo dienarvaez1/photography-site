@@ -100,7 +100,7 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
     </div>
   </div>
 
-  <section class="wrap section">
+  <section class="wrap section work-photos">
     <p id="empty-message" class="empty-message" hidden={photos.length > 0}>{t('work.empty')}</p>
     <Gallery photos={photos} />
   </section>
@@ -189,6 +189,15 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
 
   .section {
     padding-block: var(--space-3) var(--space-5);
+  }
+
+  /* Gallery.astro's .gallery is flex-wrap with no justify-content (flex-start, its default, suits
+     the home page's Featured strip and Admin's originals list); here specifically, a category with
+     few photos — one, or a row the ratio-cap from the crop fix leaves short of full width — reads
+     lopsided flush left, so it's centered instead. Scoped to .work-photos, not .gallery itself
+     (a global class shared by every page that uses <Gallery>), so this doesn't reach them too. */
+  .work-photos .gallery {
+    justify-content: center;
   }
 
   .empty-message[hidden] {

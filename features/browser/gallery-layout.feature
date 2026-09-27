@@ -22,3 +22,7 @@ Feature: The justified gallery never stretches a tile far enough to crop away re
       | abstract  |
       | cityscape |
       | events    |
+
+  Scenario: A category with just one photo centers its tile, instead of pinning it to the left
+    When I open "/work/portrait/"
+    Then the gallery should be centered in the page's content column, not flush left

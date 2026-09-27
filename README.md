@@ -242,7 +242,9 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   (portrait-oriented) tile sharing a mostly-empty row used to be stretched several times past its own
   width before object-fit: cover cropped it down to size, cropping away most of a photo (a portrait's
   subject, often its head) to fill the now much wider box; checked across a narrow, a square-ish and
-  two wide ratios, each alone in its category.
+  two wide ratios, each alone in its category; and, on a category page specifically (not the home
+  page's Featured strip or Admin's originals list, which keep the plain flush-left default), the
+  gallery centers instead of pinning a short row to the left.
 - **`home-page.feature`** — the home page's hero tagline sits at exactly the same height as the About
   page's "About" eyebrow, in both languages (the two pages use the same padding-block-start token for
   it, so this catches either one drifting out of sync).
