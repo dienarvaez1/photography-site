@@ -153,7 +153,8 @@
     "actionsLabel": "Acciones de la página",
     "tabs": {
       "testResults": "Resultados de pruebas",
-      "picsViewer": "Visor de fotos"
+      "picsViewer": "Visor de fotos",
+      "categoryMaintenance": "Mantenimiento de categorías"
     },
     "results": {
       "intro": "Resultados de las pruebas automáticas, leídos del almacén privado de resultados. Elige una ejecución para ver sus detalles.",
@@ -357,6 +358,78 @@
         "shown": "Mostrando {shown} de {total} fotos",
         "more": "Mostrar {count} más",
         "all": "Mostrando las {total} fotos"
+      }
+    },
+    "categories": {
+      "intro": "Todas las categorías configuradas en el sitio, ocultas o no. Añadir, editar o eliminar una edita directamente los archivos de origen del sitio — src/config/categories.json y su nombre en cada archivo de idioma — igual que editarlos a mano. Todavía necesita un commit y un despliegue para llegar al sitio en vivo.",
+      "count": "{count} categorías",
+      "countOne": "1 categoría",
+      "empty": "No hay categorías configuradas.",
+      "hiddenBadge": "Oculta",
+      "photoCount": "{count} fotos",
+      "photoCountOne": "1 foto",
+      "photoCountNone": "Sin fotos",
+      "add": "Añadir categoría",
+      "edit": "Editar categorías",
+      "remove": "Eliminar categorías",
+      "done": "Listo",
+      "needsJs": "El mantenimiento de categorías necesita JavaScript.",
+      "checking": "Comprobando el servicio local de categorías…",
+      "unavailable": "El mantenimiento de categorías solo funciona mientras el sitio corre en tu computadora (npm run dev): edita los archivos de origen del sitio. Inicia el servidor de desarrollo y abre esta página desde localhost:4321.",
+      "form": {
+        "heading": "Nueva categoría",
+        "intro": "Escribe la categoría en src/config/categories.json y su nombre y descripción en cada archivo de idioma, igual que editarlos a mano. Necesita un commit y un despliegue para llegar al sitio en vivo.",
+        "slug": "Slug",
+        "slugHint": "Letras minúsculas, dígitos y guiones simples, empezando con una letra (se usa en la URL de la categoría, p. ej. /work/night-sky/). No se puede cambiar después.",
+        "label": "Nombre (inglés)",
+        "labelEs": "Nombre (español)",
+        "description": "Descripción (inglés)",
+        "descriptionEs": "Descripción (español)",
+        "hidden": "Oculta (fuera del menú de navegación y de la cuadrícula de la portada)",
+        "submit": "Añadir categoría",
+        "submitting": "Escribiendo los archivos de la categoría…",
+        "close": "Cerrar",
+        "added": "Se añadió “{label}”.",
+        "another": "Añadir otra categoría",
+        "errors": {
+          "unavailable": "El mantenimiento de categorías solo funciona mientras el sitio corre en tu computadora (npm run dev): edita los archivos de origen del sitio. Inicia el servidor de desarrollo y abre esta página desde localhost:4321.",
+          "unreachable": "No se pudo contactar al servicio local de categorías. ¿Sigue corriendo npm run dev?",
+          "notLocal": "El servicio local de categorías solo acepta solicitudes de su propia página en localhost.",
+          "duplicate": "“{slug}” ya existe.",
+          "failed": "No se pudo añadir la categoría: {message}"
+        }
+      },
+      "editRow": {
+        "hiddenLabel": "Oculta",
+        "labelAria": "Nombre (inglés) de {category}",
+        "labelEsAria": "Nombre (español) de {category}",
+        "save": "Guardar",
+        "saving": "Guardando…",
+        "saved": "Guardado.",
+        "failed": "No se pudo guardar {category}: {message}"
+      },
+      "removal": {
+        "checking": "Comprobando el servicio local de categorías…",
+        "unavailable": "Eliminar una categoría solo funciona mientras el sitio corre en tu computadora (npm run dev): edita los archivos de origen del sitio. Inicia el servidor de desarrollo y abre esta página desde localhost:4321.",
+        "barLabel": "Eliminar categorías",
+        "select": "Seleccionar {category}",
+        "selected": "{count} seleccionadas",
+        "selectAll": "Seleccionar todas",
+        "selectNone": "Deseleccionar todas",
+        "delete": "Eliminar seleccionadas",
+        "cancel": "Cancelar",
+        "confirm": "¿Eliminar permanentemente estas {count} categorías de los archivos de origen del sitio? Esto no se puede deshacer.",
+        "confirmOne": "¿Eliminar permanentemente esta categoría de los archivos de origen del sitio? Esto no se puede deshacer.",
+        "yes": "Sí, eliminar {count} categorías",
+        "yesOne": "Sí, eliminar esta categoría",
+        "keep": "Conservarlas",
+        "deleting": "Eliminando {count} categorías…",
+        "deletingOne": "Eliminando la categoría…",
+        "done": "{count} categorías eliminadas.",
+        "doneOne": "1 categoría eliminada.",
+        "failed": "No se pudo eliminar {category}: {message}",
+        "requestFailed": "No se pudieron eliminar las categorías: {message}",
+        "unreachable": "no se pudo contactar al servicio local de categorías"
       }
     }
   }

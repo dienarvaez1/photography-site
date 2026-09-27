@@ -16,10 +16,11 @@ const locale = getLocale(Astro);
 if (!isLangParam(Astro.params.lang)) return notFound();
 const t = useTranslations(locale);
 
-// The two sections of the page, left to right. Each tab shows its panel.
+// The three sections of the page, left to right. Each tab shows its panel.
 const tabs = [
   { id: 'test-results', label: t('admin.tabs.testResults') },
   { id: 'pics-viewer', label: t('admin.tabs.picsViewer') },
+  { id: 'category-maintenance', label: t('admin.tabs.categoryMaintenance') },
 ];
 
 // The viewer's texts travel to the browser as data (an attribute, since the policy allows no inline scripts), in the page's language.
@@ -28,6 +29,8 @@ const resultsMessages = adminMessages.results;
 // The Pics Viewer shares the token form, errors and buttons with the Test Results tab.
 const { gate, errors, signOut, refresh, loading } = adminMessages.results;
 const picsMessages = { pics: adminMessages.pics, gate, errors, signOut, refresh, loading };
+// Category Maintenance needs no token gate (categories are public, unlike Pics Viewer's private originals).
+const categoryMessages = { categories: adminMessages.categories };
 
 // The categories the New Photo form offers (every configured one, hidden or not), in the page's language.
 const formCategories = CATEGORIES.map(({ slug }) => ({ slug, label: getLocalizedCategory(slug, locale)?.label ?? slug }));
@@ -44,6 +47,22 @@ const knownPhotos = Object.fromEntries(
     },
   ])
 );
+
+// Category Maintenance's own list: just this page's own locale and a photo count (informational only here;
+// the local service re-checks it for real before letting a category be removed) — the client's own script
+// asks the service for both locales' full text (including descriptions) the moment Edit or Remove is opened,
+// so shipping that here too would only bloat this already data-heavy page's HTML for text nothing reads
+// before then.
+const photoCountsBySlug = Object.values(knownPhotos).reduce<Record<string, number>>((counts, photo) => {
+  counts[photo.categorySlug] = (counts[photo.categorySlug] ?? 0) + 1;
+  return counts;
+}, {});
+const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
+  slug,
+  hidden: Boolean(hidden),
+  label: getLocalizedCategory(slug, locale)?.label ?? slug,
+  photoCount: photoCountsBySlug[slug] ?? 0,
+}));
 ---
 
 <!-- Not for search engines, and not in the sitemap. It is public: put Cloudflare Access in front of it before it shows real data. -->
@@ -97,15 +116,23 @@ const knownPhotos = Object.fromEntries(
               </div>
               <noscript><p>{t('admin.results.needsJs')}</p></noscript>
             </div>
-          ) : (
+          ) : tab.id === 'pics-viewer' ? (
             <div class="results pics" data-pics data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(picsMessages)} data-photos={JSON.stringify(knownPhotos)} data-categories={JSON.stringify(formCategories)}>
               <p class="results-intro">{t('admin.pics.intro')}</p>
-              <!-- The New Photo form opens here, above the list. -->
+              {/* The New Photo form opens here, above the list. */}
               <div data-pics-form></div>
               <div data-pics-root aria-live="polite">
                 <p>{t('admin.results.loading')}</p>
               </div>
               <noscript><p>{t('admin.pics.needsJs')}</p></noscript>
+            </div>
+          ) : (
+            /* No token gate, unlike the other two tabs: categories are public information, and the
+               list is server-rendered straight into data-categories-list — nothing to sign in to see. */
+            <div class="results" data-category-maintenance data-messages={JSON.stringify(categoryMessages)} data-categories-list={JSON.stringify(categoryRows)}>
+              <p class="results-intro">{t('admin.categories.intro')}</p>
+              <div data-categories-root aria-live="polite"></div>
+              <noscript><p>{t('admin.categories.needsJs')}</p></noscript>
             </div>
           )}
         </div>
@@ -270,6 +297,22 @@ const knownPhotos = Object.fromEntries(
   .pics-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); margin-top: var(--space-2); }
   .pics-shown { margin: 0; color: var(--fg-muted); }
   .pics-shown:focus { outline: none; }
+  /* Category Maintenance's own list — the same visual language as the Pics Viewer's (.pics-summary,
+     .pics-actions, .results-button, .pics-edit-bar, .pics-remove-bar are all reused as-is above), but a
+     plain row instead of .pic-link's thumbnail grid: a category has no picture of its own. */
+  .category-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.25rem; }
+  .category-row-body { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; padding: 0.6rem 1rem; min-height: 44px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); }
+  /* .remove specifically, not just .selecting: Edit mode's rows have no checkbox to fill this grid's
+     first (44px) column — a lone, ungridded .category-row-body would land in it by itself, squeezed
+     to 44px wide, rather than spanning both columns as a plain flex row still does by default. */
+  .category-list.selecting.remove .category-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; column-gap: 0.25rem; }
+  .category-row.selected .category-row-body { border-color: var(--bad); }
+  .category-info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+  .category-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; overflow-wrap: anywhere; }
+  .category-meta { color: var(--fg-muted); font-size: 0.85rem; }
+  .category-edit-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; width: 100%; }
+  .category-field-inline input { min-height: 40px; padding: 0.3rem 0.6rem; background: var(--bg); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; width: 12rem; max-width: 100%; box-sizing: border-box; }
+  .category-edit-status { color: var(--fg-muted); font-size: 0.85rem; min-height: 1.2em; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
 
@@ -277,6 +320,7 @@ const knownPhotos = Object.fromEntries(
   import { mountResultsViewer } from '../../lib/results-viewer';
 
   import { mountPicsViewer } from '../../lib/pics-viewer';
+  import { mountCategoryMaintenance } from '../../lib/category-maintenance';
   import { mountAdminActions } from '../../lib/admin-actions';
   import { mountIdleTimeout } from '../../lib/admin-session';
 
@@ -313,6 +357,8 @@ const knownPhotos = Object.fromEntries(
     if (actions) mountAdminActions(actions);
     const pics = document.querySelector<HTMLElement>('[data-pics]');
     if (pics) mountPicsViewer(pics, pics.closest<HTMLElement>('[role="tabpanel"]')!);
+    const categoryMaintenance = document.querySelector<HTMLElement>('[data-category-maintenance]');
+    if (categoryMaintenance) mountCategoryMaintenance(categoryMaintenance, categoryMaintenance.closest<HTMLElement>('[role="tabpanel"]')!);
 
     // Tabs pattern (WAI-ARIA): one tab in the tab order at a time; arrow keys, Home and End move between
     // tabs; the selected tab is shown in the URL (#pics-viewer) so it can be linked to.

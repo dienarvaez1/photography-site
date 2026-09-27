@@ -21,6 +21,8 @@ const { RESULTS_API_URL } = await import(join(ROOT, 'src/config/results.ts'));
 const RESULTS_ORIGIN = new URL(RESULTS_API_URL).origin;
 // The New Photo form's service is the real dev-server middleware too, over a temporary content folder and a fake R2.
 const { photoFormMiddleware } = await import(join(ROOT, 'scripts/lib/photo-form-server.mjs'));
+// Category Maintenance's service, the same way — see startCategoryService below.
+const { categoryFormMiddleware } = await import(join(ROOT, 'scripts/lib/category-form-server.mjs'));
 
 // Real-browser scenarios are slower than the rest: page loads, axe scans, animations.
 setDefaultTimeout(60_000);
@@ -35,7 +37,8 @@ async function shared() {
   if (!browser) browser = await chromium.launch();
   if (!server) {
     server = await startStaticServer();
-    server.mount(servePhotoService);
+    server.mount('/__photos/', servePhotoService);
+    server.mount('/__categories/', serveCategoryService);
   }
   if (!imageBytes) imageBytes = await sharp({ create: { width: 16, height: 11, channels: 3, background: '#557' } }).webp().toBuffer();
   return { browser, server, imageBytes };
@@ -73,6 +76,8 @@ Before({ tags: '@browser' }, function () {
     results: { mode: 'ok', env: {}, delayMs: 0, requests: [] },
     // The New Photo form's local service: null (as on the deployed site, which has none) or { middleware, requests }.
     photoService: null,
+    // Category Maintenance's local service — same shape, same reasoning.
+    categoryService: null,
     traceRequests: 0,
     photoRequests: [],
     manifestRequests: [],
@@ -137,6 +142,23 @@ function servePhotoService(req, res, next) {
   const service = currentWorld?.b.photoService;
   if (!service) return next();
   service.requests.push({ method: req.method, path: new URL(req.url, 'http://localhost').pathname.replace('/__photos/', '') });
+  return service.middleware(req, res, next);
+}
+
+/**
+ * Starts Category Maintenance's service over this scenario's own temporary configuration files (see
+ * category-form.feature's own setup) and entries folder, as `astro dev` would.
+ */
+export async function startCategoryService(world, { contentDir, categoriesFile, localeFiles, storage, sync = false }) {
+  await shared();
+  world.b.categoryService = { middleware: await categoryFormMiddleware({ contentDir, categoriesFile, localeFiles, storage, sync }), requests: [] };
+}
+
+/** Answers /__categories/ for the scenario that is running (none: the site as deployed, which has no such service). */
+function serveCategoryService(req, res, next) {
+  const service = currentWorld?.b.categoryService;
+  if (!service) return next();
+  service.requests.push({ method: req.method, path: new URL(req.url, 'http://localhost').pathname.replace('/__categories/', '') });
   return service.middleware(req, res, next);
 }
 

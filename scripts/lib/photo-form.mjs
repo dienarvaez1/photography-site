@@ -42,16 +42,20 @@ export const MAX_RECATEGORIZE = 100;
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-const CATEGORIES_FILE = new URL('../../src/config/categories.ts', import.meta.url);
+// The data file, not categories.ts itself: the Category Maintenance tab (category-form.mjs) writes straight to
+// this JSON, and a plain re-import of categories.ts would hit Node's ESM module cache and never notice — its
+// own mtime never changes, only this file's does.
+const CATEGORIES_FILE = new URL('../../src/config/categories.json', import.meta.url);
 
 /**
- * The configured category slugs, read again whenever src/config/categories.ts has changed. The dev server keeps
- * running for days and categories get added meanwhile: a list read once at start-up would refuse a category the
- * form's own dropdown (which the page reloads) already offers.
+ * The configured category slugs, read again whenever src/config/categories.json has changed. The dev server
+ * keeps running for days and categories get added (or removed) meanwhile: a list read once at start-up would
+ * refuse a category the form's own dropdown (which the page reloads) already offers, or keep offering one that
+ * is gone.
  */
 export async function currentCategories() {
   const { mtimeMs } = await stat(CATEGORIES_FILE);
-  const { CATEGORIES: configured } = await import(`${CATEGORIES_FILE.href}?v=${mtimeMs}`);
+  const { default: configured } = await import(`${CATEGORIES_FILE.href}?v=${mtimeMs}`, { with: { type: 'json' } });
   return configured.map((c) => c.slug);
 }
 

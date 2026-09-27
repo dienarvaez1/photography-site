@@ -56,7 +56,7 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against twenty-six areas. The
+tests bake in sample photos instead), then checks that built output against twenty-seven areas. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
@@ -167,9 +167,10 @@ against every page in both English and Spanish**; expected text is read from
   `results/`, never cached), the index written last so it never names a missing file, retention and
   pruning, flaky-scenario trends, the command line, the runner's plan, and the GitHub workflow steps.
 - **`admin.feature`** — a basic smoke test of the Admin page: it exists in both languages, "Admin" is
-  linked immediately to the right of "Contact" and marked active on its own page, it has exactly two
-  tabs ("Test Results", then "Pics Viewer") in a horizontal, labelled tab list wired to two panels with the
-  first selected, a no-JavaScript fallback, and it is `noindex` and out of the sitemap.
+  linked immediately to the right of "Contact" and marked active on its own page, it has exactly three
+  tabs ("Test Results", "Pics Viewer", then "Category Maintenance") in a horizontal, labelled tab list
+  wired to their own panels with only the first selected, a no-JavaScript fallback, and it is `noindex`
+  and out of the sitemap.
 - **`results-api.feature`** — the read-only API behind the Admin page's Test Results tab, called through its
   real request handler over runs published by the real publisher: every data route needs the admin
   token (missing, wrong, near-miss and Basic credentials are refused; no secret set means a 503), the
@@ -211,6 +212,13 @@ against every page in both English and Spanish**; expected text is read from
   same guarantees as the command: the original, the web sizes, the entry file and `index.json` each in the right
   bucket, the manifest exact (older entries untouched, the new one with its EXIF camera line), and a photo whose
   upload fails part-way is not listed.
+- **`category-form.feature`** — the Admin page's Category Maintenance tab, through its real request handler over a
+  temporary copy of `categories.json`/`en.json`/`es.json` and a temporary entries folder (never the real project
+  files): listing shows both languages' text and each category's photo count; adding writes the new category to
+  all three files and refuses a duplicate slug, a slug that isn't lowercase letters/digits/hyphens, or a missing
+  field; editing can hide/show a category and rename it in one language without touching the other, and refuses
+  an unknown slug; removing deletes a category from all three files, but refuses (and changes nothing) while any
+  photo still uses it; and only the tab's own page on localhost may use the service.
 - **`site-render.feature`** — the production build in the real Workers runtime (workerd, via `wrangler dev`) over a
   local copy of the web bucket that is changed while the site runs: the home, category and Admin pages are left to the
   Worker (and listed in the sitemap) while about, contact and the error pages are built; category pages list the
@@ -271,7 +279,7 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   with no violations, errors or blocked requests; the policy is provably enforced (an injected inline
   script is blocked); the browser picks the right image size for phone, laptop and sharp screens;
   layout shift stays under 0.02 with slow images; the logos take their final space before loading.
-- **`admin.feature`** (browser) — the two tabs really sit side by side on laptop and phone; clicking,
+- **`admin.feature`** (browser) — the three tabs really sit side by side on laptop and phone; clicking,
   arrow keys, Home/End (with wrap-around), deep links like `/admin/#pics-viewer`, Spanish, no-JavaScript, and
   that the page works at its address although the header never links to it, with no errors or CSP violations.
 - **`results-viewer.feature`** (browser) — the Test Results tab against the real results API code and a
@@ -319,6 +327,12 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   changing one photo, or several at once, moves them and updates the list in place, without a page reload; choosing
   the category a photo is already in says so instead of moving it; Spanish; every state passes the accessibility
   audit; and nothing but the site and the results API is requested.
+- **`category-maintenance.feature`** (browser) — the Category Maintenance tab, with the real category service
+  over a temporary configuration (needs no sign-in: categories are public): the list shows every configured
+  category; Add Category writes a new one and shows it in the list, or shows why a taken slug was refused;
+  Edit Categories hides/shows and renames a category in place, without a page reload; Remove Categories deletes
+  a category with no photos left in it, but reports (and keeps) one that still has photos; and without the
+  local service, Edit says it only works on the owner's computer instead of doing anything.
 - **`admin-timeout.feature`** (browser) — with the page's clock under the test's control: still signed in at
   4:55 and signed out at 5:00 (both tabs, whichever is showing, header buttons gone, token forgotten, tooltip
   closed, no more requests); a mouse move, key press, scroll, click or tap restarts the 5 minutes but the

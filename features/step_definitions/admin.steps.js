@@ -36,33 +36,34 @@ Then('the page should have one tab list labelled {string} holding exactly these 
   assert.equal(lists.length, 1);
   assert.equal(lists[0].getAttribute('aria-label'), label);
   const inList = lists[0].querySelectorAll('[role="tab"]').map(text);
-  assert.deepEqual(inList, expected.split(',').map((t) => t.trim()));
-  assert.equal(tabs(this).length, 2, 'exactly two tabs on the page');
-  assert.ok(lists[0].querySelectorAll('button[role="tab"]').length === 2, 'tabs are real buttons');
+  const names = expected.split(',').map((t) => t.trim());
+  assert.deepEqual(inList, names);
+  assert.equal(tabs(this).length, names.length, `exactly ${names.length} tabs on the page`);
+  assert.ok(lists[0].querySelectorAll('button[role="tab"]').length === names.length, 'tabs are real buttons');
 });
 
-Then('each of the two tabs should control its own panel, and each panel should be labelled by its tab', function () {
+Then('each tab should control its own panel, and each panel should be labelled by its tab', function () {
   const controlled = tabs(this).map((tab) => tab.getAttribute('aria-controls'));
-  assert.equal(new Set(controlled).size, 2, 'two different panels');
+  assert.equal(new Set(controlled).size, tabs(this).length, 'one panel per tab');
   tabs(this).forEach((tab) => {
     const panel = root(this).querySelector(`#${tab.getAttribute('aria-controls')}`);
     assert.ok(panel, `panel for ${tab.id}`);
     assert.equal(panel.getAttribute('role'), 'tabpanel');
     assert.equal(panel.getAttribute('aria-labelledby'), tab.id);
   });
-  assert.equal(panels(this).length, 2);
+  assert.equal(panels(this).length, tabs(this).length);
 });
 
-Then("the first tab should be selected and reachable by keyboard, the second selected-off and out of the tab order", function () {
-  const [first, second] = tabs(this);
+Then("the first tab should be selected and reachable by keyboard, the rest selected-off and out of the tab order", function () {
+  const [first, ...rest] = tabs(this);
   assert.deepEqual([first.getAttribute('aria-selected'), first.getAttribute('tabindex')], ['true', '0']);
-  assert.deepEqual([second.getAttribute('aria-selected'), second.getAttribute('tabindex')], ['false', '-1']);
+  rest.forEach((tab) => assert.deepEqual([tab.getAttribute('aria-selected'), tab.getAttribute('tabindex')], ['false', '-1']));
 });
 
-Then("the first panel should be visible and the second hidden, each headed by its tab's name", function () {
-  const [first, second] = panels(this);
+Then("the first panel should be visible and the rest hidden, each headed by its tab's name", function () {
+  const [first, ...rest] = panels(this);
   assert.equal(first.getAttribute('hidden') ?? null, null, 'first panel must be visible');
-  assert.notEqual(second.getAttribute('hidden') ?? null, null, 'second panel must start hidden');
+  rest.forEach((panel, i) => assert.notEqual(panel.getAttribute('hidden') ?? null, null, `panel ${i + 2} must start hidden`));
   tabs(this).forEach((tab, i) => assert.equal(text(panels(this)[i].querySelector('h2')), text(tab)));
 });
 

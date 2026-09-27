@@ -54,15 +54,20 @@ export async function startStaticServer({ root = DIST_DIR, transform, blank404 =
     return { none: true };
   };
 
-  // A scenario can mount an extra handler (the New Photo form's service, which `astro dev` adds to the dev server).
-  let mounted = null;
-  const PREFIX = '/__photos/';
+  // A scenario can mount extra handlers (the New Photo form's and Category Maintenance's own local
+  // services, which `astro dev` adds to the dev server), each behind its own address prefix — so an
+  // ordinary page/asset request, matching neither, never reaches either one (each handler's own
+  // `service.requests` log, which some scenarios check exactly, would otherwise fill up with every
+  // unrelated request the page makes). Not just one slot: mounting a second used to silently replace
+  // the first.
+  const mountedHandlers = []; // { prefix, handler }
 
   const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
     requests.push(url.pathname + url.search);
-    if (mounted && url.pathname.startsWith(PREFIX)) return mounted(req, res, () => respond(req, res, url));
-    respond(req, res, url);
+    const matching = mountedHandlers.filter(({ prefix }) => url.pathname.startsWith(prefix));
+    const runFrom = (i) => (i < matching.length ? matching[i].handler(req, res, () => runFrom(i + 1)) : respond(req, res, url));
+    runFrom(0);
   });
 
   function respond(req, res, url) {
@@ -92,9 +97,11 @@ export async function startStaticServer({ root = DIST_DIR, transform, blank404 =
   return {
     url: `http://127.0.0.1:${port}`,
     requests,
-    /** Handles the requests under /__photos/ with `handler(req, res, next)`; `next` answers as an ordinary unknown address. */
-    mount: (handler) => {
-      mounted = handler;
+    /** Adds `handler(req, res, next)` to the middleware chain, called only for a request whose path
+     *  starts with `prefix`; calling `next` still answers it as an ordinary unknown address instead
+     *  (or hands it to the next mounted handler under the same prefix, if any). */
+    mount: (prefix, handler) => {
+      mountedHandlers.push({ prefix, handler });
     },
     close: () => new Promise((resolve) => server.close(resolve)),
   };

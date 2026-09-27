@@ -23,7 +23,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
   Scenario: The second tab is the Pics Viewer, and it asks for the token like the Test Results tab
     When I open "/admin/"
     And I click the "Pics Viewer" tab
-    Then the "Pics Viewer" tab should be selected, its panel visible and the other panel hidden
+    Then the "Pics Viewer" tab should be selected, its panel visible and every other panel hidden
     And the address should end with "#pics-viewer"
     And the Pics Viewer should ask for the admin token
     And the results API should not have been asked for the pictures

@@ -1,11 +1,11 @@
 Feature: Admin page smoke test
   As the site owner
-  I want an Admin page reachable directly at /admin/, with a "Test Results" tab and a "Pics Viewer" tab,
-  but not advertised in the header
+  I want an Admin page reachable directly at /admin/, with "Test Results", "Pics Viewer" and "Category
+  Maintenance" tabs, but not advertised in the header
   So that there is a place to grow the site's admin tools, in both languages, without inviting visitors to it
 
   This is a basic smoke test: the page exists and works at its address, is never linked from the header, and
-  has its two tabs.
+  has its three tabs.
 
   Scenario Outline: The Admin page exists in both languages
     When I load the built page "<route>"
@@ -29,20 +29,20 @@ Feature: Admin page smoke test
       | /es/       | Sobre mí, Contacto  |
       | /es/admin/ | Sobre mí, Contacto  |
 
-  Scenario Outline: The page has exactly two tabs, side by side in a horizontal tab list, in this order
+  Scenario Outline: The page has exactly three tabs, side by side in a horizontal tab list, in this order
     When I load the built page "<route>"
     Then the page should have one tab list labelled "<list label>" holding exactly these tabs, in order: "<tabs>"
 
     Examples:
-      | route      | list label                       | tabs                                 |
-      | /admin/    | Admin sections                   | Test Results, Pics Viewer                    |
-      | /es/admin/ | Secciones de administración      | Resultados de pruebas, Visor de fotos   |
+      | route      | list label                       | tabs                                                              |
+      | /admin/    | Admin sections                   | Test Results, Pics Viewer, Category Maintenance                   |
+      | /es/admin/ | Secciones de administración      | Resultados de pruebas, Visor de fotos, Mantenimiento de categorías |
 
-  Scenario Outline: The tabs are wired to two panels, with the first tab selected
+  Scenario Outline: The tabs are wired to their own panels, with only the first tab selected
     When I load the built page "<route>"
-    Then each of the two tabs should control its own panel, and each panel should be labelled by its tab
-    And the first tab should be selected and reachable by keyboard, the second selected-off and out of the tab order
-    And the first panel should be visible and the second hidden, each headed by its tab's name
+    Then each tab should control its own panel, and each panel should be labelled by its tab
+    And the first tab should be selected and reachable by keyboard, the rest selected-off and out of the tab order
+    And the first panel should be visible and the rest hidden, each headed by its tab's name
 
     Examples:
       | route      |
@@ -52,7 +52,7 @@ Feature: Admin page smoke test
   Scenario: The tabs sit in a row, not a column
     Then the tab list should be laid out horizontally in the built styles
 
-  Scenario: Without JavaScript both panels are still readable
+  Scenario: Without JavaScript every panel is still readable
     When I load the built page "/admin/"
     Then a no-JavaScript fallback in the page head should show the hidden panel
 

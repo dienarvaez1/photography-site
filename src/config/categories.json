@@ -1,0 +1,37 @@
+[
+  {
+    "slug": "real-estate"
+  },
+  {
+    "slug": "landscape"
+  },
+  {
+    "slug": "portrait"
+  },
+  {
+    "slug": "astro"
+  },
+  {
+    "slug": "pets"
+  },
+  {
+    "slug": "nature"
+  },
+  {
+    "slug": "events"
+  },
+  {
+    "slug": "other",
+    "hidden": true
+  },
+  {
+    "slug": "cityscape"
+  },
+  {
+    "slug": "abstract"
+  },
+  {
+    "slug": "drafts",
+    "hidden": true
+  }
+]

@@ -153,7 +153,8 @@
     "actionsLabel": "Page actions",
     "tabs": {
       "testResults": "Test Results",
-      "picsViewer": "Pics Viewer"
+      "picsViewer": "Pics Viewer",
+      "categoryMaintenance": "Category Maintenance"
     },
     "results": {
       "intro": "Results of the automated tests, read from the private results store. Pick a run to see its details.",
@@ -357,6 +358,78 @@
         "shown": "Showing {shown} of {total} photos",
         "more": "Show {count} more",
         "all": "Showing all {total} photos"
+      }
+    },
+    "categories": {
+      "intro": "Every category configured on the site, hidden or not. Adding, editing or removing one edits the site's own source files directly — src/config/categories.json, and its label in each language file — the same as hand-editing them would. It still needs a commit and a deploy to reach the live site.",
+      "count": "{count} categories",
+      "countOne": "1 category",
+      "empty": "No categories are configured.",
+      "hiddenBadge": "Hidden",
+      "photoCount": "{count} photos",
+      "photoCountOne": "1 photo",
+      "photoCountNone": "No photos",
+      "add": "Add Category",
+      "edit": "Edit Categories",
+      "remove": "Remove Categories",
+      "done": "Done",
+      "needsJs": "Category Maintenance needs JavaScript.",
+      "checking": "Checking the local category service…",
+      "unavailable": "Category Maintenance only works while the site runs on your computer (npm run dev): it edits the site's own source files. Start the dev server and open this page from localhost:4321.",
+      "form": {
+        "heading": "New category",
+        "intro": "Writes the category to src/config/categories.json and its name and description to every language file, exactly as hand-editing them would. It needs a commit and a deploy to reach the live site.",
+        "slug": "Slug",
+        "slugHint": "Lowercase letters, digits and single hyphens, starting with a letter (used in the category's URL, e.g. /work/night-sky/). Cannot be changed later.",
+        "label": "Name (English)",
+        "labelEs": "Name (Spanish)",
+        "description": "Description (English)",
+        "descriptionEs": "Description (Spanish)",
+        "hidden": "Hidden (kept off the navigation menu and the homepage grid)",
+        "submit": "Add category",
+        "submitting": "Writing the category's files…",
+        "close": "Close",
+        "added": "Added “{label}”.",
+        "another": "Add another category",
+        "errors": {
+          "unavailable": "Category Maintenance only works while the site runs on your computer (npm run dev): it edits the site's own source files. Start the dev server and open this page from localhost:4321.",
+          "unreachable": "Could not reach the local category service. Is npm run dev still running?",
+          "notLocal": "The local category service only takes requests from its own page on localhost.",
+          "duplicate": "“{slug}” already exists.",
+          "failed": "The category could not be added: {message}"
+        }
+      },
+      "editRow": {
+        "hiddenLabel": "Hidden",
+        "labelAria": "Name (English) for {category}",
+        "labelEsAria": "Name (Spanish) for {category}",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Saved.",
+        "failed": "Could not save {category}: {message}"
+      },
+      "removal": {
+        "checking": "Checking the local category service…",
+        "unavailable": "Removing a category only works while the site runs on your computer (npm run dev): it edits the site's own source files. Start the dev server and open this page from localhost:4321.",
+        "barLabel": "Remove categories",
+        "select": "Select {category}",
+        "selected": "{count} selected",
+        "selectAll": "Select all",
+        "selectNone": "Select none",
+        "delete": "Delete selected",
+        "cancel": "Cancel",
+        "confirm": "Permanently remove these {count} categories from the site's source files? This cannot be undone.",
+        "confirmOne": "Permanently remove this category from the site's source files? This cannot be undone.",
+        "yes": "Yes, remove {count} categories",
+        "yesOne": "Yes, remove this category",
+        "keep": "Keep them",
+        "deleting": "Removing {count} categories…",
+        "deletingOne": "Removing the category…",
+        "done": "{count} categories removed.",
+        "doneOne": "1 category removed.",
+        "failed": "Could not remove {category}: {message}",
+        "requestFailed": "The categories could not be removed: {message}",
+        "unreachable": "the local category service could not be reached"
       }
     }
   }

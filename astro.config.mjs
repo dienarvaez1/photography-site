@@ -7,6 +7,7 @@ import { existsSync, renameSync, rmdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PHOTO_ENTRIES_DIR } from './scripts/lib/entries-dir.mjs';
 import { photoForm } from './scripts/lib/photo-form-server.mjs';
+import { categoryForm } from './scripts/lib/category-form-server.mjs';
 import { CATEGORIES } from './src/config/categories.ts';
 import { SITE } from './src/config/site.ts';
 import { DEFAULT_LOCALE, LOCALES } from './src/i18n/config.ts';
@@ -72,6 +73,9 @@ export default defineConfig({
     localizedNotFoundPages,
     // The Admin page's New Photo form: dev server only (it needs your Cloudflare login to upload).
     photoForm({ contentDir: fileURLToPath(new URL(`./${PHOTO_ENTRIES_DIR}`, import.meta.url)) }),
+    // The Admin page's Category Maintenance tab: dev server only, same reasoning (it needs the local
+    // entries mirror to count a category's photos before letting it be removed).
+    categoryForm({ contentDir: fileURLToPath(new URL(`./${PHOTO_ENTRIES_DIR}`, import.meta.url)) }),
   ],
   adapter: cloudflare(),
   // <ClientRouter/> (astro:transitions, in BaseLayout.astro) turns prefetch on by default, which

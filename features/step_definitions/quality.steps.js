@@ -145,14 +145,14 @@ function referencedBytes(root, pattern, attribute, extraImports = false) {
   return total;
 }
 
-Then("no page's HTML should exceed 30 KB, its scripts 27 KB, or its styles 25 KB, except that the Admin pages' scripts may reach 48 KB", function () {
+Then("no page's HTML should exceed 30 KB, its scripts 27 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 40 KB and their scripts 52 KB", function () {
   const problems = [];
   for (const { route, page } of this.data.pages) {
+    const isAdmin = /\/admin\/$/.test(route);
     const html = Buffer.byteLength(page.html);
     const js = referencedBytes(page.root, 'script[src]', 'src', true);
     const inlineCss = page.root.querySelectorAll('style').reduce((n, s) => n + s.text.length, 0);
     const css = referencedBytes(page.root, 'link[rel="stylesheet"]', 'href') + inlineCss;
-    if (kb(html) > 30) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
     // Astro's <ClientRouter/> runtime (View Transitions) alone is ~16 KB raw, which is why this
     // budget is no longer 10/30 KB — see the redesign plan's Phase 2 notes. Category pages need a
     // little more still, for the client-side category switcher (Phase 6: fetches photos/index.json,
@@ -160,8 +160,11 @@ Then("no page's HTML should exceed 30 KB, its scripts 27 KB, or its styles 25 KB
     // drag to pan around a zoomed-in photo, on top of the pinch-to-zoom it already had) — genuine,
     // hand-written interaction code, not a library, so the 1 KB bump still rules out reaching for an
     // off-the-shelf gallery or filter library, which is the whole point of having a budget at all.
-    // The Admin pages carry the results viewer; nobody but the owner loads them.
-    if (kb(js) > (/\/admin\/$/.test(route) ? 48 : 27)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
+    // The Admin pages carry the results viewer, the Pics Viewer and Category Maintenance — each with
+    // its own embedded text and (Pics/Categories) server-rendered list data — and nobody but the
+    // owner loads them, so both their HTML and script budgets get real, but still enforced, room.
+    if (kb(html) > (isAdmin ? 40 : 30)) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
+    if (kb(js) > (isAdmin ? 52 : 27)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
     if (kb(css) > 25) problems.push(`${route}: styles ${kb(css).toFixed(1)} KB`);
   }
   assert.deepEqual(problems, [], 'A page grew past its budget — check for an oversized script, style or inlined asset');
