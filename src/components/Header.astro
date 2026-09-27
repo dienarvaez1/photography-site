@@ -114,6 +114,13 @@ const alternates = getAlternates(Astro.url.pathname);
   .bar {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
+    /* A real floor, not just each side's own 1fr: the two outer tracks aren't actually equal width
+       in practice (this side's nav links need far more min-content room than the other side's
+       language switcher), so as the viewport narrows toward the mobile nav-toggle breakpoint below,
+       the wider one claims more of the grid — pushing the centered brand column toward the narrower
+       side and closing the gap between it (the aperture logo, its rightmost element) and the nav
+       links right next to it. column-gap guarantees they never actually touch. */
+    column-gap: var(--space-4);
     align-items: center;
     padding-block: var(--space-2);
   }
