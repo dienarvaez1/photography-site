@@ -65,19 +65,19 @@ Then('the built pages on disk should exactly match the expected routes in every 
 Then(
   'the header {string} menu on every page should list exactly the visible category labels of its language in alphabetical order',
   async function (menuName) {
-    assert.equal(menuName, 'Work');
+    assert.equal(menuName, 'Portfolio');
     for (const { route, locale, page } of this.data.pages) {
       assert.deepEqual(
         navLabels(page.root),
         await expectedNavLabels(locale),
-        `${route}: header "Work" menu does not match the visible ${locale} category labels`
+        `${route}: header "Portfolio" menu does not match the visible ${locale} category labels`
       );
     }
   }
 );
 
 Then('the header {string} menu on every page should not contain a link for any hidden category', async function (menuName) {
-  assert.equal(menuName, 'Work');
+  assert.equal(menuName, 'Portfolio');
   const { DEFAULT_LOCALE } = await loadLocaleConfig();
   const hiddenSlugs = this.data.categories.filter((c) => c.hidden).map((c) => c.slug);
   for (const { route, locale, page } of this.data.pages) {
@@ -85,7 +85,7 @@ Then('the header {string} menu on every page should not contain a link for any h
     for (const slug of hiddenSlugs) {
       assert.ok(
         !hrefs.includes(localizedRoute(`/work/${slug}/`, locale, DEFAULT_LOCALE)),
-        `${route}: header "Work" menu links to hidden category "${slug}"`
+        `${route}: header "Portfolio" menu links to hidden category "${slug}"`
       );
     }
   }
@@ -96,7 +96,7 @@ Then("every page should show its language's skip link, navigation labels and cop
     const m = loadMessages(locale);
     const { root } = page;
     assert.equal(root.querySelector('.skip-link')?.text.trim(), m.nav.skipToContent, `${route}: skip link is not in ${locale}`);
-    assert.equal(root.querySelector('#nav-work-toggle')?.text.trim(), m.nav.work, `${route}: "Work" label is not in ${locale}`);
+    assert.equal(root.querySelector('#nav-work-toggle')?.text.trim(), m.nav.work, `${route}: "Portfolio" label is not in ${locale}`);
     const topLinks = root.querySelectorAll('#primary-nav > a').map((a) => a.text.trim());
     assert.deepEqual(topLinks, [m.nav.about, m.nav.contact], `${route}: About/Contact nav labels are not in ${locale}`);
     const footer = root.querySelector('.site-footer')?.text ?? '';
@@ -106,12 +106,12 @@ Then("every page should show its language's skip link, navigation labels and cop
 });
 
 Then('the homepage category grid should list the same categories as the header {string} menu', function (menuName) {
-  assert.equal(menuName, 'Work');
+  assert.equal(menuName, 'Portfolio');
   const gridLabels = this.data.page.root.querySelectorAll('.category-grid h3').map((h) => h.text.trim());
   assert.deepEqual(
     [...gridLabels].sort(),
     [...navLabels(this.data.page.root)].sort(),
-    'Homepage category grid and header "Work" menu disagree on which categories exist'
+    'Homepage category grid and header "Portfolio" menu disagree on which categories exist'
   );
 });
 

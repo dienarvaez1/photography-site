@@ -6,9 +6,9 @@ Feature: Accessibility and cross-browser compatibility (English and Spanish)
   Scenario: No built CSS uses the unsupported range media-query syntax
     Then no built CSS should use range media-query syntax
 
-  Scenario: The header "Work" menu trigger is a real, keyboard-focusable button on every page
+  Scenario: The header "Portfolio" menu trigger is a real, keyboard-focusable button on every page
     When I load every built page
-    Then the "Work" menu trigger should be a real button element on every page
+    Then the "Portfolio" menu trigger should be a real button element on every page
 
   Scenario: The language switcher is an accessible, labelled group on every page
     When I load every built page

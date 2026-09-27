@@ -19,17 +19,17 @@ Feature: The navigation works on phones and with the keyboard
     Then the mobile menu should be collapsed
     And keyboard focus should be on the menu button
 
-  Scenario: The Work submenu lists every visible category on a phone
+  Scenario: The Portfolio submenu lists every visible category on a phone
     Given the visitor uses a phone
     When I open "/"
     And I open the mobile menu
-    And I open the Work submenu
-    Then the Work submenu should list 9 categories, all visible
+    And I open the Portfolio submenu
+    Then the Portfolio submenu should list 9 categories, all visible
 
-  Scenario: On a laptop, tabbing to Work reveals its dropdown
+  Scenario: On a laptop, tabbing to Portfolio reveals its dropdown
     When I open "/"
-    And I tab until keyboard focus reaches the Work menu
-    Then the Work dropdown should be visible with its 9 category links
+    And I tab until keyboard focus reaches the Portfolio menu
+    Then the Portfolio dropdown should be visible with its 9 category links
 
   Scenario: The keyboard can reach every navigation link in order
     When I open "/"
@@ -37,7 +37,7 @@ Feature: The navigation works on phones and with the keyboard
       | skip link     |
       | Español       |
       | home          |
-      | Work          |
+      | Portfolio     |
       | each category |
       | About         |
       | Contact       |

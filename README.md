@@ -156,7 +156,7 @@ against every page in both English and Spanish**; expected text is read from
   browser language when the country is unknown > English), Cloudflare trace parsing, the full
   redirect flow against a fake browser, and that only the English home page ships the detection script.
 - **`accessibility-and-compatibility.feature`** — no CSS uses range media-query syntax that breaks on
-  older Safari/Edge, the "Work" trigger is a real button, the language switcher is a labelled group,
+  older Safari/Edge, the "Portfolio" trigger is a real button, the language switcher is a labelled group,
   every gallery page has a dialog lightbox with localized control labels, every image has alt text,
   new-tab links are safe, `<html lang>` matches the URL, **WCAG contrast ratios** (text 4.5:1,
   form-field borders and focus ring 3:1), reduced-motion CSS, and the contact form's no-JavaScript
@@ -254,7 +254,7 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   without touching the address, and is hidden without JavaScript rather than shown inert; works in
   Spanish; the lightbox still works on a category switched to client-side.
 - **`navigation.feature`** — the mobile menu opens and collapses (Escape returns focus to its
-  button); the Work submenu; keyboard tab order; the dropdown on keyboard focus; the skip link; the
+  button); the Portfolio submenu; keyboard tab order; the dropdown on keyboard focus; the skip link; the
   active page is marked; works in Spanish.
 - **`language-and-location.feature`** — the switcher goes to the equivalent page and remembers the
   choice; a remembered choice beats the country; a first visit lands in the country's language

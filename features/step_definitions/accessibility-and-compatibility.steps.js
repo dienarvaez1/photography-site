@@ -18,11 +18,11 @@ Then('no built CSS should use range media-query syntax', async function () {
 });
 
 Then('the {string} menu trigger should be a real button element on every page', function (menuName) {
-  assert.equal(menuName, 'Work');
+  assert.equal(menuName, 'Portfolio');
   for (const { route, page } of this.data.pages) {
     const trigger = page.root.querySelector('#nav-work-toggle');
-    assert.ok(trigger, `${route}: could not find the "Work" menu trigger element`);
-    assert.equal(trigger.tagName, 'BUTTON', `${route}: the "Work" menu trigger is not a real <button> — keyboard users cannot reach the dropdown`);
+    assert.ok(trigger, `${route}: could not find the "Portfolio" menu trigger element`);
+    assert.equal(trigger.tagName, 'BUTTON', `${route}: the "Portfolio" menu trigger is not a real <button> — keyboard users cannot reach the dropdown`);
   }
 });
 

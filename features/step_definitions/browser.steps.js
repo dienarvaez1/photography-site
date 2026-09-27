@@ -323,11 +323,11 @@ Then(/^the mobile menu should be open with the (?:"([^"]+)" and "([^"]+)"|About 
   for (const name of [a ?? nav.about, b ?? nav.contact]) assert.ok(await page(this).locator('#primary-nav > a', { hasText: name }).isVisible(), `${name} not visible`);
 });
 
-When('I open the Work submenu', async function () {
+When('I open the Portfolio submenu', async function () {
   await page(this).locator('#nav-work-toggle').click();
 });
 
-Then('the Work submenu should list {int} categories, all visible', async function (count) {
+Then('the Portfolio submenu should list {int} categories, all visible', async function (count) {
   const links = page(this).locator('#nav-work-dropdown a');
   assert.equal(await links.count(), count);
   for (let i = 0; i < count; i++) assert.ok(await links.nth(i).isVisible(), `category link ${i} hidden`);
@@ -337,15 +337,15 @@ Then('keyboard focus should be on the menu button', async function () {
   assert.equal((await active(this)).id, 'nav-toggle');
 });
 
-When('I tab until keyboard focus reaches the Work menu', async function () {
+When('I tab until keyboard focus reaches the Portfolio menu', async function () {
   for (let i = 0; i < 12; i++) {
     await page(this).keyboard.press('Tab');
     if ((await active(this))?.id === 'nav-work-toggle') return;
   }
-  assert.fail('Tab never reached the Work menu');
+  assert.fail('Tab never reached the Portfolio menu');
 });
 
-Then('the Work dropdown should be visible with its {int} category links', async function (count) {
+Then('the Portfolio dropdown should be visible with its {int} category links', async function (count) {
   const dropdown = page(this).locator('#nav-work-dropdown');
   await settle(350); // the dropdown fades in over 150 ms
   assert.equal(await dropdown.evaluate((el) => getComputedStyle(el).opacity), '1', 'dropdown is not shown on keyboard focus');

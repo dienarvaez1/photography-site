@@ -19,7 +19,7 @@ Feature: Admin page smoke test
 
   Scenario Outline: The header never links to the Admin page, on any page including the Admin page itself
     When I load the built page "<route>"
-    Then the header links after the Work menu should be, in order: "<links>"
+    Then the header links after the Portfolio menu should be, in order: "<links>"
 
     Examples:
       | route      | links               |

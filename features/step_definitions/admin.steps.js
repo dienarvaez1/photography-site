@@ -12,7 +12,7 @@ Then('the page heading should be {string} in the language {string}', function (h
   assert.equal(text(root(this).querySelector('h1')), heading);
 });
 
-Then('the header links after the Work menu should be, in order: {string}', function (expected) {
+Then('the header links after the Portfolio menu should be, in order: {string}', function (expected) {
   const links = root(this).querySelectorAll('#primary-nav > a').map(text);
   assert.deepEqual(links, expected.split(',').map((l) => l.trim()));
 });

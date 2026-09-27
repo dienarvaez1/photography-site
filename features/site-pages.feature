@@ -43,12 +43,12 @@ Feature: Site pages render correctly (English and Spanish)
   Scenario: The header navigation on every page lists only visible categories, in alphabetical order
     Given the configured categories
     When I load every built page
-    Then the header "Work" menu on every page should list exactly the visible category labels of its language in alphabetical order
+    Then the header "Portfolio" menu on every page should list exactly the visible category labels of its language in alphabetical order
 
   Scenario: A hidden category is not linked from the header navigation on any page
     Given the configured categories
     When I load every built page
-    Then the header "Work" menu on every page should not contain a link for any hidden category
+    Then the header "Portfolio" menu on every page should not contain a link for any hidden category
 
   Scenario: Every page has the localized header, skip link and footer
     When I load every built page
@@ -56,7 +56,7 @@ Feature: Site pages render correctly (English and Spanish)
 
   Scenario Outline: The homepage category grid matches the header navigation categories
     When I load the built page "<route>"
-    Then the homepage category grid should list the same categories as the header "Work" menu
+    Then the homepage category grid should list the same categories as the header "Portfolio" menu
 
     Examples:
       | route |
