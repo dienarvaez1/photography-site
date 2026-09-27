@@ -103,42 +103,45 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
   data-view-gallery-template={t('gallery.viewCategoryGallery')}
   hidden
 >
-  {/* Top-right, left of Close, in this order. Each is icon-only (no visible label, drawn in CSS —
-      see the longer explanation by .lightbox-toolbar below); the accessible name comes entirely
-      from aria-label, same as Close/Previous/Next always have. */}
-  <div class="lightbox-toolbar">
-    <button type="button" class="lightbox-tool lightbox-zoom-in" id="lightbox-zoom-in" aria-label={t('gallery.zoomIn')}>+</button>
-    <button type="button" class="lightbox-tool lightbox-zoom-out" id="lightbox-zoom-out" aria-label={t('gallery.zoomOut')}>&minus;</button>
-    {/* Its own icon flips (a CSS transform, not a swapped element) between this and .is-fullscreen;
-        its label and aria-label are updated the same way, from the two data- attributes below,
-        by the `fullscreenchange` listener in the script — the one event that reflects whether the
-        browser actually entered fullscreen, rather than assuming the click that requested it succeeded.
-        Hidden outright wherever `document.fullscreenEnabled` is false, so no dead button ships to a
-        browser (or embedded context) that can't grant it. */}
-    <button
-      type="button"
-      class="lightbox-tool lightbox-fullscreen"
-      id="lightbox-fullscreen"
-      aria-label={t('gallery.enterFullscreen')}
-      data-enter-label={t('gallery.enterFullscreen')}
-      data-exit-label={t('gallery.exitFullscreen')}
-    ></button>
-    {/* A real link (works with no JS, like the category page's own filter pills): server-rendered
-        pointing at `defaultCategorySlug` (see the Props comment above), then kept in sync with
-        whichever photo is actually open — not necessarily the same category, since the home page's
-        Featured strip mixes several — by the script below, from `data-category-labels`/
-        `data-view-gallery-template` above. */}
-    <a
-      class="lightbox-tool lightbox-view-gallery"
-      id="lightbox-view-gallery"
-      href={defaultCategorySlug ? localizePath(`/work/${defaultCategorySlug}/`, locale) : '#'}
-      aria-label={defaultCategorySlug ? t('gallery.viewCategoryGallery', { category: defaultCategoryLabel ?? '' }) : undefined}
-      data-astro-reload="false"
-    ></a>
-    <button type="button" class="lightbox-tool lightbox-close" id="lightbox-close" aria-label={t('gallery.close')}>&times;</button>
-  </div>
   <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label={t('gallery.previous')}>&#8249;</button>
   <figure class="lightbox-figure">
+    {/* Top-right corner of the photo itself, left of Close, in this order — not the screen's own
+        corner (a letterboxed, non-full-bleed photo would otherwise leave the toolbar floating over
+        bare scrim, away from the thing it controls). .lightbox-figure is `position: relative` for
+        exactly this. Each is icon-only (no visible label, drawn in CSS — see the longer explanation
+        by .lightbox-toolbar below); the accessible name comes entirely from aria-label, same as
+        Close/Previous/Next always have. */}
+    <div class="lightbox-toolbar">
+      <button type="button" class="lightbox-tool lightbox-zoom-in" id="lightbox-zoom-in" aria-label={t('gallery.zoomIn')}>+</button>
+      <button type="button" class="lightbox-tool lightbox-zoom-out" id="lightbox-zoom-out" aria-label={t('gallery.zoomOut')}>&minus;</button>
+      {/* Its own icon flips (a CSS transform, not a swapped element) between this and .is-fullscreen;
+          its label and aria-label are updated the same way, from the two data- attributes below,
+          by the `fullscreenchange` listener in the script — the one event that reflects whether the
+          browser actually entered fullscreen, rather than assuming the click that requested it succeeded.
+          Hidden outright wherever `document.fullscreenEnabled` is false, so no dead button ships to a
+          browser (or embedded context) that can't grant it. */}
+      <button
+        type="button"
+        class="lightbox-tool lightbox-fullscreen"
+        id="lightbox-fullscreen"
+        aria-label={t('gallery.enterFullscreen')}
+        data-enter-label={t('gallery.enterFullscreen')}
+        data-exit-label={t('gallery.exitFullscreen')}
+      ></button>
+      {/* A real link (works with no JS, like the category page's own filter pills): server-rendered
+          pointing at `defaultCategorySlug` (see the Props comment above), then kept in sync with
+          whichever photo is actually open — not necessarily the same category, since the home page's
+          Featured strip mixes several — by the script below, from `data-category-labels`/
+          `data-view-gallery-template` above. */}
+      <a
+        class="lightbox-tool lightbox-view-gallery"
+        id="lightbox-view-gallery"
+        href={defaultCategorySlug ? localizePath(`/work/${defaultCategorySlug}/`, locale) : '#'}
+        aria-label={defaultCategorySlug ? t('gallery.viewCategoryGallery', { category: defaultCategoryLabel ?? '' }) : undefined}
+        data-astro-reload="false"
+      ></a>
+      <button type="button" class="lightbox-tool lightbox-close" id="lightbox-close" aria-label={t('gallery.close')}>&times;</button>
+    </div>
     {/* draggable="false": otherwise the browser's own native image drag (a ghost thumbnail under
         the cursor, dropping the photo wherever the mouse releases) would fight the mouse-drag-to-pan
         the script below adds once zoomed in. */}
@@ -311,6 +314,7 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
   }
 
   .lightbox-figure {
+    position: relative;
     margin: 0;
     max-width: min(90vw, 1400px);
     max-height: 90vh;
@@ -393,8 +397,8 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
      item; the group is still positioned as a unit the same way .lightbox-close used to be by itself. */
   .lightbox-toolbar {
     position: absolute;
-    top: var(--space-2);
-    right: var(--space-3);
+    top: var(--space-1);
+    right: var(--space-1);
     /* See the identical comment on .lightbox-nav above — a zoomed photo would otherwise paint over
        this toolbar too. */
     z-index: 1;

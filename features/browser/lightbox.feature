@@ -206,6 +206,7 @@ Feature: The photo lightbox works with mouse, keyboard and screen readers
   Scenario: Dragging a zoomed-in photo pans it around
     When I open "/work/nature/"
     And I click photo number 1
+    And the lightbox photo is shown at a realistic size
     And I click the lightbox "zoom in" button 2 times
     Then the lightbox photo should appear zoomed
     When I drag the lightbox photo 3px right and 2px down
@@ -216,12 +217,14 @@ Feature: The photo lightbox works with mouse, keyboard and screen readers
   Scenario: Dragging does nothing until the photo is actually zoomed in
     When I open "/work/nature/"
     And I click photo number 1
+    And the lightbox photo is shown at a realistic size
     And I drag the lightbox photo 20px right and 20px down
     Then the lightbox photo should not appear zoomed
 
   Scenario: Moving to a different photo resets any pan too
     When I open "/work/nature/"
     And I click photo number 1
+    And the lightbox photo is shown at a realistic size
     And I click the lightbox "zoom in" button 2 times
     And I drag the lightbox photo 3px right and 2px down
     Then the lightbox photo should have panned right and down
