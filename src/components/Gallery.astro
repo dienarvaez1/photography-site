@@ -139,7 +139,10 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
   </div>
   <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label={t('gallery.previous')}>&#8249;</button>
   <figure class="lightbox-figure">
-    <img id="lightbox-img" alt="" src={BLANK_IMAGE} />
+    {/* draggable="false": otherwise the browser's own native image drag (a ghost thumbnail under
+        the cursor, dropping the photo wherever the mouse releases) would fight the mouse-drag-to-pan
+        the script below adds once zoomed in. */}
+    <img id="lightbox-img" alt="" src={BLANK_IMAGE} draggable="false" />
     <figcaption id="lightbox-caption">
       <span id="lightbox-title"></span><span id="lightbox-camera"></span>
     </figcaption>
@@ -322,6 +325,17 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
     max-height: 78vh;
     object-fit: contain;
     border-radius: var(--radius);
+  }
+
+  /* Only once there's somewhere to drag it to (currentScale > 1, toggled by applyTransform() in the
+     script below) — otherwise the ordinary cursor, since clicking/dragging the photo itself does
+     nothing at 1x (zooming is the dedicated +/- buttons, or pinch on a phone). */
+  .lightbox-figure img.is-zoomed {
+    cursor: grab;
+  }
+
+  .lightbox-figure img.is-zoomed.is-panning {
+    cursor: grabbing;
   }
 
   .lightbox-figure figcaption {
@@ -563,6 +577,7 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
   let removeKeydown: (() => void) | null = null;
   let removePopstate: (() => void) | null = null;
   let removeFullscreenChange: (() => void) | null = null;
+  let removeDrag: (() => void) | null = null;
 
   function initGallery(root: Document | HTMLElement) {
     // `document`/`window` persist across transitions; without removing the previous page's
@@ -576,6 +591,8 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
     removePopstate = null;
     removeFullscreenChange?.();
     removeFullscreenChange = null;
+    removeDrag?.();
+    removeDrag = null;
 
     const tiles = Array.from(root.querySelectorAll<HTMLButtonElement>('.tile'));
     if (!tiles.length) return;
@@ -603,14 +620,43 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
     const ZOOM_MAX = 4;
     let currentIndex = 0;
     let currentScale = 1;
+    // In screen pixels, not the image's own (pre-scale) ones — see applyTransform() below for why
+    // that's the order the transform's two functions are written in.
+    let panX = 0;
+    let panY = 0;
     let lastFocused: HTMLElement | null = null;
+
+    // translate() before scale(): written in that order, the translation happens in the *parent's*
+    // coordinate space (screen pixels) rather than the image's own pre-scale ones, so panX/panY stay
+    // real, scale-independent pixel offsets — a mouse dragging 10px always pans 10px, at any zoom
+    // level — instead of needing to be re-derived from currentScale on every read. Below 1x there's
+    // nowhere to pan to, so that's also where panX/panY themselves reset, not just the transform —
+    // the one place this needs deciding, for setZoom() and the drag handler below alike.
+    function applyTransform() {
+      if (currentScale > 1) {
+        // Keeps panning inside the extra room zooming actually created: the image's edge can move at
+        // most half of however much bigger than its own laid-out (a `transform` never affects layout)
+        // box it now renders. Re-clamped on every call, including a zoom change, so zooming back out
+        // re-clamps a pan that was valid at 3x but would now hang the image's edge over empty space
+        // at 1.5x.
+        const maxX = (img!.offsetWidth * (currentScale - 1)) / 2;
+        const maxY = (img!.offsetHeight * (currentScale - 1)) / 2;
+        panX = Math.min(maxX, Math.max(-maxX, panX));
+        panY = Math.min(maxY, Math.max(-maxY, panY));
+        img!.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
+      } else {
+        panX = panY = 0;
+        img!.style.transform = '';
+      }
+      img!.classList.toggle('is-zoomed', currentScale > 1);
+    }
 
     // Shared by the zoom in/out buttons and pinch-to-zoom (see the touch handlers below) so both
     // ways of zooming keep the buttons' `disabled` state in sync with the bounds they already
     // impose on pinch alone.
     function setZoom(scale: number) {
       currentScale = Math.min(ZOOM_MAX, Math.max(1, scale));
-      img!.style.transform = currentScale > 1 ? `scale(${currentScale})` : '';
+      applyTransform();
       if (zoomInBtn) zoomInBtn.disabled = currentScale >= ZOOM_MAX;
       if (zoomOutBtn) zoomOutBtn.disabled = currentScale <= 1;
     }
@@ -784,6 +830,44 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
       }
       if (event.touches.length === 0) gesture = 'none';
     });
+
+    // --- mouse: drag a zoomed-in photo around -------------------------------------------------------
+    let isPanning = false;
+    let lastPanX = 0;
+    let lastPanY = 0;
+
+    img.addEventListener('mousedown', (event) => {
+      // A plain left-button press only, and only once zooming has actually created somewhere to
+      // pan to — at 1x the image already fills all the room it has.
+      if (currentScale <= 1 || event.button !== 0) return;
+      isPanning = true;
+      lastPanX = event.clientX;
+      lastPanY = event.clientY;
+      img!.classList.add('is-panning');
+      event.preventDefault();
+    });
+
+    // On `document`, not the image itself: a real drag routinely carries the pointer off the (now
+    // enlarged, but still finite) image, and a mouseup there must still end the drag rather than
+    // leaving it stuck "on" until the pointer happens to cross back over the img.
+    const onPanMove = (event: MouseEvent) => {
+      if (!isPanning) return;
+      panX += event.clientX - lastPanX;
+      panY += event.clientY - lastPanY;
+      lastPanX = event.clientX;
+      lastPanY = event.clientY;
+      applyTransform();
+    };
+    const onPanEnd = () => {
+      isPanning = false;
+      img!.classList.remove('is-panning');
+    };
+    document.addEventListener('mousemove', onPanMove);
+    document.addEventListener('mouseup', onPanEnd);
+    removeDrag = () => {
+      document.removeEventListener('mousemove', onPanMove);
+      document.removeEventListener('mouseup', onPanEnd);
+    };
 
     // A page freshly loaded (or arrived at via a client-routed transition) with ?photo=<id>
     // already in its URL opens straight to that photo — including with JS present but before any

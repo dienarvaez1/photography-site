@@ -273,8 +273,37 @@ const lightboxImgScale = async (world) =>
     return Number(t.match(/matrix\(([^,]+),/)?.[1] ?? 1);
   });
 
+// A 2D matrix(a, b, c, d, e, f) transform's e/f are its translation — the pan the script applies by
+// writing `translate(panX, panY) scale(s)` (that order, not the reverse, is exactly what keeps e/f
+// equal to the real screen-pixel pan distance regardless of scale — see applyTransform()'s comment).
+const lightboxImgPan = async (world) =>
+  page(world).locator('#lightbox-img').evaluate((el) => {
+    const t = getComputedStyle(el).transform;
+    if (t === 'none') return { x: 0, y: 0 };
+    const [, x, y] = t.match(/matrix\([^,]+,[^,]+,[^,]+,[^,]+,\s*([^,]+),\s*([^)]+)\)/) ?? [];
+    return { x: Number(x ?? 0), y: Number(y ?? 0) };
+  });
+
 Then('the lightbox photo should appear zoomed', async function () {
   assert.ok((await lightboxImgScale(this)) > 1.5, await lightboxImgScale(this));
+});
+
+When(/^I drag the lightbox photo (\d+)px (right|left) and (\d+)px (down|up)$/, async function (dx, xDir, dy, yDir) {
+  const box = await page(this).locator('#lightbox-img').boundingBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const signedDx = xDir === 'right' ? Number(dx) : -Number(dx);
+  const signedDy = yDir === 'down' ? Number(dy) : -Number(dy);
+  await page(this).mouse.move(cx, cy);
+  await page(this).mouse.down();
+  await page(this).mouse.move(cx + signedDx, cy + signedDy, { steps: 5 });
+  await page(this).mouse.up();
+});
+
+Then(/^the lightbox photo should have panned (right|left) and (down|up)$/, async function (xDir, yDir) {
+  const { x, y } = await lightboxImgPan(this);
+  assert.ok(xDir === 'right' ? x > 0 : x < 0, `expected the photo to have panned ${xDir}, got x=${x}`);
+  assert.ok(yDir === 'down' ? y > 0 : y < 0, `expected the photo to have panned ${yDir}, got y=${y}`);
 });
 
 Then('the lightbox photo should not appear zoomed', async function () {

@@ -203,6 +203,31 @@ Feature: The photo lightbox works with mouse, keyboard and screen readers
     Then the lightbox photo should not appear zoomed
     And the lightbox "zoom out" button should be disabled
 
+  Scenario: Dragging a zoomed-in photo pans it around
+    When I open "/work/nature/"
+    And I click photo number 1
+    And I click the lightbox "zoom in" button 2 times
+    Then the lightbox photo should appear zoomed
+    When I drag the lightbox photo 3px right and 2px down
+    Then the lightbox photo should have panned right and down
+    When I drag the lightbox photo 6px left and 4px up
+    Then the lightbox photo should have panned left and up
+
+  Scenario: Dragging does nothing until the photo is actually zoomed in
+    When I open "/work/nature/"
+    And I click photo number 1
+    And I drag the lightbox photo 20px right and 20px down
+    Then the lightbox photo should not appear zoomed
+
+  Scenario: Moving to a different photo resets any pan too
+    When I open "/work/nature/"
+    And I click photo number 1
+    And I click the lightbox "zoom in" button 2 times
+    And I drag the lightbox photo 3px right and 2px down
+    Then the lightbox photo should have panned right and down
+    When I press the key "ArrowRight"
+    Then the lightbox photo should not appear zoomed
+
   # A real headless browser has no screen to actually fill, so it never grants a genuine fullscreen
   # request — these exercise the two things that stay testable: the button reacts correctly to
   # whatever the browser itself reports (simulated here, since it won't report it for real), and a
