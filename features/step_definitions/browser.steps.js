@@ -136,6 +136,22 @@ When(/^I click the lightbox "([^"]+)" button (\d+) times$/, async function (whic
   for (let i = 0; i < Number(times); i++) await control.click();
 });
 
+// Every browser-test photo is really the same tiny (16x11) synthetic image (see shared() in
+// features/support/browser.js) — deliberately, so tests don't depend on real photo bytes — but that
+// means it never renders anywhere near large enough to reach the toolbar's corner the way a real,
+// full-size photo does, so a toolbar-vs-photo overlap bug can't surface against it as-is. This
+// forces the rendered box to a size a real photo easily reaches (well past the viewport, in fact),
+// to make that overlap real for the one scenario that needs it, without touching the shared fixture.
+When('the lightbox photo is shown at a realistic size', async function () {
+  await page(this).evaluate(() => {
+    const img = document.getElementById('lightbox-img');
+    img.style.maxWidth = 'none';
+    img.style.maxHeight = 'none';
+    img.style.width = '2000px';
+    img.style.height = '1500px';
+  });
+});
+
 When('I click the dark background of the lightbox', async function () {
   await page(this).locator('#lightbox').click({ position: { x: 8, y: 8 } });
 });

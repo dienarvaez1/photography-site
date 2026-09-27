@@ -353,6 +353,12 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
 
   .lightbox-nav {
     position: absolute;
+    /* Without this, a *zoomed* photo (a `transform` on #lightbox-img — see setZoom() in the script
+       below) promotes that image to its own stacking context, painted after (so on top of) any
+       plain, non-positioned box in DOM order — including .lightbox-figure, which sits after these
+       buttons in the markup. An explicit z-index sidesteps that entirely: these controls always
+       paint above the photo, zoomed or not. */
+    z-index: 1;
     background: none;
     border: none;
     color: #fff;
@@ -375,6 +381,9 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
     position: absolute;
     top: var(--space-2);
     right: var(--space-3);
+    /* See the identical comment on .lightbox-nav above — a zoomed photo would otherwise paint over
+       this toolbar too. */
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 0.125rem;
@@ -389,18 +398,23 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
     background: none;
     border: none;
     border-radius: var(--radius);
-    color: #fff;
+    /* #767676: the standard "equally accessible on either extreme" gray — ~4.5:1 contrast against
+       both white and black, so an icon stays legible whether it lands over the near-black scrim,
+       a dark part of the photo, or a light/white one (the toolbar sits *over* the photo, which can
+       reach right up under it — see the .lightbox-tool z-index comment below). Full opacity, not
+       dimmed at rest: dimming a color already chosen for a specific contrast ratio undoes the
+       reason it was chosen, so hover is a background tint instead (below), not a brightness change.
+    */
+    color: #767676;
     font-size: 1.5rem;
     line-height: 1;
     text-decoration: none;
     cursor: pointer;
-    opacity: 0.75;
-    transition: opacity 0.2s ease, background-color 0.2s ease;
+    transition: background-color 0.2s ease;
   }
 
   .lightbox-tool:hover {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.15);
   }
 
   /* Real `disabled` (toggled by the script at the currentScale bounds it already enforces for

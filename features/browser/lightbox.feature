@@ -183,6 +183,17 @@ Feature: The photo lightbox works with mouse, keyboard and screen readers
     Then the lightbox photo should not appear zoomed
     And the lightbox "zoom out" button should be disabled
 
+  Scenario: The toolbar stays clickable, not covered by the photo, once zoomed in
+    When I open "/work/nature/"
+    And I click photo number 1
+    And the lightbox photo is shown at a realistic size
+    And I click the lightbox "zoom in" button 3 times
+    Then the lightbox photo should appear zoomed
+    When I click the lightbox "zoom out" button 3 times
+    Then the lightbox photo should not appear zoomed
+    When I click the lightbox "close" button
+    Then the lightbox should be closed
+
   Scenario: Moving to a different photo resets zoom from the buttons too
     When I open "/work/nature/"
     And I click photo number 1
