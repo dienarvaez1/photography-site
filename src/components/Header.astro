@@ -152,6 +152,14 @@ const alternates = getAlternates(Astro.url.pathname);
     display: flex;
     align-items: center;
     gap: var(--space-4);
+    /* .bar's own column-gap (below) already puts a measured, equal var(--space-4) on both sides of
+       the brand — verified against the same gap between "Portfolio" and "About" pixel-for-pixel, at
+       every width down to the mobile nav-toggle breakpoint. This nudges the nav side out a little
+       further anyway: a circle (the aperture logo) shows less of its own ink near a straight box
+       edge than a letter does, so a numerically identical gap next to it reads as tighter — the
+       lang-switcher side, with no round shape next to it, needs no equivalent nudge. Reset to 0
+       below the nav-toggle breakpoint, where this becomes the mobile dropdown's own left edge. */
+    margin-left: var(--space-1);
   }
 
   .primary-nav > a {
@@ -311,6 +319,7 @@ const alternates = getAlternates(Astro.url.pathname);
       top: 100%;
       left: 0;
       right: 0;
+      margin-left: 0;
       flex-direction: column;
       align-items: stretch;
       gap: 0;
