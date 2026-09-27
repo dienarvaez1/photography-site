@@ -146,7 +146,7 @@ const heroPhotos = (featuredHero.length > 0 ? featuredHero : heroCandidates.slic
   .hero {
     position: relative;
     display: flex;
-    align-items: flex-end;
+    align-items: flex-start;
     min-height: 88svh;
     overflow: hidden;
   }
@@ -177,14 +177,17 @@ const heroPhotos = (featuredHero.length > 0 ? featuredHero : heroCandidates.slic
   .hero-scrim {
     position: absolute;
     inset: 0;
-    /* Strongest where the text sits (bottom-left), fading out toward the top so the photo itself
-       still reads clearly higher up. */
-    background: linear-gradient(to top, rgba(10, 10, 9, 0.92) 15%, rgba(10, 10, 9, 0.45) 60%, rgba(10, 10, 9, 0.55));
+    /* Strongest where the text sits (top-left, since the content block moved there to sit flush
+       with the tagline at the same height as the About page's eyebrow), fading out toward the
+       bottom so the photo itself still reads clearly lower down. */
+    background: linear-gradient(to bottom, rgba(10, 10, 9, 0.92) 15%, rgba(10, 10, 9, 0.45) 60%, rgba(10, 10, 9, 0.55));
   }
 
   .hero-content {
     position: relative;
-    padding-block: var(--space-6) var(--space-5);
+    /* padding-block-start matches .about's own padding-block: the tagline (this block's first
+       child, right above the heading) sits at exactly the same height as the About page's eyebrow. */
+    padding-block: var(--space-5) var(--space-6);
     max-width: 760px;
   }
 
