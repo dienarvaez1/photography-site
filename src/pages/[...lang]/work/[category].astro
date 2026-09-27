@@ -207,8 +207,8 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
   }
 
   .sort-control select {
-    min-height: 26px;
-    padding: 0.15rem 0.5rem;
+    min-height: 25px;
+    padding: 0.1rem 0.5rem;
     background: var(--bg-elevated);
     color: var(--fg);
     border: 1px solid var(--field-border);
@@ -221,9 +221,11 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
      closed), not a second, phone-only control to keep in sync with it. The label collapses to the
      same off-screen-but-still-announced technique as .visually-hidden (global.css) — scoped here,
      not that shared class, since it only applies below this one breakpoint. text-indent shoves the
-     select's own text (which would otherwise be squeezed into 26px and truncate unreadably) out of
-     its clipped box; the browser's own native dropdown arrow isn't part of that text run, so it
-     stays put and reads as the control's icon. */
+     select's own text (which would otherwise be squeezed into 25px and truncate unreadably) out of
+     its clipped box; appearance: none removes the browser's own native arrow (which it never draws
+     centered — only ever trailing, meant for a box with visible text before it) so the two small
+     background gradients below can draw one that's actually centered, both ways, in this icon-sized
+     box, standing in as the control's icon now that the text itself is hidden. */
   @media (max-width: 640px) {
     .sort-control label {
       position: absolute;
@@ -235,10 +237,31 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
     }
 
     .sort-control select {
-      width: 26px;
-      min-width: 26px;
-      padding: 0.15rem 0;
+      appearance: none;
+      width: 25px;
+      height: 25px;
+      min-width: 25px;
+      padding: 0;
       text-indent: -9999px;
+      /* Two small diagonal half-squares, placed edge-to-edge (each 5px wide, the second starting
+         exactly where the first ends) so together they read as one unbroken "v" rather than two
+         separate marks — and in plain px, not %, against this box's own known, fixed 25x25 size
+         (border-box, so the border itself counts): percentage-based centering multiplies by
+         (container − image) size first, which doesn't actually land two *different* layers side by
+         side the way it looks like it should. */
+      background-origin: border-box;
+      background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+      background-position: 7.5px 10px, 12.5px 10px;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+    }
+
+    /* Chromium (this site's own tested browser) does render <option> font-size in the native popup
+       list; a 25px closed control reads oddly paired with a full-size dropdown list, so this shrinks
+       that too. Browsers that ignore styled <option>s (e.g. Firefox) just keep their own default
+       size — a harmless no-op there, not a broken one. */
+    .sort-control option {
+      font-size: 0.75rem;
     }
   }
 
