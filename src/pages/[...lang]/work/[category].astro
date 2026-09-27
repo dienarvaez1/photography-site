@@ -81,24 +81,29 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
     </div>
 
     <h1 id="work-heading">{category.label}</h1>
-    <p id="work-description">{category.description}</p>
-  </section>
 
-  <div class="wrap controls">
-    {/* Invisible (not `hidden`) until the script reveals it: a sort control that does nothing
-        without JS is worse than no control at all — but its box stays in flow from the very first
-        paint, at its final size, so revealing it only flips a paint property, never adds or removes
-        space. It used to be `hidden` (display: none, no box at all), which was a measured
-        Cumulative Layout Shift (features/browser/security-and-performance.feature) once JS revealed
-        it, not a flake. */}
-    <div class="sort-control" id="gallery-controls">
-      <label for="gallery-sort">{t('work.sortLabel')}</label>
-      <select id="gallery-sort">
-        <option value="order">{t('work.sortCurated')}</option>
-        <option value="newest">{t('work.sortNewest')}</option>
-      </select>
+    <div class="description-row">
+      <p id="work-description">{category.description}</p>
+
+      {/* Invisible (not `hidden`) until the script reveals it: a sort control that does nothing
+          without JS is worse than no control at all — but its box stays in flow from the very first
+          paint, at its final size, so revealing it only flips a paint property, never adds or removes
+          space. It used to be `hidden` (display: none, no box at all), which was a measured
+          Cumulative Layout Shift (features/browser/security-and-performance.feature) once JS revealed
+          it, not a flake. */}
+      <div class="sort-control" id="gallery-controls">
+        <label for="gallery-sort">{t('work.sortLabel')}</label>
+        {/* A native tooltip, not a custom one: this is exactly what `title` is for, needs no JS or
+            markup of its own, and matters most in the mobile breakpoint's compact/icon-only mode
+            (below), where the visible "Sort by" text is gone and only the label — already there for
+            screen readers — no longer shows sighted mouse users what the control does at a glance. */}
+        <select id="gallery-sort" title={t('work.sortLabel')}>
+          <option value="order">{t('work.sortCurated')}</option>
+          <option value="newest">{t('work.sortNewest')}</option>
+        </select>
+      </div>
     </div>
-  </div>
+  </section>
 
   <section class="wrap section work-photos">
     <p id="empty-message" class="empty-message" hidden={photos.length > 0}>{t('work.empty')}</p>
@@ -119,11 +124,32 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
     max-width: 700px;
   }
 
-  .controls {
+  /* The category summary and the sort control share this line — space-between puts the summary at
+     the start and the control at the end, same as the control's own old, separate right-aligned row
+     used to. wrap: a long (especially Spanish) description at a narrow width drops the control to
+     its own line underneath rather than overlapping it. */
+  .description-row {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    padding-bottom: var(--space-2);
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  /* The row above owns the bottom spacing (its own margin-bottom) that this paragraph's default
+     (global.css) margin would otherwise duplicate. flex/min-width let a long description wrap onto
+     a second line of its own — rather than the row itself wrapping, which would push the sort
+     control below it instead of keeping the two side by side even at phone widths (the compact,
+     icon-sized control below exists specifically so there's always room for both). */
+  .description-row p {
+    margin: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Stays its own size regardless of how much room the description next to it needs, instead of
+     flex dividing the row's width evenly between the two and shrinking this one too. */
+  .sort-control {
+    flex-shrink: 0;
   }
 
   /* Sits right under the eyebrow, ahead of the category name and description below it — the `p`
@@ -170,8 +196,8 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
   .sort-control {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.85rem;
+    gap: 0.4rem;
+    font-size: 0.8rem;
     color: var(--fg-muted);
     visibility: hidden;
   }
@@ -181,13 +207,39 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
   }
 
   .sort-control select {
-    min-height: 36px;
-    padding: 0.3rem 0.6rem;
+    min-height: 26px;
+    padding: 0.15rem 0.5rem;
     background: var(--bg-elevated);
     color: var(--fg);
     border: 1px solid var(--field-border);
     border-radius: var(--radius);
     font: inherit;
+  }
+
+  /* A compact, icon-sized control: same "Sort by" <select> (still a real, fully working native
+     dropdown, still with its own accessible name — nothing here removes that, only how it looks
+     closed), not a second, phone-only control to keep in sync with it. The label collapses to the
+     same off-screen-but-still-announced technique as .visually-hidden (global.css) — scoped here,
+     not that shared class, since it only applies below this one breakpoint. text-indent shoves the
+     select's own text (which would otherwise be squeezed into 26px and truncate unreadably) out of
+     its clipped box; the browser's own native dropdown arrow isn't part of that text run, so it
+     stays put and reads as the control's icon. */
+  @media (max-width: 640px) {
+    .sort-control label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .sort-control select {
+      width: 26px;
+      min-width: 26px;
+      padding: 0.15rem 0;
+      text-indent: -9999px;
+    }
   }
 
   .section {

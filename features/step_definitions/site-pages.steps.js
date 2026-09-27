@@ -162,6 +162,12 @@ const categoryOfRoute = (route) => route.match(/\/work\/([^/]+)\/$/)?.[1];
 /** A photo's title as shown in the given locale. */
 const shownTitle = (entry, locale) => entry.frontmatter.titles?.[locale] ?? entry.frontmatter.title;
 
+Then('its sort control should have a tooltip', function () {
+  const locale = pageLocale(this.data.page);
+  const select = this.data.page.root.querySelector('#gallery-sort');
+  assert.equal(select.getAttribute('title'), loadMessages(locale).work.sortLabel, `${this.data.route}: sort control has no (or the wrong) tooltip`);
+});
+
 Then('the page should show a tile for every photo in its category', function () {
   const locale = pageLocale(this.data.page);
   const slug = categoryOfRoute(this.data.route);

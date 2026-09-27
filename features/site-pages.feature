@@ -88,6 +88,7 @@ Feature: Site pages render correctly (English and Spanish)
     Then the page should show a tile for every photo in its category
     And each tile should load its photo sizes from the public photo bucket
     And every photo on that page with a camera line should show it in its tile, and no tile should show a copyright
+    And its sort control should have a tooltip
 
     Examples:
       | route                 |
