@@ -58,11 +58,7 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
 >
   <section class="wrap header">
     <p class="eyebrow">{t('work.eyebrow')}</p>
-    <h1 id="work-heading">{category.label}</h1>
-    <p id="work-description">{category.description}</p>
-  </section>
 
-  <div class="wrap controls">
     {/* A group of links, not a `<nav>`: the header already has the site's one navigation landmark,
         and axe-core's unique-landmark rule wants every `<nav>` on a page distinctly named — these
         pills are a content-level filter for the gallery below, not a second section of the site to
@@ -84,13 +80,17 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
       )}
     </div>
 
+    <h1 id="work-heading">{category.label}</h1>
+    <p id="work-description">{category.description}</p>
+  </section>
+
+  <div class="wrap controls">
     {/* Invisible (not `hidden`) until the script reveals it: a sort control that does nothing
         without JS is worse than no control at all — but its box stays in flow from the very first
         paint, at its final size, so revealing it only flips a paint property, never adds or removes
-        space. It used to be `hidden` (display: none, no box at all) until the category filter picked
-        up two more pills: the same shared flex row then had less room once JS revealed the control,
-        wrapping the pills onto an extra line and pushing the gallery down — a real, measured
-        Cumulative Layout Shift (features/browser/security-and-performance.feature), not a flake. */}
+        space. It used to be `hidden` (display: none, no box at all), which was a measured
+        Cumulative Layout Shift (features/browser/security-and-performance.feature) once JS revealed
+        it, not a flake. */}
     <div class="sort-control" id="gallery-controls">
       <label for="gallery-sort">{t('work.sortLabel')}</label>
       <select id="gallery-sort">
@@ -122,17 +122,21 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
   .controls {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
+    align-items: flex-end;
     padding-bottom: var(--space-2);
   }
 
+  /* Sits right under the eyebrow, ahead of the category name and description below it — the `p`
+     rule's own bottom margin (global.css) already spaces it from the eyebrow above; this adds the
+     matching gap before the `h1` that follows, since h1's own margin is a top-less `margin: 0 0
+     var(--space-2)`. */
   .category-filter {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 0.5rem;
     width: 100%;
+    margin-bottom: var(--space-2);
   }
 
   .filter-pill {
@@ -166,7 +170,6 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
   .sort-control {
     display: flex;
     align-items: center;
-    align-self: flex-end;
     gap: 0.5rem;
     font-size: 0.85rem;
     color: var(--fg-muted);
