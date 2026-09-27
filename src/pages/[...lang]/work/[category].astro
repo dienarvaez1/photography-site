@@ -102,7 +102,7 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
 
   <section class="wrap section work-photos">
     <p id="empty-message" class="empty-message" hidden={photos.length > 0}>{t('work.empty')}</p>
-    <Gallery photos={photos} />
+    <Gallery photos={photos} category={slug} />
   </section>
 </BaseLayout>
 

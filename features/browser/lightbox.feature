@@ -167,3 +167,51 @@ Feature: The photo lightbox works with mouse, keyboard and screen readers
     And I pinch out on the lightbox photo
     And I swipe left on the lightbox photo
     Then the lightbox should show photo number 2 of the page
+
+  # --- Toolbar: zoom, fullscreen, back to the gallery ------------------------------------------------------
+
+  Scenario: The zoom in/out buttons zoom the open photo, and disable at their limits
+    When I open "/work/nature/"
+    And I click photo number 1
+    Then the lightbox "zoom out" button should be disabled
+    When I click the lightbox "zoom in" button 2 times
+    Then the lightbox photo should appear zoomed
+    And the lightbox "zoom out" button should be enabled
+    When I click the lightbox "zoom in" button 4 times
+    Then the lightbox "zoom in" button should be disabled
+    When I click the lightbox "zoom out" button 6 times
+    Then the lightbox photo should not appear zoomed
+    And the lightbox "zoom out" button should be disabled
+
+  Scenario: Moving to a different photo resets zoom from the buttons too
+    When I open "/work/nature/"
+    And I click photo number 1
+    And I click the lightbox "zoom in" button 2 times
+    Then the lightbox photo should appear zoomed
+    When I press the key "ArrowRight"
+    Then the lightbox photo should not appear zoomed
+    And the lightbox "zoom out" button should be disabled
+
+  # A real headless browser has no screen to actually fill, so it never grants a genuine fullscreen
+  # request — these exercise the two things that stay testable: the button reacts correctly to
+  # whatever the browser itself reports (simulated here, since it won't report it for real), and a
+  # denied request fails silently rather than erroring.
+  Scenario: The fullscreen button's label reflects the browser's own fullscreen state
+    When I open "/work/nature/"
+    And I click photo number 1
+    Then the lightbox should not be in fullscreen mode
+    When the browser simulates entering fullscreen for the lightbox
+    Then the lightbox should be in fullscreen mode
+    When the browser simulates exiting fullscreen for the lightbox
+    Then the lightbox should not be in fullscreen mode
+
+  Scenario: Clicking the fullscreen button does not error even when the browser denies it
+    When I open "/work/nature/"
+    And I click photo number 1
+    And I click the lightbox "fullscreen" button
+    Then no script error should have been logged
+
+  Scenario: The "view gallery" link returns to the open photo's own category page
+    When I open "/work/nature/"
+    And I click photo number 1
+    Then the lightbox "view gallery" link should point at "/work/nature/"

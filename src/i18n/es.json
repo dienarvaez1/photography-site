@@ -23,7 +23,12 @@
     "close": "Cerrar",
     "previous": "Foto anterior",
     "next": "Foto siguiente",
-    "counter": "{current} de {total}"
+    "counter": "{current} de {total}",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar",
+    "enterFullscreen": "Pantalla completa",
+    "exitFullscreen": "Salir de pantalla completa",
+    "viewCategoryGallery": "Ver galería de {category}"
   },
   "categories": {
     "real-estate": {

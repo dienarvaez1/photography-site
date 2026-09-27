@@ -1,15 +1,33 @@
 ---
 import type { PhotoEntry } from '../config/photo-manifest';
 import { THUMB_SRCSET, photoSrcSet, photoVariant, ratioClass } from '../config/photos';
-import { getLocale, getPhotoTitle, useTranslations } from '../i18n';
+import { getLocale, getLocalizedCategories, getPhotoTitle, localizePath, useTranslations } from '../i18n';
 
 interface Props {
   photos: PhotoEntry[];
+  /**
+   * This page's own category, when it has a single one (work/[category].astro passes its slug) —
+   * the lightbox's "View <category> gallery" link's server-rendered default before any photo has
+   * been opened (and its only possible value when `photos` is empty, so a category with none still
+   * gets a real link rather than an unnamed one — features/html-quality.feature's accessible-name
+   * check runs on the static build, never the client script below). A mixed gallery like the home
+   * page's Featured strip has no single one to pass, so its default instead falls back to the first
+   * photo's own category further down — accurate for as long as it takes the click handler in the
+   * script below to point the link at whichever photo is actually open.
+   */
+  category?: string;
 }
 
-const { photos } = Astro.props;
+const { photos, category } = Astro.props;
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
+
+// A photo's own category isn't necessarily the page's (the home page's Featured strip mixes
+// several), so the lightbox's "View <category> gallery" link needs every category's label, not
+// just one — keyed by slug, for the client script below to look up whichever photo is open. Every
+// category, not just the visible ones: a hidden category's own photos can still turn up in a
+// gallery (e.g. a direct link into it), and the label should still resolve rather than show its slug.
+const categoryLabels = Object.fromEntries(getLocalizedCategories(locale).map((c) => [c.slug, c.label]));
 
 // The lightbox <img> has no photo until one is opened; a 1x1 transparent GIF keeps the HTML valid
 // (an <img> needs a src) without a network request.
@@ -24,6 +42,7 @@ const tiles = photos.map((photo, index) => ({
   thumb: photoVariant(photo.data.photo, 'thumb'),
   srcset: photoSrcSet(photo.data.photo, THUMB_SRCSET),
   full: photoVariant(photo.data.photo, 'full'),
+  category: photo.data.category,
   data: photo.data,
   title: getPhotoTitle(photo.data, locale),
   // The photo's own shape, from its real dimensions — not the (rounded) thumb's. Falls back to a
@@ -31,6 +50,9 @@ const tiles = photos.map((photo, index) => ({
   // at ingest, so this is only ever a defensive fallback).
   ratioClass: ratioClass(photo.data.photo.width && photo.data.photo.height ? photo.data.photo.width / photo.data.photo.height : 1.5),
 }));
+
+const defaultCategorySlug = category ?? tiles[0]?.category;
+const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCategorySlug] ?? defaultCategorySlug) : undefined;
 ---
 
 <div class="gallery">
@@ -42,6 +64,7 @@ const tiles = photos.map((photo, index) => ({
       data-full={tile.full.src}
       data-caption={tile.title}
       data-title={tile.title}
+      data-category={tile.category}
       data-camera={tile.data.camera ?? ''}
       data-placeholder={tile.data.placeholderColor ?? ''}
       aria-label={t('gallery.openPhoto', { title: tile.title })}
@@ -76,9 +99,44 @@ const tiles = photos.map((photo, index) => ({
   aria-modal="true"
   aria-labelledby="lightbox-caption"
   data-counter-template={t('gallery.counter')}
+  data-category-labels={JSON.stringify(categoryLabels)}
+  data-view-gallery-template={t('gallery.viewCategoryGallery')}
   hidden
 >
-  <button type="button" class="lightbox-close" id="lightbox-close" aria-label={t('gallery.close')}>&times;</button>
+  {/* Top-right, left of Close, in this order. Each is icon-only (no visible label, drawn in CSS —
+      see the longer explanation by .lightbox-toolbar below); the accessible name comes entirely
+      from aria-label, same as Close/Previous/Next always have. */}
+  <div class="lightbox-toolbar">
+    <button type="button" class="lightbox-tool lightbox-zoom-in" id="lightbox-zoom-in" aria-label={t('gallery.zoomIn')}>+</button>
+    <button type="button" class="lightbox-tool lightbox-zoom-out" id="lightbox-zoom-out" aria-label={t('gallery.zoomOut')}>&minus;</button>
+    {/* Its own icon flips (a CSS transform, not a swapped element) between this and .is-fullscreen;
+        its label and aria-label are updated the same way, from the two data- attributes below,
+        by the `fullscreenchange` listener in the script — the one event that reflects whether the
+        browser actually entered fullscreen, rather than assuming the click that requested it succeeded.
+        Hidden outright wherever `document.fullscreenEnabled` is false, so no dead button ships to a
+        browser (or embedded context) that can't grant it. */}
+    <button
+      type="button"
+      class="lightbox-tool lightbox-fullscreen"
+      id="lightbox-fullscreen"
+      aria-label={t('gallery.enterFullscreen')}
+      data-enter-label={t('gallery.enterFullscreen')}
+      data-exit-label={t('gallery.exitFullscreen')}
+    ></button>
+    {/* A real link (works with no JS, like the category page's own filter pills): server-rendered
+        pointing at `defaultCategorySlug` (see the Props comment above), then kept in sync with
+        whichever photo is actually open — not necessarily the same category, since the home page's
+        Featured strip mixes several — by the script below, from `data-category-labels`/
+        `data-view-gallery-template` above. */}
+    <a
+      class="lightbox-tool lightbox-view-gallery"
+      id="lightbox-view-gallery"
+      href={defaultCategorySlug ? localizePath(`/work/${defaultCategorySlug}/`, locale) : '#'}
+      aria-label={defaultCategorySlug ? t('gallery.viewCategoryGallery', { category: defaultCategoryLabel ?? '' }) : undefined}
+      data-astro-reload="false"
+    ></a>
+    <button type="button" class="lightbox-tool lightbox-close" id="lightbox-close" aria-label={t('gallery.close')}>&times;</button>
+  </div>
   <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label={t('gallery.previous')}>&#8249;</button>
   <figure class="lightbox-figure">
     <img id="lightbox-img" alt="" src={BLANK_IMAGE} />
@@ -293,7 +351,6 @@ const tiles = photos.map((photo, index) => ({
     text-align: center;
   }
 
-  .lightbox-close,
   .lightbox-nav {
     position: absolute;
     background: none;
@@ -307,15 +364,115 @@ const tiles = photos.map((photo, index) => ({
     transition: opacity 0.2s ease;
   }
 
-  .lightbox-close:hover,
   .lightbox-nav:hover {
     opacity: 1;
   }
 
-  .lightbox-close {
+  /* Zoom in/out, (Enter/Exit) Fullscreen, View <category> gallery, then Close — in that order, top
+     right. One row, so Close (which owned this corner alone before) just becomes its last, rightmost
+     item; the group is still positioned as a unit the same way .lightbox-close used to be by itself. */
+  .lightbox-toolbar {
+    position: absolute;
     top: var(--space-2);
     right: var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+  }
+
+  .lightbox-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    font-size: 1.5rem;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+  }
+
+  .lightbox-tool:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Real `disabled` (toggled by the script at the currentScale bounds it already enforces for
+     pinch-zoom, not a new limit) rather than just leaving the button clickable but inert: it reads
+     as unavailable, and drops out of the dialog's own Tab order the same way the script's focus
+     trap already excludes anything else `:disabled`/`[hidden]`. */
+  .lightbox-tool:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  .lightbox-close {
     font-size: 2rem;
+  }
+
+  /* Two opposite corner brackets — ⌜ top-left, ⌟ bottom-right — the same "expand to fill the
+     screen" shape used everywhere from video players to OS window controls, drawn in CSS rather
+     than as a Unicode glyph (no single character renders it reliably across fonts) or an SVG (this
+     codebase ships none — see the hamburger icon this same trick is borrowed from in Header.astro).
+     .is-fullscreen (set by the script from the real `fullscreenchange` event) rotates both 180°
+     in place, which turns the same two corners inward into a "shrink back down" shape — one pair of
+     shapes, not a second icon to keep in sync. */
+  .lightbox-fullscreen {
+    position: relative;
+  }
+
+  .lightbox-fullscreen::before,
+  .lightbox-fullscreen::after {
+    content: '';
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border: 2px solid currentColor;
+    transition: transform 0.2s ease;
+  }
+
+  .lightbox-fullscreen::before {
+    top: 9px;
+    left: 9px;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  .lightbox-fullscreen::after {
+    bottom: 9px;
+    right: 9px;
+    border-left: none;
+    border-top: none;
+  }
+
+  .lightbox-fullscreen.is-fullscreen::before,
+  .lightbox-fullscreen.is-fullscreen::after {
+    transform: rotate(180deg);
+  }
+
+  /* A 2x2 grid of squares (the standard "grid view" icon) from one pseudo-element and its own
+     box-shadow, the same one-element-no-SVG approach as the fullscreen icon above: the element
+     itself is the top-left square, and three more box-shadows (no blur, no spread beyond their
+     offset) paint the other three without adding any markup for them. */
+  .lightbox-view-gallery {
+    position: relative;
+  }
+
+  .lightbox-view-gallery::before {
+    content: '';
+    position: absolute;
+    top: 13px;
+    left: 13px;
+    width: 6px;
+    height: 6px;
+    background: currentColor;
+    box-shadow: 9px 0 0 currentColor, 0 9px 0 currentColor, 9px 9px 0 currentColor;
   }
 
   .lightbox-prev {
@@ -334,10 +491,17 @@ const tiles = photos.map((photo, index) => ({
     .lightbox-nav {
       font-size: 2rem;
     }
+
+    .lightbox-tool {
+      width: 36px;
+      height: 36px;
+    }
   }
 </style>
 
 <script>
+  import { DEFAULT_LOCALE } from '../i18n/config';
+
   // Astro bundles this script to one stable URL shared by every gallery-bearing page, so the
   // browser's module cache only ever evaluates it once per tab — a direct top-level call here
   // would only ever wire up the very first gallery seen. `astro:page-load` fires again on every
@@ -361,6 +525,10 @@ const tiles = photos.map((photo, index) => ({
     return `${url.pathname}${url.search}${url.hash}`;
   }
 
+  // A tiny copy of i18n's own localizePath(), not an import — see work/[category].astro's client
+  // script, which needs the identical one-liner for the identical reason (bytes).
+  const localizePath = (path: string, locale: string) => (locale === DEFAULT_LOCALE ? path : `/${locale}${path}`);
+
   // --- Blur-up placeholder: each tile's background-color (its placeholderColor, from
   // data-placeholder — not a server-rendered inline style, which the strict policy this site holds
   // itself to, features/deployment.feature, forbids) shows through until its thumbnail has
@@ -380,6 +548,7 @@ const tiles = photos.map((photo, index) => ({
 
   let removeKeydown: (() => void) | null = null;
   let removePopstate: (() => void) | null = null;
+  let removeFullscreenChange: (() => void) | null = null;
 
   function initGallery(root: Document | HTMLElement) {
     // `document`/`window` persist across transitions; without removing the previous page's
@@ -391,6 +560,8 @@ const tiles = photos.map((photo, index) => ({
     removeKeydown = null;
     removePopstate?.();
     removePopstate = null;
+    removeFullscreenChange?.();
+    removeFullscreenChange = null;
 
     const tiles = Array.from(root.querySelectorAll<HTMLButtonElement>('.tile'));
     if (!tiles.length) return;
@@ -403,17 +574,47 @@ const tiles = photos.map((photo, index) => ({
     const closeBtn = document.getElementById('lightbox-close');
     const prevBtn = document.getElementById('lightbox-prev');
     const nextBtn = document.getElementById('lightbox-next');
+    const zoomInBtn = document.getElementById('lightbox-zoom-in') as HTMLButtonElement | null;
+    const zoomOutBtn = document.getElementById('lightbox-zoom-out') as HTMLButtonElement | null;
+    const fullscreenBtn = document.getElementById('lightbox-fullscreen') as HTMLButtonElement | null;
+    const viewGalleryLink = document.getElementById('lightbox-view-gallery') as HTMLAnchorElement | null;
     const figure = lightbox?.querySelector('.lightbox-figure') as HTMLElement | null;
     if (!lightbox || !img || !titleEl || !cameraEl) return;
 
     const counterTemplate = lightbox.dataset.counterTemplate ?? '';
+    const viewGalleryTemplate = lightbox.dataset.viewGalleryTemplate ?? '{category}';
+    const categoryLabels: Record<string, string> = JSON.parse(lightbox.dataset.categoryLabels ?? '{}');
+    const locale = document.documentElement.lang || DEFAULT_LOCALE;
+    const ZOOM_STEP = 0.5;
+    const ZOOM_MAX = 4;
     let currentIndex = 0;
     let currentScale = 1;
     let lastFocused: HTMLElement | null = null;
 
+    // Shared by the zoom in/out buttons and pinch-to-zoom (see the touch handlers below) so both
+    // ways of zooming keep the buttons' `disabled` state in sync with the bounds they already
+    // impose on pinch alone.
+    function setZoom(scale: number) {
+      currentScale = Math.min(ZOOM_MAX, Math.max(1, scale));
+      img!.style.transform = currentScale > 1 ? `scale(${currentScale})` : '';
+      if (zoomInBtn) zoomInBtn.disabled = currentScale >= ZOOM_MAX;
+      if (zoomOutBtn) zoomOutBtn.disabled = currentScale <= 1;
+    }
+
     function resetZoom() {
-      currentScale = 1;
-      img!.style.transform = '';
+      setZoom(1);
+    }
+
+    // The one source of truth for whether fullscreen is actually on: `fullscreenchange` fires
+    // whether it was this button that triggered it, the browser denying the request, or the user
+    // leaving fullscreen some other way (Esc, browser chrome) — including the lightbox's own
+    // `hidden` (display: none) closing it, which the browser treats as leaving fullscreen on its
+    // own, so closing the dialog while fullscreen needs no extra handling here.
+    function updateFullscreenButton() {
+      if (!fullscreenBtn) return;
+      const isFullscreen = document.fullscreenElement === lightbox;
+      fullscreenBtn.classList.toggle('is-fullscreen', isFullscreen);
+      fullscreenBtn.setAttribute('aria-label', (isFullscreen ? fullscreenBtn.dataset.exitLabel : fullscreenBtn.dataset.enterLabel) ?? '');
     }
 
     // `history` mode: 'push' for a fresh open (a new dialog interaction worth a Back step),
@@ -429,6 +630,13 @@ const tiles = photos.map((photo, index) => ({
       titleEl!.textContent = tile.dataset.caption ?? '';
       cameraEl!.textContent = tile.dataset.camera ? ` — ${tile.dataset.camera}` : '';
       if (counterEl) counterEl.textContent = counterTemplate.replace('{current}', String(currentIndex + 1)).replace('{total}', String(total));
+      // The open photo's own category, not necessarily the page's — the home page's Featured strip
+      // mixes several, so this is read fresh off the tile on every photo switch, not computed once.
+      const categorySlug = tile.dataset.category;
+      if (viewGalleryLink && categorySlug) {
+        viewGalleryLink.href = localizePath(`/work/${categorySlug}/`, locale);
+        viewGalleryLink.setAttribute('aria-label', viewGalleryTemplate.replace('{category}', categoryLabels[categorySlug] ?? categorySlug));
+      }
       resetZoom();
       if (history_ === 'push') history.pushState(null, '', urlWithPhoto(tile.dataset.id ?? null));
       else if (history_ === 'replace') history.replaceState(null, '', urlWithPhoto(tile.dataset.id ?? null));
@@ -469,6 +677,27 @@ const tiles = photos.map((photo, index) => ({
     closeBtn?.addEventListener('click', () => close('replace'));
     prevBtn?.addEventListener('click', () => show(currentIndex - 1, 'replace'));
     nextBtn?.addEventListener('click', () => show(currentIndex + 1, 'replace'));
+    zoomInBtn?.addEventListener('click', () => setZoom(currentScale + ZOOM_STEP));
+    zoomOutBtn?.addEventListener('click', () => setZoom(currentScale - ZOOM_STEP));
+
+    // Hidden outright, not just left to fail on click, wherever the browser can't grant it at all
+    // (an older browser, or an embedded context that denies it) — see the CSS comment on
+    // .lightbox-fullscreen for why the icon itself needs no separate "unsupported" state.
+    if (fullscreenBtn) {
+      if (!document.fullscreenEnabled) {
+        fullscreenBtn.hidden = true;
+      } else {
+        fullscreenBtn.addEventListener('click', () => {
+          if (document.fullscreenElement === lightbox) document.exitFullscreen();
+          // Rejected quietly (e.g. denied outside a user gesture): updateFullscreenButton(), driven
+          // only by the real fullscreenchange event below, simply never fires, so the button stays
+          // exactly as it was — never a click that visibly does nothing but also throws.
+          else lightbox.requestFullscreen().catch(() => {});
+        });
+        document.addEventListener('fullscreenchange', updateFullscreenButton);
+        removeFullscreenChange = () => document.removeEventListener('fullscreenchange', updateFullscreenButton);
+      }
+    }
 
     lightbox.addEventListener('click', (event) => {
       if (event.target === lightbox) close('replace');
@@ -481,9 +710,10 @@ const tiles = photos.map((photo, index) => ({
       if (event.key === 'ArrowRight') show(currentIndex + 1, 'replace');
 
       if (event.key === 'Tab') {
-        const focusable = [closeBtn, prevBtn, nextBtn].filter(
-          (el): el is HTMLButtonElement => el !== null
-        );
+        // Queried live, not a fixed list: which buttons are focusable changes at runtime (zoom
+        // buttons disable at their bounds, the fullscreen button hides itself when unsupported —
+        // see above), and the trap must always match exactly what Tab can actually reach.
+        const focusable = Array.from(lightbox.querySelectorAll<HTMLElement>('button:not([hidden]):not(:disabled), a[href]'));
         if (!focusable.length) return;
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
@@ -528,8 +758,7 @@ const tiles = photos.map((photo, index) => ({
       // Stops the whole page from also pinch-zooming while the photo does.
       event.preventDefault();
       const scale = touchDistance(event.touches[0], event.touches[1]) / pinchStartDistance;
-      currentScale = Math.min(4, Math.max(1, scale));
-      img!.style.transform = currentScale > 1 ? `scale(${currentScale})` : '';
+      setZoom(scale);
     }, { passive: false });
 
     figure?.addEventListener('touchend', (event) => {

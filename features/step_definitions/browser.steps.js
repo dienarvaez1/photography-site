@@ -110,14 +110,30 @@ When('I press the key {string}', async function (key) {
 
 const tile = (world, n) => page(world).locator('.tile').nth(n - 1);
 
+// Every lightbox toolbar control, by the same name the scenarios call it — shared by the click
+// steps below and the enabled/disabled assertions, so both always agree on which id a name means.
+const LIGHTBOX_CONTROL_IDS = {
+  close: '#lightbox-close',
+  next: '#lightbox-next',
+  previous: '#lightbox-prev',
+  'zoom in': '#lightbox-zoom-in',
+  'zoom out': '#lightbox-zoom-out',
+  fullscreen: '#lightbox-fullscreen',
+  'view gallery': '#lightbox-view-gallery',
+};
+
 When('I click photo number {int}', async function (n) {
   await tile(this, n).click();
   this.b.openedTile = n;
 });
 
 When('I click the lightbox {string} button', async function (which) {
-  const id = { close: '#lightbox-close', next: '#lightbox-next', previous: '#lightbox-prev' }[which];
-  await page(this).locator(id).click();
+  await page(this).locator(LIGHTBOX_CONTROL_IDS[which]).click();
+});
+
+When(/^I click the lightbox "([^"]+)" button (\d+) times$/, async function (which, times) {
+  const control = page(this).locator(LIGHTBOX_CONTROL_IDS[which]);
+  for (let i = 0; i < Number(times); i++) await control.click();
 });
 
 When('I click the dark background of the lightbox', async function () {
@@ -293,6 +309,45 @@ Then('the lightbox controls should be labelled in {string}', async function (loc
   assert.equal(await page(this).locator('#lightbox-close').getAttribute('aria-label'), gallery.close);
   assert.equal(await page(this).locator('#lightbox-prev').getAttribute('aria-label'), gallery.previous);
   assert.equal(await page(this).locator('#lightbox-next').getAttribute('aria-label'), gallery.next);
+  assert.equal(await page(this).locator('#lightbox-zoom-in').getAttribute('aria-label'), gallery.zoomIn);
+  assert.equal(await page(this).locator('#lightbox-zoom-out').getAttribute('aria-label'), gallery.zoomOut);
+  // Not yet toggled at this point in every scenario that reuses this step, so still its initial,
+  // "enter" label — see the dedicated fullscreen scenarios for the "exit" one.
+  assert.equal(await page(this).locator('#lightbox-fullscreen').getAttribute('aria-label'), gallery.enterFullscreen);
+});
+
+Then(/^the lightbox "([^"]+)" button should be (enabled|disabled)$/, async function (which, state) {
+  const isDisabled = await page(this).locator(LIGHTBOX_CONTROL_IDS[which]).isDisabled();
+  assert.equal(isDisabled, state === 'disabled', `expected the "${which}" button to be ${state}`);
+});
+
+Then('the lightbox {string} link should point at {string}', async function (which, path) {
+  assert.equal(await page(this).locator(LIGHTBOX_CONTROL_IDS[which]).getAttribute('href'), path);
+});
+
+const isPageFullscreen = (world) => page(world).evaluate(() => document.fullscreenElement !== null);
+
+// A real headless browser never grants requestFullscreen() (no screen to fill into), so the
+// fullscreenchange-driven UI logic (see updateFullscreenButton() in Gallery.astro's script) needs a
+// simulated one to be testable at all: this overrides the read-only `document.fullscreenElement`
+// with an own property shadowing the platform's own accessor, then fires the real event the script
+// actually listens for — exercising its real reaction, just not a real browser-granted fullscreen.
+When(/^the browser simulates (entering|exiting) fullscreen for the lightbox$/, async function (which) {
+  await page(this).evaluate((entering) => {
+    const lightbox = document.getElementById('lightbox');
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => (entering ? lightbox : null) });
+    document.dispatchEvent(new Event('fullscreenchange'));
+  }, which === 'entering');
+});
+
+Then('the lightbox should be in fullscreen mode', async function () {
+  assert.ok(await isPageFullscreen(this), 'document.fullscreenElement was not set');
+  assert.equal(await page(this).locator('#lightbox-fullscreen').getAttribute('aria-label'), (await messages(this)).gallery.exitFullscreen);
+});
+
+Then('the lightbox should not be in fullscreen mode', async function () {
+  assert.ok(!(await isPageFullscreen(this)), 'document.fullscreenElement was still set');
+  assert.equal(await page(this).locator('#lightbox-fullscreen').getAttribute('aria-label'), (await messages(this)).gallery.enterFullscreen);
 });
 
 Then('the lightbox photo should fit inside the screen', async function () {
