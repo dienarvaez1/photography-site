@@ -270,7 +270,9 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   gallery centers instead of pinning a short row to the left.
 - **`home-page.feature`** — the home page's hero tagline sits at exactly the same height as the About
   page's "About" eyebrow, in both languages (the two pages use the same padding-block-start token for
-  it, so this catches either one drifting out of sync).
+  it, so this catches either one drifting out of sync). Sections that fade in as they are scrolled to never fade
+  when already on screen at load (sampled every frame), start hidden without fading out when out of sight, and fade
+  in when scrolled to; the page passes the accessibility audit while they settle.
 - **`category-switcher.feature`** — clicking another category on a category page swaps the grid in
   place (no full-page navigation, the manifest fetched once), relabels the page, and updates the
   address; the Back button returns to the previous category; the sort control reorders the photos
