@@ -23,6 +23,7 @@
     "photos:verify": "node scripts/photos.mjs verify",
     "photos:sync": "node scripts/photos.mjs sync",
     "photos:camera": "node scripts/photos.mjs camera",
+    "photos:dates": "node scripts/photos.mjs dates",
     "photos:colors": "node scripts/photos.mjs colors",
     "photos:pull": "node scripts/photos.mjs pull",
     "photos:push": "node scripts/photos.mjs push",

@@ -16,7 +16,9 @@
     "copyright": "© {year} {author} Fotografía. Todos los derechos reservados.",
     "instagram": "Instagram",
     "facebook": "Facebook",
-    "opensInNewTab": "(se abre en una pestaña nueva)"
+    "opensInNewTab": "(se abre en una pestaña nueva)",
+    "build": "Versión {version}",
+    "built": "compilada el"
   },
   "gallery": {
     "openPhoto": "Abrir foto: {title}",
@@ -95,6 +97,7 @@
     "sortLabel": "Ordenar por",
     "sortCurated": "Orden curado",
     "sortNewest": "Más recientes primero",
+    "sortOldest": "Más antiguas primero",
     "allLabel": "Todas",
     "allDescription": "Todas las fotos, de todas las categorías."
   },
@@ -250,7 +253,7 @@
       "needsJs": "El visor de resultados necesita JavaScript. Sin él, consulta los informes con npm run results:list."
     },
     "pics": {
-      "intro": "Las fotos originales del depósito privado de originales, cada una con una pequeña miniatura (la copia web del propio sitio; los archivos originales nunca se cargan). Pasa el cursor sobre un archivo (o enfócalo, o tócalo) para ver la información de la cámara, el tamaño del archivo y los derechos de autor.",
+      "intro": "Las fotos originales del depósito privado de originales, cada una con una pequeña miniatura (la copia web del propio sitio; los archivos originales nunca se cargan). Junto a cada archivo: la información de la cámara, cuándo se tomó, el tamaño del archivo y los derechos de autor, leídos del propio archivo.",
       "count": "{count} fotos originales",
       "empty": "El depósito de originales aún no tiene fotos.",
       "incomplete": "El depósito contiene más fotos de las que se pudieron listar aquí.",
@@ -263,6 +266,8 @@
       "copyright": "Derechos de autor",
       "noCopyright": "El archivo no registra ningún aviso de derechos de autor.",
       "artist": "Artista",
+      "taken": "Tomada",
+      "noTaken": "El archivo no registra ninguna fecha.",
       "failed": "No se pudo leer la información de este archivo.",
       "needsJs": "El visor de fotos necesita JavaScript.",
       "noThumbnail": "Sin miniatura",
@@ -346,7 +351,7 @@
       },
       "form": {
         "heading": "Nueva foto",
-        "intro": "Elige un JPEG. Se sube a R2 (el original en privado, los tamaños web en público) y su entrada se publica también allí, igual que con npm run photos:add. El id, el tamaño y la línea de la cámara se leen de la propia foto.",
+        "intro": "Elige un JPEG. Se sube a R2 (el original en privado, los tamaños web en público) y su entrada se publica también allí, igual que con npm run photos:add. El id, el tamaño, la línea de la cámara y la fecha de captura se leen de la propia foto.",
         "close": "Cerrar",
         "checking": "Comprobando el servicio local de fotos…",
         "file": "Foto (JPEG)",
@@ -355,6 +360,8 @@
         "id": "Id de la foto",
         "size": "Tamaño",
         "sizeValue": "{width} × {height} px",
+        "taken": "Tomada",
+        "noTaken": "La foto no registra ninguna fecha. La entrada no tendrá fecha de captura.",
         "camera": "Línea de la cámara",
         "cameraHint": "Leída del EXIF de la foto. Edítala, o bórrala para dejar la foto sin línea de cámara.",
         "noCamera": "La foto no tiene información de la cámara. Escribe la línea de la cámara, o déjala vacía.",

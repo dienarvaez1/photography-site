@@ -3,6 +3,7 @@ import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
 import { CATEGORIES } from './config/categories';
 import { PHOTO_ID_PATTERN } from './config/photos';
+import { TAKEN_AT_PATTERN } from './config/photo-manifest';
 
 const categorySlugs = CATEGORIES.map((c) => c.slug) as [string, ...string[]];
 
@@ -26,8 +27,10 @@ const photos = defineCollection({
       height: z.number().int().positive(),
     }),
     // The camera line shown on the gallery, read from the photo's EXIF when it is added
-    // (`npm run photos:add`). No copyright, dates, GPS or serial numbers are stored.
+    // (`npm run photos:add`). No copyright, GPS or serial numbers are stored.
     camera: z.string().optional(),
+    // When the photo was created, from its EXIF (see photo-manifest.ts's own copy of this field).
+    takenAt: z.string().regex(TAKEN_AT_PATTERN).optional(),
     // The photo's average color as `#rrggbb`, computed once at ingest time (see photo-manifest.ts's
     // own copy of this field for the fuller explanation — this schema must accept the same fields
     // R2's manifest does, or a real entry's data silently loses them when read from this collection).

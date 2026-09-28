@@ -2,14 +2,28 @@
 import { SITE } from '../config/site';
 import { getLocale, useTranslations } from '../i18n';
 
+interface Props {
+  /** Show which build of the site this is (see scripts/lib/build-info.mjs) — the Admin page does; visitors' pages don't. */
+  showBuild?: boolean;
+}
+
+const { showBuild = false } = Astro.props;
 const t = useTranslations(getLocale(Astro));
 
 const year = new Date().getFullYear();
+// "2026-09-28 14:03 UTC": the same in every language, and unambiguous about the time zone.
+const builtAt = import.meta.env.BUILD_TIME;
+const builtText = `${builtAt.slice(0, 10)} ${builtAt.slice(11, 16)} UTC`;
 ---
 
 <footer class="site-footer">
   <div class="wrap footer-bar">
     <p>{t('footer.copyright', { year, author: SITE.author })}</p>
+    {showBuild && (
+      <p class="build-info" data-version={import.meta.env.BUILD_VERSION} data-commit={import.meta.env.BUILD_COMMIT ?? ''} title={import.meta.env.BUILD_COMMIT ?? undefined}>
+        {t('footer.build', { version: import.meta.env.BUILD_VERSION })}, {t('footer.built')} <time datetime={builtAt}>{builtText}</time>
+      </p>
+    )}
     <div class="footer-links">
       {SITE.social.instagram && (
         <a href={SITE.social.instagram} target="_blank" rel="noopener noreferrer">

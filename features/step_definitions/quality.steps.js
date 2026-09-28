@@ -7,6 +7,7 @@ import sharp from 'sharp';
 import { DIST_DIR, NOINDEX_ROUTES, ROOT, listBuiltRoutes, listNotFoundRoutes, loadCategoriesConfig, pageLocale, readBuiltPage } from '../support/lib.js';
 
 const photos = await import(join(ROOT, 'src/config/photos.ts'));
+const photoSort = await import(join(ROOT, 'src/lib/photo-sort.ts'));
 const site = (await import(join(ROOT, 'src/config/site.ts'))).SITE;
 
 const kb = (n) => n / 1024;
@@ -66,7 +67,8 @@ Then("every category page with photos should share the full-size version of its 
   for (const { route, locale, page } of this.data.pages.filter((p) => isCategoryPage(p.route))) {
     const slug = route.match(/\/work\/([^/]+)\//)[1];
     const inScope = slug === 'all' ? this.data.entries.filter((e) => visibleSlugs.has(e.frontmatter.category)) : this.data.entries.filter((e) => e.frontmatter.category === slug);
-    const first = inScope.sort((a, b) => (a.frontmatter.order ?? 0) - (b.frontmatter.order ?? 0))[0];
+    // The page's own order (its Sort by control's default), from the page's own sort code.
+    const first = photoSort.sortPhotos(inScope.map((e) => ({ data: e.frontmatter, entry: e })), photoSort.DEFAULT_SORT)[0]?.entry;
     if (!first) {
       assert.equal(meta(page.root, 'meta[property="og:image"]'), shown('/og-image.png'), `${route}: an empty category falls back to the branded image`);
       continue;

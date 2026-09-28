@@ -129,7 +129,7 @@ Then('the site should answer {int} and send the visitor to {string}', function (
 const tiles = (world) => world.response.doc.querySelectorAll('.tile');
 
 Then('the page should list these photos, in this order: {string}', function (list) {
-  assert.deepEqual(tiles(this).map((tile) => tile.querySelector('.tile-title').text.trim()), list.split(', '));
+  assert.deepEqual(tiles(this).map((tile) => tile.getAttribute('data-title')), list.split(', '));
 });
 
 Then('the page should not list any photos', function () {

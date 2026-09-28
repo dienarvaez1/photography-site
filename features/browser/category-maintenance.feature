@@ -46,6 +46,13 @@ Feature: The Admin page's Category Maintenance tab adds, edits and removes categ
     And I sign in to Category Maintenance with the token "browser-test-admin-token"
     Then the Category Maintenance list should show a row for "Landscape"
     And the Category Maintenance list should show a row for "Nature"
+    And the Category Maintenance list should be in alphabetical order
+
+  Scenario: The Spanish page lists the categories in Spanish alphabetical order
+    When I open "/es/admin/#category-maintenance"
+    And I sign in to Category Maintenance with the token "browser-test-admin-token"
+    Then the Category Maintenance list should show a row for "Paisaje"
+    And the Category Maintenance list should be in alphabetical order
 
   Scenario: Adding a category adds it to the list
     When I open "/admin/#category-maintenance"
@@ -55,6 +62,7 @@ Feature: The Admin page's Category Maintenance tab adds, edits and removes categ
     And I submit the new category form
     Then the Category Maintenance list should show a row for "Night Sky"
     And the new category form should confirm "Night Sky" was added
+    And the Category Maintenance list should be in alphabetical order
 
   Scenario: Adding a category with a taken slug shows why it failed
     When I open "/admin/#category-maintenance"
@@ -80,6 +88,7 @@ Feature: The Admin page's Category Maintenance tab adds, edits and removes categ
     And I click the Category Maintenance "Edit Categories" button
     Then the Category Maintenance list should show a row for "Wildlife"
     And the Category Maintenance list should not show a row for "Nature"
+    And the Category Maintenance list should be in alphabetical order
 
   Scenario: Changing a category's slug through Edit Categories updates its URL and keeps its photo
     Given the category "nature" in the browser fixture already has a photo

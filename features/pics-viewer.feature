@@ -48,10 +48,11 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
 
   # --- One photo ---------------------------------------------------------------------------------------------------
 
-  Scenario: A photo with full metadata shows its camera, size and copyright
+  Scenario: A photo with full metadata shows its camera, date taken, size and copyright
     When I call "/pics/1111111111111111" with the admin token
     Then the response should be 200
     And the camera line should be "Nikon Z 6 · NIKKOR Z 24-70mm f/4 S · 24mm · f/4 · 25s · ISO 3200"
+    And the date taken should be "2023-11-27T18:42:10"
     And the size should be the stored file's size, which is over 3 million bytes
     And the copyright should be "Copyright 2026 Diego Narvaez"
     And the artist should be "Diego Narvaez"
@@ -72,7 +73,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     When I call "/pics/<id>" with the admin token
     Then the response should be 200
     And the size should be the stored file's size
-    And there should be no camera line, no copyright and no artist
+    And there should be no camera line, no date taken, no copyright and no artist
 
     Examples:
       | id               |
@@ -87,7 +88,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
 
   Scenario: What is not needed is never passed on
     When I call "/pics/1111111111111111" with the admin token
-    Then the answer should not contain the location, serial number, date or any other metadata of the file, only the camera, size, copyright and artist
+    Then the answer should not contain the location, serial number or any other metadata of the file, only the camera, date taken, size, copyright and artist
 
   Scenario: No answer ever holds picture data
     When I call "/pics" with the admin token
@@ -162,6 +163,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And every listed photo should carry the size and key of the stored file
     When I call "/pics/1111111111111111" with the admin token
     Then the camera line should be "Nikon Z 6 · NIKKOR Z 24-70mm f/4 S · 24mm · f/4 · 25s · ISO 3200"
+    And the date taken should be "2023-11-27T18:42:10"
     And the size should be the stored file's size, which is over 3 million bytes
     And the copyright should be "Copyright 2026 Diego Narvaez"
     When I call "/pics/2222222222222222" with the admin token

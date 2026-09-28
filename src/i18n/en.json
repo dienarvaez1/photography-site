@@ -16,7 +16,9 @@
     "copyright": "© {year} {author} Photography. All rights reserved.",
     "instagram": "Instagram",
     "facebook": "Facebook",
-    "opensInNewTab": "(opens in a new tab)"
+    "opensInNewTab": "(opens in a new tab)",
+    "build": "Build {version}",
+    "built": "built"
   },
   "gallery": {
     "openPhoto": "Open photo: {title}",
@@ -95,6 +97,7 @@
     "sortLabel": "Sort by",
     "sortCurated": "Curated order",
     "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
     "allLabel": "All",
     "allDescription": "Every photo, from every category."
   },
@@ -250,7 +253,7 @@
       "needsJs": "The results viewer needs JavaScript. Without it, read the reports with npm run results:list."
     },
     "pics": {
-      "intro": "The original photos in the private originals bucket, each with a small thumbnail (the site's own web copy; the original files are never loaded). Hover over (or focus, or tap) a file to see its camera information, file size and copyright.",
+      "intro": "The original photos in the private originals bucket, each with a small thumbnail (the site's own web copy; the original files are never loaded). Next to each file: its camera information, when it was taken, its file size and copyright, read from the file itself.",
       "count": "{count} original photos",
       "empty": "The originals bucket has no photos yet.",
       "incomplete": "The bucket holds more photos than could be listed here.",
@@ -263,6 +266,8 @@
       "copyright": "Copyright",
       "noCopyright": "No copyright notice recorded in the file.",
       "artist": "Artist",
+      "taken": "Taken",
+      "noTaken": "No date recorded in the file.",
       "failed": "Could not read this file's information.",
       "needsJs": "The Pics Viewer needs JavaScript.",
       "noThumbnail": "No thumbnail",
@@ -346,7 +351,7 @@
       },
       "form": {
         "heading": "New photo",
-        "intro": "Choose a JPEG. It is uploaded to R2 (the original privately, the web sizes publicly) and its entry is published there too, exactly as npm run photos:add does. The id, size and camera line are read from the photo itself.",
+        "intro": "Choose a JPEG. It is uploaded to R2 (the original privately, the web sizes publicly) and its entry is published there too, exactly as npm run photos:add does. The id, size, camera line and date taken are read from the photo itself.",
         "close": "Close",
         "checking": "Checking the local photo service…",
         "file": "Photo (JPEG)",
@@ -355,6 +360,8 @@
         "id": "Photo id",
         "size": "Size",
         "sizeValue": "{width} × {height} px",
+        "taken": "Taken",
+        "noTaken": "No date recorded in the photo. The entry will have no date taken.",
         "camera": "Camera line",
         "cameraHint": "Read from the photo's EXIF. Edit it, or clear it to leave the camera line out.",
         "noCamera": "The photo has no camera information. Type the camera line, or leave it empty.",

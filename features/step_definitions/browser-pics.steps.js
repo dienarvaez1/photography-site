@@ -10,7 +10,7 @@ import { CONTENT_DIR } from '../support/lib.js';
 const page = (world) => world.b.page;
 const panel = (world) => page(world).locator('#panel-pics-viewer');
 const file = (world, name) => panel(world).locator('.pic-link', { hasText: name }).first();
-const tip = (world) => panel(world).locator('.pic-tip');
+const detailsOf = (world, name) => file(world, name).locator('.pic-details');
 const settle = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function eventually(check, describe, timeout = 8000) {
@@ -94,113 +94,150 @@ Then('the file for {string} should show the category {string} and the path {stri
   assert.equal(await link.locator('.pic-key').innerText(), path);
 });
 
-Then('every file should be a link that is in the tab order and large enough to tap', async function () {
-  await eventually(async () => (await panel(this).locator('a.pic-link').count()) === 4, 'the list is shown');
-  const links = await panel(this).locator('a.pic-link').evaluateAll((as) => as.map((a) => ({ href: a.getAttribute('href'), tabIndex: a.tabIndex, height: a.getBoundingClientRect().height })));
-  assert.equal(links.length, 4);
-  for (const link of links) {
-    assert.ok(link.href);
-    assert.ok(link.tabIndex >= 0);
-    assert.ok(link.height >= 44, `${link.height}px tall`);
-  }
+Then("no file's row should be a link or in the tab order", async function () {
+  await eventually(async () => (await panel(this).locator('.pic-link').count()) === 4, 'the list is shown');
+  assert.equal(await panel(this).locator('.pics-list a').count(), 0);
+  const tabbable = await panel(this).locator('.pic-link').evaluateAll((rows) => rows.filter((row) => row.tabIndex >= 0 || row.querySelector('[tabindex]:not([tabindex="-1"])')).length);
+  assert.equal(tabbable, 0);
 });
 
-// --- The tooltip -----------------------------------------------------------------------------------------------------------------
+// --- Each file's details --------------------------------------------------------------------------------------------------------
 
 When('I hover over the file {string}', async function (name) {
   await file(this, name).hover();
-});
-
-When('I click the file {string}', async function (name) {
-  await file(this, name).click();
-});
-
-When('I tap the file {string}', async function (name) {
-  await file(this, name).tap();
-});
-
-When('I click the file {string}, then immediately fire a mouseleave on it', async function (name) {
-  await file(this, name).evaluate((link) => {
-    link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    link.closest('.pic').dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
-  });
-});
-
-When('I tap somewhere else on the page', async function () {
-  await page(this).locator('.admin h1').tap();
 });
 
 When('I move the pointer away from the files', async function () {
   await page(this).mouse.move(2, 2);
 });
 
-When('I move the pointer onto the tooltip', async function () {
-  await tip(this).hover();
-});
+/** { label: value } of one file's details, once they have arrived. */
+async function factsOf(world, name) {
+  const dl = detailsOf(world, name).locator('dl');
+  await dl.waitFor({ state: 'visible', timeout: 8000 });
+  return dl.evaluate((node) => Object.fromEntries([...node.querySelectorAll('dt')].map((dt) => [dt.textContent, dt.nextElementSibling.textContent])));
+}
 
-When('I click somewhere else on the page', async function () {
-  await page(this).locator('.admin h1').click();
-});
-
-When('I tab until the file {string} has keyboard focus', async function (name) {
-  for (let i = 0; i < 80; i++) {
-    const focused = await page(this).evaluate(() => (document.activeElement?.classList.contains('pic-link') ? document.activeElement.querySelector('.pic-title').textContent : ''));
-    if (focused === name) break;
-    await page(this).keyboard.press('Tab');
-  }
-  const links = await panel(this).locator('.pic-title').allInnerTexts();
-  this.b.focusedIndex = links.indexOf(name);
-  assert.equal(await page(this).evaluate(() => document.activeElement?.querySelector?.('.pic-title')?.textContent), name);
-});
-
-Then('the file {string} should still have keyboard focus', async function (name) {
-  assert.equal(await page(this).evaluate(() => document.activeElement?.querySelector?.('.pic-title')?.textContent), name);
-});
-
-Then('the tooltip should show these facts:', async function (table) {
-  await tip(this).locator('dl').waitFor({ state: 'visible', timeout: 8000 });
-  const facts = await tip(this).locator('dl').evaluate((dl) => Object.fromEntries([...dl.querySelectorAll('dt')].map((dt) => [dt.textContent, dt.nextElementSibling.textContent])));
+Then('the details of {string} should show these facts:', async function (name, table) {
+  const facts = await factsOf(this, name);
   for (const [label, value] of table.raw()) assert.equal(facts[label], value, `${label}: ${JSON.stringify(facts)}`);
 });
 
-Then('the tooltip should say {string}', async function (text) {
-  await tip(this).getByText(text, { exact: false }).waitFor({ state: 'visible', timeout: 8000 });
+// The browser's own date format (its ICU data) decides the exact spacing and time, so this checks the date part only.
+Then('the details of {string} should say it was taken on {string}', async function (name, date) {
+  const facts = await factsOf(this, name);
+  const taken = facts.Taken ?? facts.Tomada;
+  assert.ok(taken?.replace(/\s+/g, ' ').includes(date), `taken: ${JSON.stringify(taken)}`);
 });
 
-Then(/^the tooltip should show the stored size of "([0-9a-f]+)", which is about (.+)$/, async function (id, about) {
+Then('the details of {string} should say {string}', async function (name, text) {
+  await detailsOf(this, name).getByText(text, { exact: false }).waitFor({ state: 'visible', timeout: 8000 });
+});
+
+Then(/^the details of "([^"]+)" should show the stored size of "([0-9a-f]+)", which is about (.+)$/, async function (name, id, about) {
   const size = this.b.results.originals.objects.get(`photos/${id}/original.jpg`).body.length;
   const exact = new Intl.NumberFormat(about.includes(',') ? 'es' : 'en').format(size);
-  await tip(this).locator('dl').waitFor({ state: 'visible', timeout: 8000 });
-  const facts = await tip(this).locator('dl').evaluate((dl) => [...dl.querySelectorAll('dd')].map((dd) => dd.textContent));
+  const facts = Object.values(await factsOf(this, name));
   assert.ok(facts.includes(`${about} (${exact} bytes)`), `${JSON.stringify(facts)} should include ${about} (${exact} bytes)`);
 });
 
-Then('the tooltip should be what describes that file for a screen reader', async function () {
-  const id = await tip(this).getAttribute('id');
-  assert.equal(await tip(this).getAttribute('role'), 'tooltip');
-  const describedBy = await tip(this).evaluate((node) => node.parentElement.querySelector('a').getAttribute('aria-describedby'));
-  assert.equal(describedBy, id);
+Then('the details of {string} should sit at the right of its thumbnail, title and category, inside its row', async function (name) {
+  await factsOf(this, name);
+  const boxes = await file(this, name).evaluate((row) => {
+    const box = (sel) => row.querySelector(sel).getBoundingClientRect().toJSON();
+    return { row: row.getBoundingClientRect().toJSON(), thumb: box('.pic-thumb'), title: box('.pic-title'), category: box('.pic-category'), details: box('.pic-details') };
+  });
+  for (const part of ['thumb', 'title', 'category']) assert.ok(boxes.details.x >= boxes[part].x + boxes[part].width, `details right of the ${part}: ${JSON.stringify(boxes)}`);
+  assert.ok(boxes.details.x + boxes.details.width <= boxes.row.x + boxes.row.width + 0.5, 'inside the row');
+  assert.ok(boxes.details.y >= boxes.row.y - 0.5 && boxes.details.y + boxes.details.height <= boxes.row.y + boxes.row.height + 0.5, 'inside the row');
 });
 
-Then('exactly one tooltip should be showing, for {string}', async function (name) {
-  await eventually(async () => (await tip(this).count()) === 1, 'exactly one tooltip');
-  assert.ok((await tip(this).evaluate((node) => node.parentElement.querySelector('.pic-title').textContent)) === name);
-});
-
-Then('exactly one tooltip should be showing, for the next file in the list', async function () {
-  await eventually(async () => (await tip(this).count()) === 1, 'exactly one tooltip');
-  const titles = await panel(this).locator('.pic-title').allInnerTexts();
-  assert.equal(await tip(this).evaluate((node) => node.parentElement.querySelector('.pic-title').textContent), titles[this.b.focusedIndex + 1]);
-});
-
-Then('no tooltip should be showing', async function () {
-  await eventually(async () => (await tip(this).count()) === 0, 'no tooltip');
-});
-
-Then('the tooltip should be entirely inside the screen', async function () {
-  const box = await tip(this).boundingBox();
+Then('the details of {string} should be under its title and entirely inside the screen', async function (name) {
+  const boxes = await file(this, name).evaluate((row) => ({ title: row.querySelector('.pic-title').getBoundingClientRect().toJSON(), details: row.querySelector('.pic-details').getBoundingClientRect().toJSON() }));
   const viewport = page(this).viewportSize();
-  assert.ok(box.x >= 0 && box.x + box.width <= viewport.width, JSON.stringify({ box, viewport }));
+  assert.ok(boxes.details.y >= boxes.title.y + boxes.title.height, JSON.stringify(boxes));
+  assert.ok(boxes.details.x >= 0 && boxes.details.x + boxes.details.width <= viewport.width, JSON.stringify({ boxes, viewport }));
+});
+
+/** Where these parts of a row are, in page order and on screen. */
+const rowParts = (world, name, selectors) => file(world, name).evaluate((row, sels) => sels.map((sel) => ({ sel, index: [...row.children].indexOf(row.querySelector(sel)), top: row.querySelector(sel).getBoundingClientRect().top })), selectors);
+
+function assertTopToBottom(parts) {
+  for (let i = 1; i < parts.length; i++) {
+    assert.ok(parts[i - 1].index < parts[i].index, `in that order in the page: ${JSON.stringify(parts)}`);
+    assert.ok(parts[i - 1].top < parts[i].top, `in that order on screen: ${JSON.stringify(parts)}`);
+  }
+}
+
+Then('the row for {string} should read, top to bottom: its title, its category, its path', async function (name) {
+  await file(this, name).waitFor({ state: 'visible', timeout: 8000 });
+  assertTopToBottom(await rowParts(this, name, ['.pic-title', '.pic-category', '.pic-key']));
+});
+
+Then('the row for {string} should read, top to bottom: its title, the Home background badge, its category, its path', async function (name) {
+  await file(this, name).locator('.results-badge').waitFor({ state: 'visible', timeout: 8000 });
+  assertTopToBottom(await rowParts(this, name, ['.pic-title', '.pic-badges', '.pic-category', '.pic-key']));
+  assert.equal(await file(this, name).locator('.pic-title .results-badge').count(), 0, 'the badge is not on the title line');
+});
+
+Then("every row's details should start at the same place, the same distance from its text, and reach the end of the row", async function () {
+  await eventually(async () => (await panel(this).locator('.pic-link .pic-details dl').count()) === 4, 'every row shows its facts');
+  const rows = await panel(this).locator('.pic-link').evaluateAll((all) => all.map((row) => {
+    const box = (sel) => row.querySelector(sel).getBoundingClientRect();
+    const style = getComputedStyle(row);
+    return {
+      textRight: Math.max(...['.pic-title', '.pic-category', '.pic-key'].map((sel) => box(sel).right)),
+      textColumnRight: box('.pic-key').left + parseFloat(getComputedStyle(row).gridTemplateColumns.split(' ')[1]),
+      details: box('.pic-details').toJSON(),
+      rowRight: row.getBoundingClientRect().right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth),
+      gap: parseFloat(style.columnGap),
+      // Under two lines' worth of height: the path fits on one line.
+      keyOnOneLine: box('.pic-key').height < parseFloat(getComputedStyle(row.querySelector('.pic-key')).fontSize) * 2,
+    };
+  }));
+  const lefts = rows.map((r) => Math.round(r.details.left));
+  assert.equal(new Set(lefts).size, 1, `every divider at the same place: ${JSON.stringify(lefts)}`);
+  for (const r of rows) {
+    assert.ok(r.details.left >= r.textRight - 0.5, `not over the text: ${JSON.stringify(r)}`);
+    assert.ok(Math.abs(r.details.left - r.textColumnRight - r.gap) <= 1, `one gap after the text column: ${JSON.stringify(r)}`);
+    assert.ok(Math.abs(r.details.right - r.rowRight) <= 1, `to the end of the row: ${JSON.stringify(r)}`);
+    assert.ok(r.keyOnOneLine, `the path fits on one line: ${JSON.stringify(r)}`);
+  }
+});
+
+Then("every file's details should be showing", async function () {
+  await eventually(async () => {
+    const rows = await panel(this).locator('.pic-link').count();
+    return rows > 0 && (await panel(this).locator('.pic-link .pic-details dl').count()) === rows;
+  }, 'every row shows its facts');
+});
+
+Then("no file's details should be showing", async function () {
+  assert.equal(await panel(this).locator('.pic-details').count(), 0);
+});
+
+Then("no file's details should hold a picture", async function () {
+  assert.equal(await panel(this).locator('.pic-details').locator('img, canvas, video').count(), 0);
+});
+
+// What a bulk-action button or the form may cost the API: nothing of its own. The list is read once, and each drawn row
+// looks its own file up once (its details column); any other request — a second list, a delete — fails this.
+Then("the results API should have been asked only for the list and each shown file's details", function () {
+  const paths = this.b.results.requests.map((r) => `${r.method} ${r.path}`);
+  assert.deepEqual(paths.filter((p) => !/^GET \/pics\/[0-9a-f]{16}$/.test(p)), ['GET /pics'], JSON.stringify(paths));
+  const lookups = paths.filter((p) => p !== 'GET /pics');
+  assert.equal(new Set(lookups).size, lookups.length, 'each file once');
+});
+
+Then(/^the results API should have been asked for the list and for the details of the (\d+) files shown, and nothing else$/, async function (count) {
+  await eventually(async () => this.b.results.requests.filter((r) => r.method === 'GET' && r.path.startsWith('/pics/')).length >= Number(count), `${count} lookups`);
+  const shown = await panel(this).locator('.pic-link').count();
+  assert.equal(shown, Number(count));
+  const paths = this.b.results.requests.filter((r) => r.method === 'GET').map((r) => r.path);
+  assert.deepEqual(paths.filter((p) => p === '/pics'), ['/pics']);
+  const lookups = paths.filter((p) => p !== '/pics');
+  assert.equal(lookups.length, Number(count), JSON.stringify(lookups));
+  assert.equal(new Set(lookups).size, Number(count), 'each file once');
 });
 
 Then(/^the results API should have been asked for photo "([0-9a-f]+)" (\d+) times? and for photo "([0-9a-f]+)" (\d+) times?$/, function (a, na, b, nb) {
@@ -259,6 +296,7 @@ Then('the row for {string} should say {string} where the picture would be', asyn
 });
 
 Then('every thumbnail should be lazy-loaded and have an empty description, because the row\'s text already names the photo', async function () {
+  await eventually(async () => (await panel(this).locator('.pics-list img').count()) === 3, 'the list is drawn');
   const images = await panel(this).locator('.pics-list img').evaluateAll((imgs) => imgs.map((i) => ({ loading: i.getAttribute('loading'), alt: i.getAttribute('alt') })));
   assert.equal(images.length, 3);
   for (const image of images) assert.deepEqual(image, { loading: 'lazy', alt: '' });
@@ -268,14 +306,6 @@ Given('the results API takes {int} milliseconds to answer', function (ms) {
   this.b.results.delayMs = ms;
 });
 
-Then('the tooltip should hold no picture', async function () {
-  await tip(this).waitFor({ state: 'visible' });
-  assert.equal(await tip(this).locator('img, canvas, video').count(), 0);
-});
-
-Then('the results API should have been asked for the list only', function () {
-  assert.deepEqual(this.b.results.requests.filter((r) => r.method === 'GET').map((r) => r.path), ['/pics']);
-});
 
 Then('the bucket should have been asked only to list, and to read the first {int} bytes at most of any file', function (max) {
   const { calls } = this.b.results.originals;
@@ -295,10 +325,7 @@ When('I show the Pics Viewer in its {string} state', async function (state) {
   await field.fill('browser-test-admin-token');
   await field.press('Enter');
   await panel(this).locator('.pics-list').waitFor({ state: 'visible', timeout: 8000 });
-  if (state === 'tooltip showing') {
-    await file(this, 'Orion Nebula').hover();
-    await tip(this).locator('dl').waitFor({ state: 'visible', timeout: 8000 });
-  }
+  if (state === 'details shown') await detailsOf(this, 'Orion Nebula').locator('dl').waitFor({ state: 'visible', timeout: 8000 });
 });
 
 // --- The Upload Photos and Remove Photos buttons ----------------------------------------------------------------------------------

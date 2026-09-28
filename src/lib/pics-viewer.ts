@@ -1,6 +1,7 @@
 // The Admin page's Pics Viewer. It lists the original photos in the private originals bucket
-// (photos/<id>/original.*) through the API and, when a file is hovered or focused, shows a tooltip with
-// its camera information, file size and copyright. Each row of the list shows a small thumbnail, the site's
+// (photos/<id>/original.*) through the API and shows, at the right of each file's row, its camera information,
+// when it was taken, its file size and copyright (looked up once per file, when its row is first drawn). Each
+// row of the list starts with a small thumbnail, the site's
 // own public web copy of the photo; the private originals are never fetched or shown: the API only ever
 // returns numbers and text. Everything from the API is put on the page as text.
 import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, parseJson, remembered, type Child, type Messages } from './admin-common';
@@ -10,7 +11,7 @@ import type { RemovalBar, RemoveResult } from './photo-remove';
 import type { RecategorizeBar, RecategorizeResult } from './photo-recategorize';
 import { serviceAvailable } from './photo-service';
 import { PICS_PAGE_SIZE } from '../config/admin';
-import { PICS_TAB, formatBytes, formatExactBytes, joinPhotos, rowsToShow, thumbSize, type KnownPhoto, type Original, type PicRow } from './pics-view';
+import { formatBytes, formatExactBytes, formatTakenAt, joinPhotos, rowsToShow, thumbSize, type KnownPhoto, type Original, type PicRow } from './pics-view';
 import { resolveApiUrl } from './results-view';
 
 type Details = {
@@ -20,6 +21,7 @@ type Details = {
   cameraLine: string | null;
   copyright: string | null;
   artist: string | null;
+  takenAt: string | null;
 };
 
 export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
@@ -54,7 +56,7 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   let settingHero = false; // a hero-background change is under way: nothing may redraw the list until it is over
   const selected = new Set<string>();
   let notice: { text: string; alert: boolean } | null = null; // what the last bulk action did, shown until the next one
-  const details = new Map<string, Promise<Details>>(); // one request per photo, however often it is hovered
+  const details = new Map<string, Promise<Details>>(); // one request per photo, however often its row is drawn
 
   const api = <T,>(path: string) => apiGet<T>(apiUrl, token, path);
   const show = (...nodes: Child[]) => {
@@ -74,34 +76,37 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     if (problem) input.focus();
   }
 
-  // --- The tooltip -------------------------------------------------------------------------------------------------
+  // --- Each file's details, at the right of its row --------------------------------------------------------------------
 
-  let tip: HTMLElement | null = null;
-  let tipOwner: HTMLElement | null = null;
-  let tipId = 0;
-  // On a tap, Chromium (at least on some platforms) synthesizes a trailing mouseleave shortly after the
-  // compatibility click it fires for touch input — there is no real hover to leave. Without this, that
-  // synthetic leave closes the tooltip the tap itself just opened, before its content ever arrives. A click
-  // (real or tap-synthesized) is followed by a short window where the owning item's own mouseleave is ignored;
-  // every other way to close it (Escape, tapping/clicking elsewhere, moving focus away) is unaffected.
-  let suppressLeaveUntil = 0;
-  const LEAVE_GRACE_MS = 500;
-
-  function hideTip() {
-    tipOwner?.querySelector('a')?.removeAttribute('aria-describedby');
-    tip?.remove();
-    tip = null;
-    tipOwner = null;
-  }
-
-  function tipContent(d: Details) {
+  function factsList(d: Details) {
+    // A photo the site lists shows its entry's own `takenAt` (what photos:add, the New Photo form and photos:dates
+    // stored in R2); only a file the site has no entry for — or one whose entry has no date — falls back to the date
+    // read from the file's EXIF by the API.
+    const takenAt = known[d.id]?.takenAt ?? d.takenAt;
     const rows: [string, string][] = [
       [m('pics.camera'), d.cameraLine ?? m('pics.noCamera')],
+      [m('pics.taken'), formatTakenAt(takenAt, locale) ?? m('pics.noTaken')],
       [m('pics.size'), `${formatBytes(d.size, locale)} (${formatExactBytes(d.size, locale, m('pics.bytes'))})`],
       [m('pics.copyright'), d.copyright ?? m('pics.noCopyright')],
     ];
     if (d.artist) rows.push([m('pics.artist'), d.artist]);
     return el('dl', { class: 'pic-facts' }, ...rows.flatMap(([term, value]) => [el('dt', { text: term }), el('dd', { text: value })]));
+  }
+
+  /** The details column of one row: "Reading…" until its lookup answers, then the facts (or why there are none). */
+  function detailsFor(id: string) {
+    const node = el('div', { class: 'pic-details' }, el('p', { class: 'pic-details-note', text: m('pics.loading') }));
+    let request = details.get(id);
+    if (!request) {
+      request = api<Details>(`/pics/${encodeURIComponent(id)}`);
+      details.set(id, request);
+      request.catch(() => details.delete(id)); // a failed lookup is tried again the next time the row is drawn (Refresh)
+    }
+    request.then(
+      (d) => node.replaceChildren(factsList(d)),
+      (error) => node.replaceChildren(el('p', { class: 'pic-details-note', text: error instanceof ApiError && error.kind === 'notFound' ? m('pics.failed') : errorMessage(m, error) }))
+    );
+    return node;
   }
 
   /**
@@ -114,27 +119,6 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     if (!photo?.thumb) return el('span', { class: 'pic-thumb pic-thumb-none' }, el('span', { text: m('pics.noThumbnail') }));
     const { width, height } = thumbSize(photo.thumb.width, photo.thumb.height);
     return el('span', { class: 'pic-thumb' }, el('img', { attrs: { src: photo.thumb.src, width: String(width), height: String(height), alt: '', loading: 'lazy', decoding: 'async' } }));
-  }
-
-  function showTip(item: HTMLElement, id: string) {
-    if (tipOwner === item) return;
-    hideTip();
-    const link = item.querySelector('a')!;
-    const node = el('div', { class: 'pic-tip', attrs: { role: 'tooltip', id: `pic-tip-${++tipId}` } }, el('p', { class: 'pic-tip-note', text: m('pics.loading') }));
-    tip = node;
-    tipOwner = item;
-    link.setAttribute('aria-describedby', node.id);
-    item.append(node);
-    let request = details.get(id);
-    if (!request) {
-      request = api<Details>(`/pics/${encodeURIComponent(id)}`);
-      details.set(id, request);
-      request.catch(() => details.delete(id)); // a failed lookup can be tried again
-    }
-    request.then(
-      (d) => tip === node && node.replaceChildren(tipContent(d)),
-      (error) => tip === node && node.replaceChildren(el('p', { class: 'pic-tip-note', text: error instanceof ApiError && error.kind === 'notFound' ? m('pics.failed') : errorMessage(m, error) }))
-    );
   }
 
   // --- The count and the Upload / Remove buttons ---------------------------------------------------------------
@@ -321,13 +305,16 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     displayed = true;
   }
 
-  /** One row of the list: thumbnail, title, category, key, the tooltip's triggers and (while a bulk action is showing) its checkbox. */
+  /** One row of the list: thumbnail, then the title, the Home background badge (when set), its category and the file's
+   *  key, one under the other; the file's details at the right, and (while a bulk action is showing) its checkbox. */
   function buildRow(row: PicRow) {
-    const link = el('a', { class: 'pic-link', attrs: { href: `#${PICS_TAB}` } },
+    const link = el('div', { class: 'pic-link' },
       thumbnail(row.id),
-      el('span', { class: 'pic-title' }, row.title ?? row.id, row.heroBackground ? el('span', { class: 'results-badge', text: m('pics.background.badge') }) : null),
-      row.category ? el('span', { class: 'pic-category', text: row.category }) : el('span', { class: 'pic-category', text: m('pics.notOnSite') }),
-      el('span', { class: 'pic-key', text: row.key }));
+      el('span', { class: 'pic-title', text: row.title ?? row.id }),
+      row.heroBackground ? el('span', { class: 'pic-badges' }, el('span', { class: 'results-badge', text: m('pics.background.badge') })) : null,
+      el('span', { class: 'pic-category', text: row.category ?? m('pics.notOnSite') }),
+      el('span', { class: 'pic-key', text: row.key }),
+      detailsFor(row.id));
     const item = el('li', { class: 'pic' }, link);
     // A checkbox during Remove Photos (any original can be deleted, entry or not); during Edit Photos and
     // Home Background only for a photo the site actually lists (there is no category to move, or entry to
@@ -344,21 +331,6 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
       });
       item.prepend(el('label', { class: 'pic-select' }, box));
     }
-    item.addEventListener('mouseenter', () => showTip(item, row.id));
-    item.addEventListener('mouseleave', () => {
-      if (item === tipOwner && Date.now() < suppressLeaveUntil) return;
-      hideTip();
-    });
-    link.addEventListener('focus', () => showTip(item, row.id));
-    // A tap or click opens the tooltip too (touch screens have no hover); the link goes nowhere.
-    link.addEventListener('click', (event) => {
-      event.preventDefault();
-      showTip(item, row.id);
-      suppressLeaveUntil = Date.now() + LEAVE_GRACE_MS;
-    });
-    item.addEventListener('focusout', (event) => {
-      if (!item.contains(event.relatedTarget as Node | null)) hideTip();
-    });
     return item;
   }
 
@@ -415,7 +387,6 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
 
   /** Draws the counter, the buttons, the removal or category-change bar (while one is active) and the first pages of the list from the last listing. */
   function paint() {
-    hideTip();
     if (!listing) return;
     const { rows, complete } = listing;
     if (!rows.length) {
@@ -506,7 +477,6 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   async function render() {
     if (deleting || applying || settingHero) return; // a bulk action is under way: it redraws the list itself when it is over
     const run = ++generation;
-    hideTip();
     pager?.disconnect(); // the list about to be replaced is not watched any more
     more = null;
     if (!token) {
@@ -530,14 +500,9 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     }
   }
 
-  // Escape closes the tooltip without moving focus (WCAG: dismissible).
-  document.addEventListener('keydown', (event) => event.key === 'Escape' && tip && hideTip());
-  // Clicking elsewhere closes a tooltip opened by a tap.
-  document.addEventListener('click', (event) => tipOwner && !tipOwner.contains(event.target as Node) && hideTip());
-
   // Nothing is requested while the tab is hidden; showing it loads the list once.
   const sync = () => {
-    if (panel.hidden) return hideTip();
+    if (panel.hidden) return;
     if (token ? !displayed && !root.querySelector('.results-loading, .results-error') : !root.querySelector('form')) void render();
   };
   window.addEventListener(AUTH_EVENT, () => {
@@ -547,7 +512,6 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     displayed = false;
     generation++;
     details.clear();
-    hideTip();
     formHost.replaceChildren(); // signing out (or in as someone else) closes the form
     mode = 'none'; // ...and any bulk-action checkboxes
     selected.clear();

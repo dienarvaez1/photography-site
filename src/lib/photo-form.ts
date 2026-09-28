@@ -9,10 +9,12 @@
 // page the form says so instead of failing. Every answer is put on the page as text.
 import { el, type Reader } from './admin-common';
 import { ServiceError, call } from './photo-service';
+import { formatTakenAt } from './pics-view';
 
 export type FormCategory = { slug: string; label: string };
 type Order = { count: number; max: number; next: number };
-type Analysis = { id: string; width: number; height: number; camera: string | null; inCategories: string[] };
+// `takenAt` is the date the entry will be given (addPhoto reads the same EXIF value), shown here before adding.
+type Analysis = { id: string; width: number; height: number; camera: string | null; takenAt: string | null; inCategories: string[] };
 type Added = { path: string; key: string; entry: string; id: string; order: number; camera: string | null };
 
 /** Service error codes -> the message keys under pics.form.errors. */
@@ -154,7 +156,8 @@ export function photoForm(options: {
         analysis = result;
         facts.replaceChildren(
           el('dt', { text: t('id') }), el('dd', { text: result.id }),
-          el('dt', { text: t('size') }), el('dd', { text: t('sizeValue', { width: result.width, height: result.height }) }));
+          el('dt', { text: t('size') }), el('dd', { text: t('sizeValue', { width: result.width, height: result.height }) }),
+          el('dt', { text: t('taken') }), el('dd', { text: formatTakenAt(result.takenAt, document.documentElement.lang || 'en') ?? t('noTaken') }));
         camera.value = result.camera ?? '';
         cameraHint.textContent = result.camera ? t('cameraHint') : t('noCamera');
         extracted.hidden = false;

@@ -88,7 +88,7 @@ export function assertColorClose(actual, expected, assert) {
 export const IFD = {
   Make: 'IFD0', Model: 'IFD0', Copyright: 'IFD0', Artist: 'IFD0',
   ExposureTime: 'IFD2', FNumber: 'IFD2', ISOSpeedRatings: 'IFD2', FocalLength: 'IFD2', LensModel: 'IFD2',
-  DateTimeOriginal: 'IFD2', BodySerialNumber: 'IFD2',
+  DateTimeOriginal: 'IFD2', OffsetTimeOriginal: 'IFD2', DateTimeDigitized: 'IFD2', BodySerialNumber: 'IFD2',
   GPSLatitudeRef: 'IFD3', GPSLatitude: 'IFD3', GPSLongitudeRef: 'IFD3', GPSLongitude: 'IFD3',
 };
 

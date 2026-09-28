@@ -69,9 +69,9 @@ const METADATA = {
   full: () => ({
     exif: {
       Make: 'NIKON CORPORATION', Model: 'NIKON Z 6', LensModel: 'NIKKOR Z 24-70mm f/4 S', FocalLength: '24', FNumber: '4', ExposureTime: '25', ISOSpeedRatings: '3200',
-      Copyright: 'Copyright 2026 Diego Narvaez', Artist: 'Diego Narvaez',
+      Copyright: 'Copyright 2026 Diego Narvaez', Artist: 'Diego Narvaez', DateTimeOriginal: '2023:11:27 18:42:10',
       // Never to be passed on:
-      BodySerialNumber: 'SECRET-SERIAL-123', DateTimeOriginal: '2023:11:27 18:42:10',
+      BodySerialNumber: 'SECRET-SERIAL-123',
       GPSLatitudeRef: 'N', GPSLatitude: '45/1 31/1 0/1', GPSLongitudeRef: 'W', GPSLongitude: '122/1 40/1 0/1',
     },
     padding: LARGE,

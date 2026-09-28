@@ -1,10 +1,10 @@
-Feature: The camera line is built from each photo's EXIF, and nothing else is stored
+Feature: The camera line and created date are read from each photo's EXIF, and nothing else is stored
   As the site owner
-  I want the camera details shown with each picture filled in from the JPEG automatically
-  So that the gallery is accurate without typing, while EXIF data, copyright, dates and
-  anything private (GPS position, serial numbers, artist) never reach the repository
+  I want the camera details and the date each picture was taken filled in from the JPEG automatically
+  So that the gallery is accurate without typing, while other EXIF data, copyright and
+  anything private (GPS position, serial numbers, artist) never reach the entries
 
-  An entry keeps only `camera:`. It never has an `exif:` block or a `copyright:` line.
+  An entry keeps only `camera:` and `takenAt:`. It never has an `exif:` block or a `copyright:` line.
   These scenarios use real JPEG files carrying real EXIF, a fake R2, and no network.
 
   Background:
@@ -82,12 +82,10 @@ Feature: The camera line is built from each photo's EXIF, and nothing else is st
       | DateTimeOriginal | 2023:11:27 18:42:10          |
       | Copyright        | (C) Test Photographer        |
     When I add "everything.jpg" to the category "nature" with the title "Everything"
-    Then the entry "nature/everything" should only have these fields: title, category, photo, camera, placeholderColor, featured, order, addedAt
+    Then the entry "nature/everything" should only have these fields: title, category, photo, camera, takenAt, placeholderColor, featured, order, addedAt
     And the entry "nature/everything" should not contain "exif"
     And the entry "nature/everything" should not contain "copyright"
     And the entry "nature/everything" should not contain "Test Photographer"
-    And the entry "nature/everything" should not contain "2023"
-    And the entry "nature/everything" should not contain "takenAt"
 
   Scenario: GPS position, serial numbers and the artist are never captured
     Given a photo file "private.jpg" of 900x600 with EXIF:
@@ -161,6 +159,53 @@ Feature: The camera line is built from each photo's EXIF, and nothing else is st
       | Copyright | (C) Test Photographer |
     When I add "keepexif.jpg" to the category "nature" with the title "Keep Exif"
     Then the original stored in R2 should still contain its EXIF make "NIKON CORPORATION"
+
+  # --- The created date -------------------------------------------------------------
+
+  Scenario: Adding a photo keeps the date it was taken
+    Given a photo file "dated.jpg" of 900x600 with EXIF:
+      | Make             | NIKON CORPORATION   |
+      | DateTimeOriginal | 2023:11:27 18:42:10 |
+    When I add "dated.jpg" to the category "nature" with the title "Dated"
+    Then the entry "nature/dated" should have the created date "2023-11-27T18:42:10"
+
+  Scenario: The camera's UTC offset is kept when it recorded one
+    Given a photo file "offset.jpg" of 900x600 with EXIF:
+      | DateTimeOriginal   | 2024:06:01 05:30:00 |
+      | OffsetTimeOriginal | -07:00              |
+    When I add "offset.jpg" to the category "nature" with the title "Offset"
+    Then the entry "nature/offset" should have the created date "2024-06-01T05:30:00-07:00"
+
+  Scenario: Without an original date, the digitized date is used
+    Given a photo file "scanned.jpg" of 900x600 with EXIF:
+      | DateTimeDigitized | 1999:12:31 23:59:59 |
+    When I add "scanned.jpg" to the category "nature" with the title "Scanned"
+    Then the entry "nature/scanned" should have the created date "1999-12-31T23:59:59"
+
+  Scenario Outline: A photo with no usable date gets no created date
+    Given a photo file "<file>" of 900x600 with EXIF:
+      | Make             | NIKON CORPORATION |
+      | DateTimeOriginal | <date>            |
+    When I add "<file>" to the category "nature" with the title "<title>"
+    Then the entry "nature/<slug>" should not have the field "takenAt"
+
+    Examples:
+      | file       | date                | title      | slug       |
+      | blank.jpg  | 0000:00:00 00:00:00 | Blank Date | blank-date |
+      | feb30.jpg  | 2023:02:30 10:00:00 | Feb Thirty | feb-thirty |
+      | junk.jpg   | sometime            | Junk Date  | junk-date  |
+
+  Scenario: Replacing a photo takes the new photo's date, and drops the old one if it has none
+    Given a photo file "early.jpg" of 900x600 with EXIF:
+      | DateTimeOriginal | 2020:01:01 08:00:00 |
+    And a photo file "later.jpg" of 950x600 with EXIF:
+      | DateTimeOriginal | 2021:02:02 09:00:00 |
+    And a photo file "undated.jpg" of 1000x600
+    And I have added "early.jpg" to the category "nature" with the title "Retaken"
+    When I replace the photo of "nature/retaken" with "later.jpg"
+    Then the entry "nature/retaken" should have the created date "2021-02-02T09:00:00"
+    When I replace the photo of "nature/retaken" with "undated.jpg"
+    Then the entry "nature/retaken" should not have the field "takenAt"
 
   Scenario: A camera line given explicitly overrides the EXIF
     Given a photo file "override.jpg" of 900x600 with EXIF:
@@ -309,3 +354,42 @@ Feature: The camera line is built from each photo's EXIF, and nothing else is st
     Given an entry "nature/legacy" with no photo id
     When I fill in the missing camera lines
     Then filling should report a problem for "nature/legacy" mentioning "no valid photo.id"
+
+  # --- Filling in missing created dates from R2 --------------------------------------
+
+  Scenario: A missing created date is filled in from the original in R2
+    Given a photo file "aged.jpg" of 900x600 with EXIF:
+      | Make             | NIKON CORPORATION   |
+      | DateTimeOriginal | 2019:05:04 07:08:09 |
+    And I have added "aged.jpg" to the category "nature" with the title "Aged"
+    And the entry "nature/aged" has no created date
+    When I fill in the missing created dates
+    Then filling should report 1 updated and 0 unchanged and no problems
+    And the entry "nature/aged" should have the created date "2019-05-04T07:08:09"
+    And the entry "nature/aged" should only have these fields: title, category, photo, camera, takenAt, placeholderColor, featured, order, addedAt
+
+  Scenario: A created date that is already there needs no original at all
+    Given a photo file "kept.jpg" of 900x600 with EXIF:
+      | DateTimeOriginal | 2019:05:04 07:08:09 |
+    And I have added "kept.jpg" to the category "nature" with the title "Kept"
+    And the original disappears from R2
+    When I fill in the missing created dates
+    Then filling should report 0 updated and 1 unchanged and no problems
+    And the entry "nature/kept" should have the created date "2019-05-04T07:08:09"
+
+  Scenario: An original with no date leaves its entry exactly as it was
+    Given a photo file "nodate.jpg" of 900x600
+    And I have added "nodate.jpg" to the category "nature" with the title "No Date"
+    And I remember the text of the entry "nature/no-date"
+    When I fill in the missing created dates
+    Then filling should report 0 updated and 1 unchanged and no problems
+    And the entry "nature/no-date" should read exactly as remembered
+
+  Scenario: Filling in created dates reports a missing original
+    Given a photo file "gone.jpg" of 900x600 with EXIF:
+      | DateTimeOriginal | 2019:05:04 07:08:09 |
+    And I have added "gone.jpg" to the category "nature" with the title "Gone"
+    And the entry "nature/gone" has no created date
+    And the original disappears from R2
+    When I fill in the missing created dates
+    Then filling should report a problem for "nature/gone" mentioning "original missing"

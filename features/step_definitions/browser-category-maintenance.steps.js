@@ -159,3 +159,12 @@ Then('the Category Maintenance page should report that {string} could not be rem
 Then("the Category Maintenance page should say Category Maintenance only works on the owner's computer", async function () {
   await panel(this).locator('.pics-status', { hasText: 'only works while the site runs on your computer' }).waitFor();
 });
+
+Then('the Category Maintenance list should be in alphabetical order', async function () {
+  await panel(this).locator('.category-name').first().waitFor();
+  const names = await panel(this).locator('.category-name').allInnerTexts();
+  const lang = await this.b.page.evaluate(() => document.documentElement.lang);
+  const collator = new Intl.Collator(lang, { sensitivity: 'base' });
+  assert.ok(names.length > 1, JSON.stringify(names));
+  assert.deepEqual(names, [...names].sort(collator.compare));
+});

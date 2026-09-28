@@ -33,7 +33,7 @@ Feature: The Admin page's Edit Photos button moves the photos ticked in the Pics
     And the edit bar should say "0 selected"
     And the "Change category" button of the edit bar should be disabled
     And the "Edit Photos" button should be pressed
-    And the results API should have been asked for the list only
+    And the results API should have been asked only for the list and each shown file's details
     And the photo service should have been asked only: "GET status"
 
   Scenario: Choosing a category enables Change category; ticking more photos updates the count

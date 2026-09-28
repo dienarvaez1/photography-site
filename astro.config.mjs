@@ -6,6 +6,7 @@ import cloudflare from '@astrojs/cloudflare';
 import { existsSync, renameSync, rmdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PHOTO_ENTRIES_DIR } from './scripts/lib/entries-dir.mjs';
+import { buildInfo } from './scripts/lib/build-info.mjs';
 import { photoForm } from './scripts/lib/photo-form-server.mjs';
 import { categoryForm } from './scripts/lib/category-form-server.mjs';
 import { CATEGORIES } from './src/config/categories.ts';
@@ -38,6 +39,10 @@ const localizedNotFoundPages = {
 // src/lib/photo-entries.ts). The real build leaves the pages that show photos to be rendered by the Worker
 // when they are requested, from the entries in R2, so a new photo needs no build and no deploy.
 const SNAPSHOT = process.env.PHOTOS_SNAPSHOT === '1';
+
+// Which code this build is (scripts/lib/build-info.mjs), read once here and stamped into the site as constants — the
+// Admin page's footer shows it. Under `astro dev` it is read when the server starts.
+const BUILD = buildInfo({ cwd: fileURLToPath(new URL('.', import.meta.url)) });
 
 // Pages rendered on request are not in the sitemap unless listed: the home pages, the "All" gallery
 // (work/[category].astro's own pseudo-category, ALL_SLUG) and every real category's page.
@@ -84,7 +89,12 @@ export default defineConfig({
   // inline scripts, so the browser blocks it. Not something this redesign asked for anyway.
   prefetch: false,
   vite: {
-    define: { 'import.meta.env.PHOTOS_SNAPSHOT': JSON.stringify(SNAPSHOT) },
+    define: {
+      'import.meta.env.PHOTOS_SNAPSHOT': JSON.stringify(SNAPSHOT),
+      'import.meta.env.BUILD_VERSION': JSON.stringify(BUILD.version),
+      'import.meta.env.BUILD_COMMIT': JSON.stringify(BUILD.commit),
+      'import.meta.env.BUILD_TIME': JSON.stringify(BUILD.builtAt),
+    },
     build: {
       // Never inline scripts into the HTML, so the Content-Security-Policy (public/_headers) can
       // say `script-src 'self'` without 'unsafe-inline'.

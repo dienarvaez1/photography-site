@@ -6,6 +6,7 @@ import { ROOT, listBuiltRoutes, listNotFoundRoutes, loadCategoriesConfig, loadCo
 import { open, useDevice } from '../support/browser.js';
 
 const photos = await import(join(ROOT, 'src/config/photos.ts'));
+const photoSort = await import(join(ROOT, 'src/lib/photo-sort.ts'));
 
 const page = (world) => world.b.page;
 const active = (world) => page(world).evaluate(() => {
@@ -172,6 +173,15 @@ Then('the lightbox should show photo number {int} of the page', async function (
   assert.equal(await shownCaption(this), await captionOfTile(this, n));
 });
 
+Then('the lightbox should show no camera line', async function () {
+  assert.equal(await shownCamera(this), '');
+});
+
+Then('no gallery tile should show a caption', async function () {
+  await page(this).locator('.tile').first().waitFor();
+  assert.equal(await page(this).locator('.tile .tile-caption').count(), 0);
+});
+
 Then('the lightbox should show the last photo of the page', async function () {
   const count = await page(this).locator('.tile').count();
   assert.equal(await shownCaption(this), await captionOfTile(this, count));
@@ -202,14 +212,15 @@ Then('the address should have no {string} parameter', async function (name) {
 });
 
 // Finds the real id of the photo at this position in this category — same order Gallery.astro
-// renders them in (work/[category].astro sorts by `order`) — without a UI round-trip first, so a
-// deep link can be opened completely fresh, the way following a shared link would work.
+// renders them in (work/[category].astro sorts with the page's own sortPhotos and DEFAULT_SORT) —
+// without a UI round-trip first, so a deep link can be opened completely fresh, the way following a
+// shared link would work.
 function idOfPhotoInCategory(category, position) {
-  const inCategory = loadContentEntries()
-    .map((e) => e.frontmatter)
-    .filter((f) => f.category === category)
-    .sort((a, b) => a.order - b.order);
-  return inCategory[position - 1]?.photo?.id;
+  const inCategory = photoSort.sortPhotos(
+    loadContentEntries().map((e) => ({ data: e.frontmatter })).filter(({ data }) => data.category === category),
+    photoSort.DEFAULT_SORT
+  );
+  return inCategory[position - 1]?.data.photo?.id;
 }
 
 When('I open the direct link to photo number {int} of {string}', async function (n, path) {

@@ -16,9 +16,15 @@ interface Props {
    * script below to point the link at whichever photo is actually open.
    */
   category?: string;
+  /**
+   * Whether each tile shows its details (title and camera line) on hover/focus, and the lightbox the camera line
+   * under the photo. The Portfolio (category) page turns this off to show the photos alone; the lightbox still
+   * shows the title, which is the dialog's accessible name. Every tile keeps its aria-label either way.
+   */
+  showDetails?: boolean;
 }
 
-const { photos, category } = Astro.props;
+const { photos, category, showDetails = true } = Astro.props;
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
 
@@ -65,7 +71,7 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
       data-caption={tile.title}
       data-title={tile.title}
       data-category={tile.category}
-      data-camera={tile.data.camera ?? ''}
+      data-camera={showDetails ? (tile.data.camera ?? '') : ''}
       data-placeholder={tile.data.placeholderColor ?? ''}
       aria-label={t('gallery.openPhoto', { title: tile.title })}
     >
@@ -80,14 +86,16 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
         fetchpriority={tile.index === 0 ? 'high' : undefined}
         decoding="async"
       />
-      <span class="tile-caption">
-        <span class="tile-title">{tile.title}</span>
-        {tile.data.camera && (
-          <span class="tile-meta">
-            <span class="meta-row">{tile.data.camera}</span>
-          </span>
-        )}
-      </span>
+      {showDetails && (
+        <span class="tile-caption">
+          <span class="tile-title">{tile.title}</span>
+          {tile.data.camera && (
+            <span class="tile-meta">
+              <span class="meta-row">{tile.data.camera}</span>
+            </span>
+          )}
+        </span>
+      )}
     </button>
   ))}
 </div>

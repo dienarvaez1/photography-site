@@ -36,7 +36,7 @@ Feature: The Admin page's New Photo form adds a photo from its own metadata, in 
     And I click the "Upload Photos" button
     Then the New Photo form should be open, above the list of photos
     And the New Photo form should ask for these, in this order: "Photo (JPEG)", "Title", "Title in Spanish (optional)", "Category", "Order", "Featured"
-    And the results API should have been asked for the list only
+    And the results API should have been asked only for the list and each shown file's details
     And the photo service should have been asked only: "GET status"
 
   Scenario: Every field has a visible label and the form can be filled in with the keyboard alone
@@ -95,6 +95,22 @@ Feature: The Admin page's New Photo form adds a photo from its own metadata, in 
     And I choose the photo "plain.jpg" in the form
     Then the New Photo form should say "The photo has no camera information"
     And the form's camera line should be ""
+    And the form should show it was taken: "No date recorded in the photo. The entry will have no date taken."
+
+  Scenario: The date the photo was taken is shown before adding, and kept in the entry
+    Given a photo file "dated.jpg" of 900x600 with EXIF:
+      | DateTimeOriginal   | 2024:06:01 05:30:00 |
+      | OffsetTimeOriginal | -07:00              |
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I click the "Upload Photos" button
+    And I choose the photo "dated.jpg" in the form
+    Then the form should show it was taken on "Jun 1, 2024"
+    When I fill in the form's "Title" with "Dawn"
+    And I choose the category "Astrophotography" in the form
+    And I click the "Add photo" button
+    Then the New Photo form should say "Added “Dawn” to Astrophotography"
+    And the entry "astro/dawn" should have the created date "2024-06-01T05:30:00-07:00"
 
   Scenario: A file that is not a JPEG is refused with a message, and the rest of the form stays usable
     Given a text file "notes.jpg"

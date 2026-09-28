@@ -4,7 +4,7 @@
 import { basename, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { pullEntries, pushEntries } from './entry-sync.mjs';
-import { addPhoto, fillCameraLines, fillPlaceholderColors, listEntries, removePhoto, replacePhoto, slugify, syncPhotos, verifyPhotos } from './photos.mjs';
+import { addPhoto, fillCameraLines, fillPlaceholderColors, fillTakenAt, listEntries, removePhoto, replacePhoto, slugify, syncPhotos, verifyPhotos } from './photos.mjs';
 
 export const HELP = `Photo workflow — photos AND their entries live in Cloudflare R2 (the web bucket: photos/categories/<category>/<id>.md
 and photos/index.json, which the site reads when a page is requested). Nothing is committed to git and nothing is
@@ -21,8 +21,9 @@ The folder .photo-entries/ is only a local mirror of those entries, kept in step
         --camera "<text>"       overrides the camera line built from the photo's EXIF
         --order <n>   --featured
         --keep-source           keep the local file after a verified upload
-      The camera line ("Nikon Z 7 · 140mm · f/5.6 · 1/125s · ISO 110") is read from
-      the photo's EXIF. Nothing else is kept: no copyright, dates, GPS or serial numbers.
+      The camera line ("Nikon Z 7 · 140mm · f/5.6 · 1/125s · ISO 110") and the date the
+      photo was created (takenAt) are read from its EXIF. Nothing else is kept: no
+      copyright, GPS or serial numbers.
 
   npm run photos:replace -- <entry> <file.jpg> [--camera "<text>"] [--keep-source]
       Swaps an entry's photo: the file is renamed to the new photo id and the old
@@ -32,6 +33,10 @@ The folder .photo-entries/ is only a local mirror of those entries, kept in step
   npm run photos:camera [-- <entry>]
       Fills in a missing camera line from the original's EXIF in R2 (all entries, or
       one). Entries that already have a camera line are never touched.
+
+  npm run photos:dates [-- <entry>]
+      Fills in a missing created date (takenAt) from the original's EXIF in R2 (all
+      entries, or one). Entries that already have one are never touched.
 
   npm run photos:colors [-- <entry>]
       Fills in a missing placeholder color from the entry's own thumb size in R2 (all
@@ -68,7 +73,7 @@ export async function run(args, { contentDir, storage, sync = false, log = conso
 
   // With `sync`, the entries live in R2 and `contentDir` is their mirror: bring it up to date before a command reads
   // it, and publish it after a command changes it (see entry-sync.mjs). Without, `contentDir` is all there is.
-  const READS_ENTRIES = ['add', 'replace', 'camera', 'colors', 'remove', 'verify', 'sync'];
+  const READS_ENTRIES = ['add', 'replace', 'camera', 'dates', 'colors', 'remove', 'verify', 'sync'];
   const publish = sync ? async () => {
     const { published, removed } = await pushEntries({ contentDir, storage, log });
     if (published || removed) log(`  published: ${published} entr${published === 1 ? 'y' : 'ies'}${removed ? `, ${removed} removed` : ''}`);
@@ -145,6 +150,16 @@ export async function run(args, { contentDir, storage, sync = false, log = conso
         });
         report(problems);
         log(`✓ camera lines: ${updated.length} added, ${unchanged.length} unchanged`);
+        if (problems.length) exitCode = 1;
+        break;
+      }
+      case 'dates': {
+        if (rest.length > 1) throw new Error('Usage: photos:dates [entry]');
+        const { updated, unchanged, problems } = await fillTakenAt({
+          contentDir, storage, publish, log, entryFiles: rest.length ? [await findEntry(rest[0])] : undefined,
+        });
+        report(problems);
+        log(`✓ created dates: ${updated.length} added, ${unchanged.length} unchanged`);
         if (problems.length) exitCode = 1;
         break;
       }

@@ -91,6 +91,25 @@ Feature: The photo entries live in R2, and the local folder is only a mirror
     And the manifest entry "astro/half-moon" should carry the same data as the local entry
     And the manifest entry "astro/half-moon" should have the camera line "Nikon Z 8"
 
+  Scenario: Filling in a missing created date publishes the change
+    Given a photo file "moon.jpg" of 1200x700 with EXIF:
+      | DateTimeOriginal | 2019:05:04 07:08:09 |
+    And I run the command: add moon.jpg --category astro --title "Half Moon" --keep-source
+    And the entry "astro/half-moon" has no created date
+    And I run the command: push
+    When I run the command: dates
+    Then the command should succeed
+    And the manifest entry "astro/half-moon" should carry the same data as the local entry
+    And the manifest entry "astro/half-moon" should have the created date "2019-05-04T07:08:09"
+
+  Scenario: A photo's created date is published with its entry
+    Given a photo file "moon.jpg" of 1200x700 with EXIF:
+      | DateTimeOriginal | 2023:11:27 18:42:10 |
+    When I run the command: add moon.jpg --category astro --title "Half Moon" --keep-source
+    Then the command should succeed
+    And the manifest entry "astro/half-moon" should carry the same data as the local entry
+    And the manifest entry "astro/half-moon" should have the created date "2023-11-27T18:42:10"
+
   # --- Placeholder color (the justified gallery's blur-up stand-in) ----------------------------------------------------------------
 
   Scenario: Adding a photo computes and publishes its placeholder color
@@ -213,6 +232,7 @@ Feature: The photo entries live in R2, and the local folder is only a mirror
       | a size that is missing              | has no valid photo          |
       | a placeholder color that is invalid | has an invalid placeholder color |
       | an added-at time that is invalid    | has an invalid added-at time     |
+      | a taken-at time that is invalid     | has an invalid taken-at time     |
 
   Scenario: An entry that cannot be published is refused with the reason
     Given an entry "astro/legacy" with no photo id

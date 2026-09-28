@@ -51,6 +51,7 @@ Given('R2 holds a manifest with a broken entry: {}', function (what) {
     'a size that is missing': () => delete data.photo.width,
     'a placeholder color that is invalid': () => (data.placeholderColor = 'not-a-color'),
     'an added-at time that is invalid': () => (data.addedAt = 'not-a-date'),
+    'a taken-at time that is invalid': () => (data.takenAt = '2023:11:27 18:42:10'),
   }[what];
   broken();
   putWeb(this, MANIFEST_KEY, JSON.stringify({ version: 1, updatedAt: 'x', entries: [{ category: 'astro', id: what === 'a photo id that is invalid' ? 'nope' : id, data }] }), 'application/json');
@@ -111,6 +112,10 @@ Then('the manifest entry {string} should carry the same data as the local entry'
 
 Then('the manifest entry {string} should have the camera line {string}', function (ref, line) {
   assert.equal(manifestIn(this).entries.find((e) => slugOf(e) === ref).data.camera, line);
+});
+
+Then('the manifest entry {string} should have the created date {string}', function (ref, takenAt) {
+  assert.equal(manifestIn(this).entries.find((e) => slugOf(e) === ref).data.takenAt, takenAt);
 });
 
 Then('the manifest entry {string} should have order {int}', function (ref, order) {

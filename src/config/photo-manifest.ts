@@ -12,6 +12,9 @@ export const MANIFEST_KEY = 'photos/index.json';
 export const MANIFEST_VERSION = 1;
 
 /** Where an entry's Markdown file lives in the web bucket. */
+/** A photo's created date as `takenAt` holds it: ISO 8601 to the second, with the camera's UTC offset when it recorded one. */
+export const TAKEN_AT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2})?$/;
+
 export const entryKey = (category: string, id: string): string => `photos/categories/${category}/${id}.md`;
 
 /** What an entry's front matter holds (the same fields the .md files always had). */
@@ -21,6 +24,13 @@ export interface PhotoData {
   category: string;
   photo: { id: string; width: number; height: number };
   camera?: string;
+  /**
+   * When the photo itself was created, read from its EXIF (DateTimeOriginal, else CreateDate) when it is
+   * imported — see `pickTakenAt` in scripts/lib/exif-format.mjs. The camera's local time, with its UTC offset
+   * only when the camera recorded one (e.g. "2023-11-27T18:42:10" or "2023-11-27T18:42:10-07:00"). Optional:
+   * a photo with no date in its EXIF, and every entry imported before this field existed, has none.
+   */
+  takenAt?: string;
   /**
    * The photo's average color as `#rrggbb`, computed once at ingest time (see `analyzePhoto` in
    * scripts/lib/photos.mjs). Optional so an entry from before this field existed still validates;
@@ -43,10 +53,10 @@ export interface PhotoData {
    * When this entry was added, as an ISO 8601 timestamp — set once, when the photo is first added
    * (see `addPhoto` in scripts/lib/photos.mjs), and never changed by `photos:replace`, which swaps
    * the photo but not when the entry itself joined the site. Optional so an entry from before this
-   * field existed still validates; a category page's "Newest" sort falls back to `order` for one
-   * without it (there's no reliable way to recover a real timestamp after the fact — unlike
-   * `placeholderColor`, which is always re-derivable from the photo itself, so that one field does
-   * get a `photos:colors` backfill command and this one doesn't).
+   * field existed still validates (there's no reliable way to recover a real timestamp after the
+   * fact — unlike `placeholderColor`, which is always re-derivable from the photo itself, so that
+   * one field does get a `photos:colors` backfill command and this one doesn't). The category
+   * page's date sorts use `takenAt`, not this.
    */
   addedAt?: string;
 }
@@ -84,6 +94,7 @@ export function problemWith(entry: unknown): string | null {
   if (!isObject(photo) || photo.id !== id || !isPositiveInt(photo.width) || !isPositiveInt(photo.height)) return 'has no valid photo';
   if (data.titles !== undefined && (!isObject(data.titles) || Object.values(data.titles).some((t) => typeof t !== 'string'))) return 'has invalid titles';
   if (data.camera !== undefined && typeof data.camera !== 'string') return 'has an invalid camera line';
+  if (data.takenAt !== undefined && (typeof data.takenAt !== 'string' || !TAKEN_AT_PATTERN.test(data.takenAt))) return 'has an invalid taken-at time';
   if (data.placeholderColor !== undefined && (typeof data.placeholderColor !== 'string' || !/^#[0-9a-f]{6}$/i.test(data.placeholderColor))) return 'has an invalid placeholder color';
   if (data.addedAt !== undefined && (typeof data.addedAt !== 'string' || Number.isNaN(Date.parse(data.addedAt)))) return 'has an invalid added-at time';
   if (typeof data.featured !== 'boolean') return 'has no featured flag';

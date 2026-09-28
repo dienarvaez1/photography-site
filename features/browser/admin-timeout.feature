@@ -33,11 +33,12 @@ Feature: The Admin page signs out after 5 minutes of inactivity
   Scenario: All three tabs are signed out together, whichever tab is showing
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Orion Nebula"
+    And the details of "Orion Nebula" should show these facts:
+      | Artist | Diego Narvaez |
     And 5 minutes pass with nobody touching the page
     Then the Pics Viewer should ask for the admin token
     And the Pics Viewer should say "You were signed out after 5 minutes of inactivity. Enter the token to continue."
-    And no tooltip should be showing
+    And no file's details should be showing
     When I click the "Test Results" tab
     Then the Test Results tab should ask for the admin token
     When I click the "Category Maintenance" tab

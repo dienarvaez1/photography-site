@@ -1,4 +1,5 @@
-// Turning raw EXIF values into the camera settings and the one-line camera description shown on the gallery.
+// Turning raw EXIF values into the camera settings, the one-line camera description shown on the gallery, and the
+// photo's created date.
 // Pure functions with no imports, so the photo tooling and the results Worker (which reads originals for
 // the Admin page's Pics Viewer) share exactly the same wording.
 
@@ -33,6 +34,31 @@ export function pickCamera(raw) {
   };
   const found = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined));
   return Object.keys(found).length ? found : undefined;
+}
+
+const EXIF_DATE = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/;
+const EXIF_OFFSET = /^[+-]\d{2}:\d{2}$/;
+
+/**
+ * Raw EXIF values -> when the photo was created, as ISO 8601 ("2023-11-27T18:42:10", plus "-07:00" when the camera
+ * recorded its offset), or undefined. DateTimeOriginal (shutter press) first, else CreateDate (when it was digitized);
+ * never ModifyDate, which is when it was last edited. EXIF dates are the camera's local clock, so without an offset
+ * the value is kept as local time rather than guessed into UTC. Blank ("0000:00:00 00:00:00") and impossible dates
+ * are treated as absent.
+ */
+export function pickTakenAt(raw) {
+  if (!raw) return undefined;
+  for (const [dateTag, offsetTag] of [['DateTimeOriginal', 'OffsetTimeOriginal'], ['CreateDate', 'OffsetTimeDigitized']]) {
+    const match = EXIF_DATE.exec(text(raw[dateTag]) ?? '');
+    if (!match) continue;
+    const [, y, mo, d, h, mi, s] = match.map(Number);
+    const check = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
+    const valid = y > 0 && check.getUTCFullYear() === y && check.getUTCMonth() === mo - 1 && check.getUTCDate() === d && h < 24 && mi < 60 && s < 60;
+    if (!valid) continue;
+    const offset = text(raw[offsetTag]);
+    return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}${offset && EXIF_OFFSET.test(offset) ? offset : ''}`;
+  }
+  return undefined;
 }
 
 const titleCase = (word) => (word.length > 3 && word === word.toUpperCase() ? word[0] + word.slice(1).toLowerCase() : word);

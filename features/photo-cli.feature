@@ -225,6 +225,19 @@ Feature: Photo command line places entries consistently
     Then the command should succeed
     And the output should mention "0 added, 1 unchanged"
 
+  Scenario: The dates command fills in a missing created date and reports what it did
+    Given a photo file "d.jpg" of 900x600 with EXIF:
+      | DateTimeOriginal | 2019:05:04 07:08:09 |
+    When I run the command: add d.jpg --category nature --title "Dated"
+    And the entry "nature/dated" has no created date
+    And I run the command: dates dated
+    Then the command should succeed
+    And the output should mention "1 added, 0 unchanged"
+    And the entry "nature/dated" should have the created date "2019-05-04T07:08:09"
+    When I run the command: dates
+    Then the command should succeed
+    And the output should mention "0 added, 1 unchanged"
+
   Scenario: The camera command fails when an original is missing
     Given a photo file "m.jpg" of 900x600
     When I run the command: add m.jpg --category nature --title "Missing"

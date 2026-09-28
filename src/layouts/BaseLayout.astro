@@ -18,9 +18,11 @@ interface Props {
   noindex?: boolean;
   /** Admin passes this: see the comment on Header's own `forceReload` prop. */
   reloadNavLinks?: boolean;
+  /** Show which build of the site this is in the footer (the Admin page). */
+  showBuild?: boolean;
 }
 
-const { title, description, image, imageAlt, imageWidth, imageHeight, jsonLd, noindex = false, reloadNavLinks = false } = Astro.props;
+const { title, description, image, imageAlt, imageWidth, imageHeight, jsonLd, noindex = false, reloadNavLinks = false, showBuild = false } = Astro.props;
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
 ---
@@ -52,7 +54,7 @@ const t = useTranslations(locale);
     <main id="main-content">
       <slot />
     </main>
-    <Footer />
+    <Footer showBuild={showBuild} />
     <script>
       import { initScrollReveal } from '../lib/scroll-reveal';
       import { trackTransitionOrigin } from '../lib/transition-referrer';

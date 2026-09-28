@@ -49,6 +49,10 @@ Then('the entry {string} should have the camera line {string}', async function (
   assert.equal((await readEntry(this, ref)).camera, line);
 });
 
+Then('the entry {string} should have the created date {string}', async function (ref, takenAt) {
+  assert.equal((await readEntry(this, ref)).takenAt, takenAt);
+});
+
 Then('the entry {string} should not have the field {string}', async function (ref, field) {
   assert.ok(!(field in (await readEntry(this, ref))), `${ref} should not have "${field}"`);
 });
@@ -77,6 +81,10 @@ Given('the entry {string} has its camera line edited by hand to {string}', async
 
 Given('the entry {string} has no camera line', async function (ref) {
   await rewrite(this, ref, ({ camera, ...rest }) => rest);
+});
+
+Given('the entry {string} has no created date', async function (ref) {
+  await rewrite(this, ref, ({ takenAt, ...rest }) => rest);
 });
 
 Given('the entry {string} has no placeholder color', async function (ref) {
@@ -112,6 +120,10 @@ When('I fill in the missing camera line for only the entry {string}', async func
     storage: state(this).storage,
     entryFiles: [await entryFile(this, ref)],
   });
+});
+
+When('I fill in the missing created dates', async function () {
+  state(this).fill = await lib.fillTakenAt({ contentDir: state(this).contentDir, storage: state(this).storage });
 });
 
 Then('filling should report {int} updated and {int} unchanged and no problems', function (updated, unchanged) {

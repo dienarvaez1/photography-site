@@ -2,7 +2,7 @@
 // like photos.mjs: the dev server wires it to the real R2 (photo-form-server.mjs), tests to a fake one.
 //
 //   GET  /__photos/status    { categories: { <slug>: { count, max, next } } }   what the form needs to start
-//   POST /__photos/analyze   multipart `photo`        -> { id, width, height, camera, inCategories }
+//   POST /__photos/analyze   multipart `photo`        -> { id, width, height, camera, takenAt, inCategories }
 //   POST /__photos/add       multipart `photo`, `title`, `titleEs`, `category`, `order`, `featured`, `camera`
 //                                                     -> { path, key, entry, id, width, height, camera, order }
 //   POST /__photos/remove    JSON { photos: [{ id, key }] }   (id: the photo id; key: its original's key)
@@ -34,7 +34,7 @@ import { entryKey } from '../../src/config/photo-manifest.ts';
 import { PHOTO_ID_PATTERN } from '../../src/config/photos.ts';
 import { pullEntries, pushEntries } from './entry-sync.mjs';
 import { addPhoto, analyzePhoto, changeCategory, entryPath, listEntries, originalKeyPattern, removePhotosById, setHeroBackground } from './photos.mjs';
-import { readCameraLine } from './exif.mjs';
+import { readCameraLine, readTakenAt } from './exif.mjs';
 
 export const PHOTO_FORM_PREFIX = '/__photos/';
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -142,7 +142,7 @@ async function analyze({ request, contentDir, categories }) {
   await assertJpeg(buffer);
   const { id, width, height } = await withFile(buffer, analyzePhoto);
   const inCategories = (await listEntries(contentDir)).filter((e) => e.data.photo?.id === id && categories.includes(e.data.category)).map((e) => e.data.category);
-  return json(200, { id, width, height, camera: (await readCameraLine(buffer)) ?? null, inCategories });
+  return json(200, { id, width, height, camera: (await readCameraLine(buffer)) ?? null, takenAt: (await readTakenAt(buffer)) ?? null, inCategories });
 }
 
 /** What the form shows about an entry it wrote: where it is (in the mirror and in R2), its text, and its values. */

@@ -114,6 +114,22 @@ Then('the form should show what it read: a 16-character photo id, the size {stri
   assert.equal(await control(this, 'camera').inputValue(), camera);
 });
 
+/** The form's "Taken" fact, once the photo has been read. */
+async function shownTaken(world) {
+  await form(world).locator('.photo-form-facts dd').first().waitFor({ state: 'visible', timeout: 8000 });
+  return form(world).locator('.photo-form-facts').evaluate((dl) => [...dl.querySelectorAll('dt')].find((dt) => dt.textContent === 'Taken')?.nextElementSibling.textContent ?? null);
+}
+
+// The browser's own date format decides the exact spacing and time, so this checks the date part only.
+Then('the form should show it was taken on {string}', async function (date) {
+  const taken = await shownTaken(this);
+  assert.ok(taken?.replace(/\s+/g, ' ').includes(date), `taken: ${JSON.stringify(taken)}`);
+});
+
+Then('the form should show it was taken: {string}', async function (text) {
+  assert.equal(await shownTaken(this), text);
+});
+
 Then("the form's camera line should be {string}", async function (line) {
   await control(this, 'camera').waitFor({ state: 'visible', timeout: 8000 });
   assert.equal(await control(this, 'camera').inputValue(), line);

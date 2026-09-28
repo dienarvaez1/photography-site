@@ -52,18 +52,34 @@ Feature: The category page's filter and sort switch the gallery in place
     Then the address should end with "/work/nature/"
     And the gallery heading should say "Nature"
 
-  Scenario: The sort control reorders the visible photos, without changing the address
+  Scenario: The page opens sorted newest first, with that choice already selected
     When I open "/work/nature/"
-    Then the first gallery tile should be titled "Hummingbird and Butterfly Bush"
-    When I choose "Newest first" from the sort control
-    Then the first gallery tile should be titled "Lioness at Rest"
+    Then the sort control should show "Newest first"
+    And the gallery tiles should be titled in this order: American Robin with Worm, Rockfish, Chimpanzee Portrait, Southern White Rhinoceros, Hummingbird and Butterfly Bush, American Buffalo, Lioness at Rest
+
+  Scenario: Without JavaScript the photos are still newest first
+    Given JavaScript is switched off
+    When I open "/work/nature/"
+    Then the first gallery tile should be titled "American Robin with Worm"
+
+  Scenario: Oldest first orders the photos by the date each was taken, undated photos last
+    When I open "/work/nature/"
+    And I choose "Oldest first" from the sort control
+    Then the gallery tiles should be titled in this order: American Buffalo, Hummingbird and Butterfly Bush, Southern White Rhinoceros, Chimpanzee Portrait, Rockfish, American Robin with Worm, Lioness at Rest
     And the address should end with "/work/nature/"
 
-  Scenario: Choosing curated order again restores the original order
+  Scenario: Curated order restores the hand-picked order, and newest first comes back
     When I open "/work/nature/"
-    And I choose "Newest first" from the sort control
     And I choose "Curated order" from the sort control
-    Then the first gallery tile should be titled "Hummingbird and Butterfly Bush"
+    Then the gallery tiles should be titled in this order: Hummingbird and Butterfly Bush, American Robin with Worm, Rockfish, Chimpanzee Portrait, Southern White Rhinoceros, American Buffalo, Lioness at Rest
+    When I choose "Newest first" from the sort control
+    Then the first gallery tile should be titled "American Robin with Worm"
+
+  Scenario: The chosen sort is kept when switching categories
+    When I open "/work/pets/"
+    And I choose "Oldest first" from the sort control
+    And I click the category filter "Nature"
+    Then the first gallery tile should be titled "American Buffalo"
 
   Scenario: Switching categories works from the Spanish pages too
     When I open "/es/work/nature/"

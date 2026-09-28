@@ -72,113 +72,87 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     Then the file for "Orion Nebula" should show the category "Astrophotography" and the path "photos/22d56df0b2da3a99/original.jpg"
     And the file for "ffffffffffffffff" should show the category "not on the site" and the path "photos/ffffffffffffffff/original.jpg"
 
-  Scenario: The files are real links a keyboard can reach
+  Scenario: The rows are not links: there is nothing to open, so the keyboard does not stop on them
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    Then every file should be a link that is in the tab order and large enough to tap
+    Then no file's row should be a link or in the tab order
 
-  # --- The tooltip ---------------------------------------------------------------------------------------------------------
+  # --- Each file's details, at the right of its row ---------------------------------------------------------------------------
 
-  Scenario: Hovering a file shows its camera, size and copyright
+  Scenario: Every file shows its camera, date taken, size and copyright at the right of its row, without hovering
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Orion Nebula"
-    Then the tooltip should show these facts:
+    Then the details of "Orion Nebula" should show these facts:
       | Camera    | Nikon Z 6 · NIKKOR Z 24-70mm f/4 S · 24mm · f/4 · 25s · ISO 3200 |
       | Copyright | Copyright 2026 Diego Narvaez                                     |
       | Artist    | Diego Narvaez                                                    |
-    And the tooltip should show the stored size of "22d56df0b2da3a99", which is about 2.9 MB
-    And the tooltip should be what describes that file for a screen reader
+    And the details of "Orion Nebula" should say it was taken on "Nov 27, 2023"
+    And the details of "Orion Nebula" should show the stored size of "22d56df0b2da3a99", which is about 2.9 MB
+    And the details of "Orion Nebula" should sit at the right of its thumbnail, title and category, inside its row
 
-  Scenario: A file without a copyright notice says so
+  Scenario: A file without a copyright notice or a date says so
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Half Moon"
-    Then the tooltip should show these facts:
-      | Camera    | Nikon Z 6 · 24mm · f/4 · 25s · ISO 3200          |
-      | Copyright | No copyright notice recorded in the file.        |
-      | Artist    | Someone 555-1234                                 |
+    Then the details of "Half Moon" should show these facts:
+      | Camera    | Nikon Z 6 · 24mm · f/4 · 25s · ISO 3200    |
+      | Taken     | No date recorded in the file.              |
+      | Copyright | No copyright notice recorded in the file.  |
+      | Artist    | Someone 555-1234                           |
 
   Scenario: Copyright from the XMP block is shown, and a file with no metadata says what is missing
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Chimpanzee Portrait"
-    Then the tooltip should show these facts:
+    Then the details of "Chimpanzee Portrait" should show these facts:
       | Camera    | Canon EOS R5                  |
       | Copyright | © 2026 XMP Owner (Unicode ok) |
-    When I hover over the file "ffffffffffffffff"
-    Then the tooltip should show these facts:
+    And the details of "ffffffffffffffff" should show these facts:
       | Camera    | No camera information in the file.        |
+      | Taken     | No date recorded in the file.             |
       | Copyright | No copyright notice recorded in the file. |
 
-  Scenario: The tooltip goes away when the pointer leaves, and only one shows at a time
+  Scenario: A photo of the site shows the date taken stored in its entry, even when the file itself has none
+    # Chimpanzee Portrait's entry has `takenAt: "2021-08-15T09:42:19-08:00"`; its original's EXIF has no date.
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Orion Nebula"
-    And I hover over the file "Half Moon"
-    Then exactly one tooltip should be showing, for "Half Moon"
-    When I move the pointer away from the files
-    Then no tooltip should be showing
+    Then the details of "Chimpanzee Portrait" should say it was taken on "Aug 15, 2021"
+    And the details of "Chimpanzee Portrait" should say "(UTC-08:00)"
 
-  Scenario: The tooltip can be reached with the pointer without disappearing
+  Scenario: Each row names the file, then its category, then its path, and every row's details line up
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Orion Nebula"
-    And I move the pointer onto the tooltip
-    Then the tooltip should show these facts:
-      | Artist | Diego Narvaez |
+    Then the row for "Orion Nebula" should read, top to bottom: its title, its category, its path
+    And every row's details should start at the same place, the same distance from its text, and reach the end of the row
 
-  Scenario: Keyboard focus shows the tooltip, Escape closes it, and moving on closes it too
-    When I open "/admin/#pics-viewer"
-    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I tab until the file "Orion Nebula" has keyboard focus
-    Then the tooltip should show these facts:
-      | Copyright | Copyright 2026 Diego Narvaez |
-    When I press the key "Escape"
-    Then no tooltip should be showing
-    And the file "Orion Nebula" should still have keyboard focus
-    When I press the key "Tab"
-    Then exactly one tooltip should be showing, for the next file in the list
-
-  Scenario: Clicking a file shows the tooltip too, and the link goes nowhere
-    When I open "/admin/#pics-viewer"
-    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I click the file "Orion Nebula"
-    Then exactly one tooltip should be showing, for "Orion Nebula"
-    And the address should end with "#pics-viewer"
-    When I click somewhere else on the page
-    Then no tooltip should be showing
-
-  Scenario: A tap's synthesized mouseleave right after opening the tooltip does not close it before it loads
-    # Some Chromium builds fire a compatibility mouseleave right after the click a tap synthesizes, since touch
-    # has no real hover to leave. Simulated directly (deterministic regardless of the platform's own touch-to-
-    # mouse-event quirks) rather than relying on a real tap, which is what actually varies between machines.
-    When I open "/admin/#pics-viewer"
-    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I click the file "Orion Nebula", then immediately fire a mouseleave on it
-    Then the tooltip should show these facts:
-      | Copyright | Copyright 2026 Diego Narvaez |
-
-  Scenario: Tapping a file on a phone shows the tooltip inside the screen, without sideways scrolling
-    Given the visitor uses a phone
-    When I open "/admin/#pics-viewer"
-    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I tap the file "Orion Nebula"
-    Then the tooltip should show these facts:
-      | Copyright | Copyright 2026 Diego Narvaez |
-    And the tooltip should be entirely inside the screen
-    And the page should not scroll sideways
-    And every action button should be entirely inside the screen
-    When I tap somewhere else on the page
-    Then no tooltip should be showing
-
-  Scenario: Each file is looked up once, however often it is hovered
+  Scenario: The details stay where they are: hovering and moving away change nothing
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I hover over the file "Orion Nebula"
     And I move the pointer away from the files
-    And I hover over the file "Orion Nebula"
-    And I hover over the file "Half Moon"
+    Then every file's details should be showing
+
+  Scenario: While a file is being looked up its details say so
+    Given the results API takes 1500 milliseconds to answer
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then the details of "Orion Nebula" should say "Reading the file's information…"
+
+  Scenario: On a phone the details sit under the file's name, inside the screen, without sideways scrolling
+    Given the visitor uses a phone
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    Then the details of "Orion Nebula" should show these facts:
+      | Copyright | Copyright 2026 Diego Narvaez |
+    And the details of "Orion Nebula" should be under its title and entirely inside the screen
+    And the page should not scroll sideways
+    And every action button should be entirely inside the screen
+
+  Scenario: Each file is looked up once, even after switching tabs and back
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And the details of "Orion Nebula" should show these facts:
+      | Artist | Diego Narvaez |
+    And I click the "Test Results" tab
+    And I click the "Pics Viewer" tab
     Then the results API should have been asked for photo "22d56df0b2da3a99" 1 time and for photo "4c4f46c18b70c4b5" 1 time
 
   # --- Refresh and Sign out, at the top of the page ------------------------------------------------------------------------------
@@ -215,12 +189,10 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
   Scenario: Refresh reloads the Pics Viewer when that tab is showing, and nothing else
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Orion Nebula"
+    And every file's details should be showing
     And I note how many requests the results API has had
     And I click "Refresh" at the top of the page
-    Then the results API should have been asked once more for "/pics", and for nothing else
-    When I hover over the file "Orion Nebula"
-    Then the results API should have been asked once more for "/pics" and "/pics/22d56df0b2da3a99", and for nothing else
+    Then the results API should have been asked once more for "/pics", "/pics/22d56df0b2da3a99", "/pics/4c4f46c18b70c4b5", "/pics/4b3761b8ee641a7d" and "/pics/ffffffffffffffff", and for nothing else
 
   Scenario: Signing out at the top signs out of both tabs
     When I open "/admin/"
@@ -284,7 +256,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I <how> the "<button>" button
     Then the Pics Viewer should say "<message>"
-    And the results API should have been asked for the list only
+    And the results API should have been asked only for the list and each shown file's details
     And the Pics Viewer should list 4 original photos in this order: "Half Moon, Orion Nebula, Chimpanzee Portrait, ffffffffffffffff"
     And the Pics Viewer should show no checkbox to select a photo
 
@@ -330,37 +302,26 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
   Scenario: The thumbnails are the site's own public 400 pixel copies, so the private originals are never loaded
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Orion Nebula"
-    And I hover over the file "Half Moon"
-    And I hover over the file "Chimpanzee Portrait"
+    And every file's details should be showing
     Then the only pictures requested should be the public 400 pixel copies of "22d56df0b2da3a99, 4c4f46c18b70c4b5, 4b3761b8ee641a7d"
     And the page should have asked only for the list and for photo details, always with the token in the Authorization header
     And no request to the API should have been for a photo file, and the token should not be in any address
     And the bucket should have been asked only to list, and to read the first 131072 bytes at most of any file
     And the Pics Viewer should show no canvas or video, and no image other than the list's thumbnails
 
-  Scenario: The thumbnails are decorative for screen readers, lazy, and not part of the tooltip
+  Scenario: The thumbnails are decorative for screen readers, lazy, and not part of the details
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Orion Nebula"
     Then every thumbnail should be lazy-loaded and have an empty description, because the row's text already names the photo
-    And the tooltip should show these facts:
+    And the details of "Orion Nebula" should show these facts:
       | Camera | Nikon Z 6 · NIKKOR Z 24-70mm f/4 S · 24mm · f/4 · 25s · ISO 3200 |
-    And the tooltip should hold no picture
+    And no file's details should hold a picture
 
-  Scenario: The tooltip holds no picture even while it is still loading
-    Given the results API takes 1500 milliseconds to answer
-    When I open "/admin/#pics-viewer"
-    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Orion Nebula"
-    Then the tooltip should say "Reading the file's information…"
-    And the tooltip should hold no picture
-
-  Scenario: The list of thumbnails needs nothing from the API but the list
+  Scenario: The list needs nothing from the API but the list and each shown file's details
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     Then the only pictures requested should be the public 400 pixel copies of "22d56df0b2da3a99, 4c4f46c18b70c4b5, 4b3761b8ee641a7d"
-    And the results API should have been asked for the list only
+    And the results API should have been asked for the list and for the details of the 4 files shown, and nothing else
 
   # --- When things are not normal --------------------------------------------------------------------------------------------------
 
@@ -371,16 +332,17 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     Then the Pics Viewer should say "The originals bucket has no photos yet."
 
-  Scenario: A file that vanished says it could not be read, and hovering again tries again
+  Scenario: A file that vanished says it could not be read, and Refresh tries again
+    # Slow answers leave a moment between the list (which still has the file) and the file's own lookup.
+    Given the results API takes 1500 milliseconds to answer
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And the Pics Viewer should list 4 original photos in this order: "Half Moon, Orion Nebula, Chimpanzee Portrait, ffffffffffffffff"
     And the file "photos/22d56df0b2da3a99/original.jpg" disappears from the bucket
-    And I hover over the file "Orion Nebula"
-    Then the tooltip should say "Could not read this file's information."
-    When I move the pointer away from the files
-    And the file "photos/22d56df0b2da3a99/original.jpg" comes back
-    And I hover over the file "Orion Nebula"
-    Then the tooltip should show these facts:
+    Then the details of "Orion Nebula" should say "Could not read this file's information."
+    When the file "photos/22d56df0b2da3a99/original.jpg" comes back
+    And I click "Refresh" at the top of the page
+    Then the details of "Orion Nebula" should show these facts:
       | Copyright | Copyright 2026 Diego Narvaez |
 
   Scenario: When the results API cannot be reached the viewer says so, and Refresh recovers
@@ -410,11 +372,11 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     Then the Pics Viewer should say "Eliminar fotos solo funciona mientras el sitio se ejecuta en tu computadora"
     Then the Pics Viewer should list 4 original photos in this order: "La Nebulosa de Orion, Media luna, Retrato de un chimpancé, ffffffffffffffff"
     Then the row for "ffffffffffffffff" should say "Sin miniatura" where the picture would be
-    When I hover over the file "La Nebulosa de Orion"
-    Then the tooltip should show these facts:
+    And the details of "La Nebulosa de Orion" should show these facts:
       | Cámara                | Nikon Z 6 · NIKKOR Z 24-70mm f/4 S · 24mm · f/4 · 25s · ISO 3200 |
       | Derechos de autor     | Copyright 2026 Diego Narvaez                                     |
-    And the tooltip should show the stored size of "22d56df0b2da3a99", which is about 2,9 MB
+    And the details of "La Nebulosa de Orion" should say it was taken on "27 nov 2023"
+    And the details of "La Nebulosa de Orion" should show the stored size of "22d56df0b2da3a99", which is about 2,9 MB
 
   Scenario Outline: Each state of the Pics Viewer passes the automated accessibility audit
     When I open "/admin/#pics-viewer"
@@ -425,7 +387,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
       | state            |
       | sign-in          |
       | list             |
-      | tooltip showing  |
+      | details shown    |
 
   Scenario Outline: No state of the Pics Viewer scrolls sideways on a phone
     Given the visitor uses a phone
@@ -437,13 +399,12 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
       | state            |
       | sign-in          |
       | list             |
-      | tooltip showing  |
+      | details shown    |
 
   Scenario: Using the Pics Viewer causes no script errors, no policy violations and no unexpected requests
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
-    And I hover over the file "Orion Nebula"
-    And I move the pointer away from the files
+    And every file's details should be showing
     And I click "Sign out" at the top of the page
     Then no script error should have been logged
     And no Content-Security-Policy violation should have been reported
@@ -468,7 +429,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And I wait a moment
     Then the Pics Viewer should draw 20 of its photos
     And the thumbnail of the 21st photo of the list should not have been requested
-    And the results API should have been asked for the list only
+    And the results API should have been asked for the list and for the details of the 20 files shown, and nothing else
 
   Scenario: Scrolling to the end of the list draws the next 20, and then the rest
     Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
@@ -495,13 +456,12 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And the Pics Viewer should say "Showing all 45 photos"
     And keyboard focus should be on the paging note
 
-  Scenario: Photos on a later page have the same tooltip as the first ones
+  Scenario: Photos on a later page show their details like the first ones
     Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I focus and press Enter on the "Show 20 more" button
-    And I hover over the file "0000000000000002"
-    Then the tooltip should say "No camera information in the file."
+    Then the details of "0000000000000002" should say "No camera information in the file."
 
   Scenario: Refresh starts again from the first page
     Given the originals bucket holds 45 photos: every photo of the site, then others the site does not list

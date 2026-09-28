@@ -5,6 +5,7 @@ import { CATEGORIES } from '../../../config/categories';
 import { photoVariant } from '../../../config/photos';
 import { notFound } from '../../../lib/not-found';
 import { getPhotos } from '../../../lib/photo-entries';
+import { DEFAULT_SORT, sortPhotos } from '../../../lib/photo-sort';
 import en from '../../../i18n/en.json';
 import es from '../../../i18n/es.json';
 import {
@@ -55,9 +56,12 @@ const visibleSlugs = new Set(sortedCategories.map((c) => c.slug));
 const categoriesData = JSON.stringify(sortedCategories.map((c) => ({ slug: c.slug, label: c.label, description: c.description })));
 
 const category = isAll ? allCategory : getLocalizedCategory(slug!, locale)!;
-const photos = (await getPhotos())
-  .filter((p) => (isAll ? visibleSlugs.has(p.data.category) : p.data.category === slug))
-  .sort((a, b) => a.data.order - b.data.order);
+// Already in the Sort by control's default order (newest first), so the first paint — and a visitor with no JS, who
+// never gets the control at all — sees the same order the control shows as selected.
+const photos = sortPhotos(
+  (await getPhotos()).filter((p) => (isAll ? visibleSlugs.has(p.data.category) : p.data.category === slug)),
+  DEFAULT_SORT
+);
 
 // Share this category's first photo when the page is linked on social media / messaging apps.
 const first = photos[0];
@@ -118,8 +122,9 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
             (below), where the visible "Sort by" text is gone and only the label — already there for
             screen readers — no longer shows sighted mouse users what the control does at a glance. */}
         <select id="gallery-sort" title={t('work.sortLabel')}>
-          <option value="order">{t('work.sortCurated')}</option>
-          <option value="newest">{t('work.sortNewest')}</option>
+          <option value="order" selected={DEFAULT_SORT === 'order'}>{t('work.sortCurated')}</option>
+          <option value="newest" selected={DEFAULT_SORT === 'newest'}>{t('work.sortNewest')}</option>
+          <option value="oldest" selected={DEFAULT_SORT === 'oldest'}>{t('work.sortOldest')}</option>
         </select>
       </div>
     </div>
@@ -131,7 +136,9 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
         lightbox's "View <category> gallery" link to default to before any photo is opened — same
         reasoning as the home page's Featured strip, which passes no category prop for the same
         reason. Gallery falls back to the first tile's own real category instead. */}
-    <Gallery photos={photos} category={isAll ? undefined : slug} />
+    {/* showDetails off: the Portfolio shows the photos alone — no title/camera caption over a tile, no camera line
+        in the lightbox. buildTile() in the script below builds its tiles the same way. */}
+    <Gallery photos={photos} category={isAll ? undefined : slug} showDetails={false} />
   </section>
 </BaseLayout>
 
@@ -311,6 +318,7 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
   import type { ManifestEntry } from '../../../config/photo-manifest';
   import { THUMB_SRCSET, photoSrcSet, photoVariant, ratioClass } from '../../../config/photos';
   import { DEFAULT_LOCALE } from '../../../i18n/config';
+  import { DEFAULT_SORT, SORT_MODES, sortPhotos, type SortMode } from '../../../lib/photo-sort';
 
   // The site's own origin, not R2 directly: the public web bucket sends no
   // Access-Control-Allow-Origin header, so a cross-origin fetch() to it is blocked by CORS (unlike
@@ -321,7 +329,6 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
   // Must match this same page's own ALL_SLUG, above — its frontmatter runs only on the server, so
   // this client script (a separate bundle) can't import it and needs its own copy of the constant.
   const ALL_SLUG = 'all';
-  type SortMode = 'order' | 'newest';
 
   const localizePath = (path: string, locale: string) => (locale === DEFAULT_LOCALE ? path : `/${locale}${path}`);
   const photoTitle = (data: { title: string; titles?: Record<string, string> }, locale: string) => data.titles?.[locale] ?? data.title;
@@ -368,32 +375,20 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
     const thumb = photoVariant(entry.data.photo, 'thumb');
     const full = photoVariant(entry.data.photo, 'full');
     const title = photoTitle(entry.data, locale);
-    const camera = entry.data.camera;
 
     const img = el('img', {
       src: thumb.src, width: thumb.width, height: thumb.height,
       srcset: photoSrcSet(entry.data.photo, THUMB_SRCSET), sizes: '(max-width: 600px) 100vw, 350px',
       alt: title, loading: index < EAGER_TILES ? 'eager' : 'lazy', decoding: 'async',
     });
-    const caption = el('span', { className: 'tile-caption' },
-      el('span', { className: 'tile-title', textContent: title }),
-      ...(camera ? [el('span', { className: 'tile-meta' }, el('span', { className: 'meta-row', textContent: camera }))] : [])
-    );
     const button = el('button', {
       type: 'button',
       className: `tile ${ratioClass(entry.data.photo.width / entry.data.photo.height)}`,
-      dataset: { id: entry.data.photo.id, full: full.src, caption: title, title, camera: camera ?? '', placeholder: entry.data.placeholderColor ?? '' },
-    }, img, caption);
+      // No caption and no camera: matches the server-rendered tiles (Gallery's showDetails={false}, above).
+      dataset: { id: entry.data.photo.id, full: full.src, caption: title, title, camera: '', placeholder: entry.data.placeholderColor ?? '' },
+    }, img);
     button.setAttribute('aria-label', openPhotoTemplate.replace('{title}', title));
     return button;
-  }
-
-  function sortEntries(entries: ManifestEntry[], mode: SortMode): ManifestEntry[] {
-    return [...entries].sort((a, b) =>
-      mode === 'newest'
-        ? Date.parse(b.data.addedAt ?? '') - Date.parse(a.data.addedAt ?? '') || a.data.order - b.data.order
-        : a.data.order - b.data.order
-    );
   }
 
   let removePopstate: (() => void) | null = null;
@@ -416,7 +411,8 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
     const locale = document.documentElement.lang || DEFAULT_LOCALE;
 
     let currentSlug = categorySlugFromPath(location.pathname) ?? categories[0]?.slug;
-    let currentSort: SortMode = 'order';
+    // What the control shows: the server-rendered default, unless the browser restored another choice (back/forward).
+    let currentSort: SortMode = SORT_MODES.find((mode) => mode === sortSelect?.value) ?? DEFAULT_SORT;
 
     function renderPills(activeSlug: string) {
       filterNav!.innerHTML = '';
@@ -454,7 +450,7 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
       // "All" shows every entry whose category is one of the ones this page already knows about (the
       // visible ones — `categories` is the exact same list the pills are built from, "All" included,
       // and no real entry's own category is ever literally "all"), not a filter by one category.
-      const filtered = sortEntries(
+      const filtered = sortPhotos(
         slug === ALL_SLUG ? entries.filter((e) => categories.some((c) => c.slug === e.category)) : entries.filter((e) => e.category === slug),
         sort
       );
@@ -503,9 +499,11 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
     if (controls && sortSelect) {
       controls.classList.add('is-ready');
       sortSelect.addEventListener('change', () => {
-        currentSort = sortSelect.value === 'newest' ? 'newest' : 'order';
+        currentSort = SORT_MODES.find((mode) => mode === sortSelect.value) ?? 'order';
         renderCategory(currentSlug, currentSort);
       });
+      // The server rendered the tiles in DEFAULT_SORT's order; a restored choice needs them re-sorted to match.
+      if (currentSort !== DEFAULT_SORT) renderCategory(currentSlug, currentSort);
     }
 
     // Warms the cache so the first actual switch is instant, without blocking anything above.

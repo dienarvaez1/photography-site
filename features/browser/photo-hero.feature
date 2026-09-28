@@ -36,7 +36,7 @@ Feature: The Admin page's Home Background button sets or clears the photos ticke
     And the "Set as background" button of the home background bar should be disabled
     And the "Remove from background" button of the home background bar should be disabled
     And the "Home Background" button should be pressed
-    And the results API should have been asked for the list only
+    And the results API should have been asked only for the list and each shown file's details
     And the photo service should have been asked only: "GET status"
 
   Scenario: Ticking a photo enables both actions; ticking more updates the count
@@ -88,6 +88,7 @@ Feature: The Admin page's Home Background button sets or clears the photos ticke
     Then the Pics Viewer should say "1 photo set as the home background."
     And the photo service should have been asked only: "GET status, POST hero-background"
     And the photo "Half Moon" should be marked Home background
+    And the row for "Half Moon" should read, top to bottom: its title, the Home background badge, its category, its path
     And the Pics Viewer should show no checkbox to select a photo
 
   Scenario: Setting several photos at once marks them all

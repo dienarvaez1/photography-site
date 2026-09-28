@@ -42,6 +42,21 @@ Then('the first gallery tile should be titled {string}', async function (title) 
   assert.equal(await locator.getAttribute('data-title'), title);
 });
 
+Then('the gallery tiles should be titled in this order: {}', async function (list) {
+  const expected = list.split(', ');
+  const titles = () => page(this).locator('.tile').evaluateAll((tiles) => tiles.map((t) => t.getAttribute('data-title')));
+  await page(this).waitForFunction(
+    (want) => [...document.querySelectorAll('.tile')].map((t) => t.getAttribute('data-title')).join('|') === want,
+    expected.join('|'),
+    { timeout: 8000 }
+  ).catch(() => {});
+  assert.deepEqual(await titles(), expected);
+});
+
+Then('the sort control should show {string}', async function (label) {
+  assert.equal(await page(this).locator('#gallery-sort option:checked').textContent(), label);
+});
+
 Then('the sort control should be visible', async function () {
   await page(this).locator('#gallery-controls').waitFor({ state: 'visible', timeout: 8000 });
 });

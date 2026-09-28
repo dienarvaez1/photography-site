@@ -6,7 +6,8 @@ export type Original = { id: string; key: string; size: number; uploaded: string
  * the category to the local service (which knows nothing about locales). */
 /** `thumb` is the site's own small public copy of the photo (never the private original). `heroBackground` is
  *  whether the entry is explicitly chosen for the home page's hero background (Pics Viewer's Edit Photos). */
-export type KnownPhoto = { title: string; category: string; categorySlug: string; thumb?: { src: string; width: number; height: number }; heroBackground: boolean };
+/** `takenAt` is the entry's own date taken (see photo-manifest.ts), when it has one. */
+export type KnownPhoto = { title: string; category: string; categorySlug: string; thumb?: { src: string; width: number; height: number }; heroBackground: boolean; takenAt?: string };
 export type PicRow = Original & { title: string | null; category: string | null; categorySlug: string | null; heroBackground: boolean };
 
 /** "3.5 MB", "820 KB", "12 B": the size in the largest unit that keeps it above 1, with the page's number format. */
@@ -21,6 +22,20 @@ export function formatBytes(bytes: number, locale: string): string {
   }
   const number = new Intl.NumberFormat(locale, { maximumFractionDigits: unit === 0 ? 0 : 1 }).format(value);
   return `${number} ${units[unit]}`;
+}
+
+/**
+ * When a photo was taken, for people: "Nov 27, 2023, 6:42 PM" in the page's language — the camera's own clock
+ * reading, never converted to the reader's time zone — followed by the camera's UTC offset when it recorded one
+ * ("… (UTC-07:00)"). `takenAt` is the value pickTakenAt (scripts/lib/exif-format.mjs) produces; anything else gives
+ * null.
+ */
+export function formatTakenAt(takenAt: string | null | undefined, locale: string): string | null {
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})([+-]\d{2}:\d{2})?$/.exec(takenAt ?? '');
+  const time = match ? Date.parse(`${match[1]}Z`) : NaN;
+  if (!match || Number.isNaN(time)) return null;
+  const wall = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(time);
+  return match[2] ? `${wall} (UTC${match[2]})` : wall;
 }
 
 /** The exact size with thousands separators: "3,635,121 bytes". */

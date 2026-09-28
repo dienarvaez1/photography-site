@@ -1,7 +1,7 @@
 // Read-only view of the private originals bucket (photos/<id>/original.<ext>) for the Admin page's Pics
-// Viewer. It never returns a photo: only its size and a few facts from its metadata block (camera, copyright).
+// Viewer. It never returns a photo: only its size and a few facts from its metadata block (camera, copyright, date taken).
 import exifr from 'exifr/dist/full.esm.mjs';
-import { formatCamera, pickCamera, text } from '../../../scripts/lib/exif-format.mjs';
+import { formatCamera, pickCamera, pickTakenAt, text } from '../../../scripts/lib/exif-format.mjs';
 
 const PREFIX = 'photos/';
 // Enough for the EXIF/XMP blocks at the start of a JPEG; the rest of the (large) file is never read.
@@ -34,7 +34,7 @@ function claim(value) {
   return typeof value === 'string' ? text(value) : undefined;
 }
 
-/** What the tooltip shows for one original, or null when it is not there. Reads only the file's first bytes. */
+/** What the Pics Viewer shows next to one original, or null when it is not there. Reads only the file's first bytes. */
 export async function describeOriginal(bucket, id) {
   const listing = await bucket.list({ prefix: `${PREFIX}${id}/original.`, limit: 5 });
   const head = listing.objects.find((o) => ORIGINAL_KEY.exec(o.key)?.[1] === id);
@@ -58,5 +58,7 @@ export async function describeOriginal(bucket, id) {
     cameraLine: formatCamera(camera) ?? null,
     copyright: claim([raw?.Copyright, raw?.CopyrightNotice, raw?.rights]) ?? null,
     artist: claim([raw?.Artist, raw?.creator]) ?? null,
+    // When the photo was created, the same value `photos:add` stores as an entry's `takenAt` (see pickTakenAt).
+    takenAt: pickTakenAt(raw) ?? null,
   };
 }

@@ -47,6 +47,10 @@ export function mountCategoryMaintenance(container: HTMLElement, panel: HTMLElem
   // local service isn't reachable (e.g. the deployed site, or before `astro dev` starts). Replaced by the
   // service's own answer after every successful Add, Edit or Remove.
   let rows: CategoryRow[] = parseJson<InitialRow[]>(container.dataset.categoriesList ?? '[]').map(toCategoryRow);
+  // The list is always drawn in alphabetical order of the names it shows, in the page's language (so "Árbol" sorts with
+  // the A's), whatever order `rows` itself is in — it is replaced wholesale after every Add, Edit and Remove.
+  const collator = new Intl.Collator(document.documentElement.lang || 'en', { sensitivity: 'base' });
+  const alphabetical = () => [...rows].sort((a, b) => collator.compare(a.label, b.label) || a.slug.localeCompare(b.slug));
   let mode: 'none' | 'edit' | 'remove' = 'none';
   let checking = false; // toggling Edit/Remove while the local service's availability is being confirmed
   let formOpen = false; // the Add Category form
@@ -456,7 +460,7 @@ export function mountCategoryMaintenance(container: HTMLElement, panel: HTMLElem
     const list = root.querySelector<HTMLElement>('.category-list');
     if (!list) return paint();
     list.className = `category-list${mode !== 'none' ? ` selecting ${mode}` : ''}`;
-    list.replaceChildren(...rows.map(buildRow));
+    list.replaceChildren(...alphabetical().map(buildRow));
     bar?.update();
     const count = root.querySelector<HTMLElement>('.results-count');
     if (count) count.textContent = rows.length === 1 ? t('countOne') : t('count', { count: rows.length });
@@ -470,7 +474,7 @@ export function mountCategoryMaintenance(container: HTMLElement, panel: HTMLElem
       return;
     }
     bar = mode === 'remove' ? categoryRemovalBar() : null;
-    show(...summary(), formOpen ? formHost : null, bar?.element ?? null, el('ul', { class: `category-list${mode !== 'none' ? ` selecting ${mode}` : ''}` }, ...rows.map(buildRow)));
+    show(...summary(), formOpen ? formHost : null, bar?.element ?? null, el('ul', { class: `category-list${mode !== 'none' ? ` selecting ${mode}` : ''}` }, ...alphabetical().map(buildRow)));
   }
 
   // Nothing is requested while the tab is hidden; showing it checks the token (once) and paints the list.

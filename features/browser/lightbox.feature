@@ -78,10 +78,17 @@ Feature: The photo lightbox works with mouse, keyboard and screen readers
     And I press the key "Escape"
     Then no script error should have been logged
 
-  Scenario: The caption includes the camera line, when the photo has one
+  Scenario: On the Portfolio the lightbox shows the title but no camera line
     When I open "/work/nature/"
     And I click photo number 1
-    Then the lightbox should show photo number 1's camera line
+    Then the lightbox should be open showing photo number 1 of the page
+    And the lightbox should show no camera line
+
+  Scenario: The Portfolio's tiles show no details over the photo, even after switching categories
+    When I open "/work/nature/"
+    Then no gallery tile should show a caption
+    When I click the category filter "Pets"
+    Then no gallery tile should show a caption
 
   Scenario: A counter shows position in the set, and follows navigation
     When I open "/work/nature/"

@@ -113,8 +113,12 @@ Then('there should be no copyright', function () {
   assert.equal(photo(this).copyright, null);
 });
 
-Then('there should be no camera line, no copyright and no artist', function () {
-  assert.deepEqual([photo(this).cameraLine, photo(this).copyright, photo(this).artist], [null, null, null]);
+Then('the date taken should be {string}', function (takenAt) {
+  assert.equal(photo(this).takenAt, takenAt);
+});
+
+Then('there should be no camera line, no date taken, no copyright and no artist', function () {
+  assert.deepEqual([photo(this).cameraLine, photo(this).takenAt, photo(this).copyright, photo(this).artist], [null, null, null, null]);
 });
 
 Then('the bucket should only have been asked to list, and to read at most {int} bytes from the start of a file', function (max) {
@@ -129,10 +133,12 @@ Then('the bucket should only have been asked to list, and to read at most {int} 
   assert.ok(calls.some((c) => c.op === 'get'), 'some file was read');
 });
 
-Then('the answer should not contain the location, serial number, date or any other metadata of the file, only the camera, size, copyright and artist', function () {
+Then('the answer should not contain the location, serial number or any other metadata of the file, only the camera, date taken, size, copyright and artist', function () {
   const answer = state(this).last;
-  assert.deepEqual(Object.keys(answer.body).sort(), ['artist', 'camera', 'cameraLine', 'copyright', 'id', 'key', 'size']);
-  for (const secret of ['SECRET-SERIAL', '2023', 'GPS', 'Latitude', 'Longitude', '45', '122', 'Serial']) assert.ok(!answer.text.includes(secret), `the answer contains "${secret}"`);
+  assert.deepEqual(Object.keys(answer.body).sort(), ['artist', 'camera', 'cameraLine', 'copyright', 'id', 'key', 'size', 'takenAt']);
+  // The date taken is passed on on purpose (as `takenAt`); only as that field, never as the raw EXIF value.
+  assert.ok(!answer.text.includes('2023:11:27'), 'the raw EXIF date is not passed on');
+  for (const secret of ['SECRET-SERIAL', 'GPS', 'Latitude', 'Longitude', '45', '122', 'Serial']) assert.ok(!answer.text.includes(secret), `the answer contains "${secret}"`);
 });
 
 Then('every answer should be small JSON with no picture data in it', function () {

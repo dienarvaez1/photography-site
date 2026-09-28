@@ -30,7 +30,7 @@ import {
   variantSize,
 } from '../../src/config/photos.ts';
 import { entryKey } from '../../src/config/photo-manifest.ts';
-import { readCameraLine } from './exif.mjs';
+import { readCameraLine, readTakenAt } from './exif.mjs';
 
 const CONTENT_TYPES = { original: 'image/jpeg', web: 'image/webp' };
 const IMMUTABLE = 'public, max-age=31536000, immutable';
@@ -141,7 +141,7 @@ export async function listEntries(contentDir) {
   return entries;
 }
 
-const FIELD_ORDER = ['title', 'titles', 'category', 'photo', 'camera', 'placeholderColor', 'featured', 'heroBackground', 'order', 'addedAt'];
+const FIELD_ORDER = ['title', 'titles', 'category', 'photo', 'camera', 'takenAt', 'placeholderColor', 'featured', 'heroBackground', 'order', 'addedAt'];
 
 /** YAML lines for `key: value`; nested objects become an indented block (no trailing space after the key). */
 function yamlLines(key, value, indent) {
@@ -213,11 +213,11 @@ async function deletePhotoObjects({ id, contentDir, exceptFile, storage, log }) 
 // --- Commands ---------------------------------------------------------------
 
 /**
- * Adds a photo: uploads it, verifies it, reads the camera line from its EXIF,
- * writes its .md (`<category>/images/<photo id>.md`), then (unless keepSource)
- * deletes the local file. `camera` overrides the line built from EXIF. Only the
- * camera line is kept from EXIF: no copyright, dates, GPS or serial numbers.
- * Returns { file, photo, camera }.
+ * Adds a photo: uploads it, verifies it, reads the camera line and created date
+ * (`takenAt`) from its EXIF, writes its .md (`<category>/images/<photo id>.md`),
+ * then (unless keepSource) deletes the local file. `camera` overrides the line
+ * built from EXIF. Only those two are kept from EXIF: no copyright, GPS or serial
+ * numbers. Returns { file, photo, camera, takenAt }.
  */
 export async function addPhoto({ source, category, title, titleEs, camera, order = 0, featured = false, contentDir, storage, keepSource = false, categories = CATEGORIES.map((c) => c.slug), publish, log = () => {} }) {
   if (!category) throw new Error('--category is required');
@@ -233,6 +233,7 @@ export async function addPhoto({ source, category, title, titleEs, camera, order
   }
 
   const cameraLine = camera ?? (await readCameraLine(buffer));
+  const takenAt = await readTakenAt(buffer);
   log(`${basename(source)} -> ${id} (${width}x${height})${cameraLine ? '' : ' — no camera info in EXIF'}`);
   await uploadPhoto({ buffer, photo: { id, width, height }, storage, log });
 
@@ -242,11 +243,12 @@ export async function addPhoto({ source, category, title, titleEs, camera, order
     category,
     photo: { id, width, height },
     ...(cameraLine ? { camera: cameraLine } : {}),
+    ...(takenAt ? { takenAt } : {}),
     placeholderColor,
     featured,
     order,
-    // When this entry joined the site, not the photo's own EXIF capture date (never stored — see
-    // the policy notes elsewhere in this file). Set once, here, and never touched by replacePhoto:
+    // When this entry joined the site, not when the photo was taken (that is `takenAt`, from its
+    // EXIF). Set once, here, and never touched by replacePhoto:
     // swapping an entry's photo doesn't change when the entry itself was added.
     addedAt: new Date().toISOString(),
   });
@@ -255,14 +257,16 @@ export async function addPhoto({ source, category, title, titleEs, camera, order
     await unlink(source);
     log(`  removed local ${basename(source)} (safe copy is in R2)`);
   }
-  return { file, photo: { id, width, height }, camera: cameraLine };
+  return { file, photo: { id, width, height }, camera: cameraLine, takenAt };
 }
 
 /**
  * Replaces the photo of an existing entry. The entry file is renamed to the new
  * photo id (same folder) and the old photo's objects are deleted once nothing
  * uses them. The camera line is `camera`, else the new photo's EXIF, else the
- * entry's existing line: a camera line is never lost.
+ * entry's existing line: a camera line is never lost. The created date (`takenAt`)
+ * is always the new photo's, and dropped if it has none: the old one described a
+ * different picture.
  */
 export async function replacePhoto({ entryFile, source, camera, contentDir, storage, keepSource = false, publish, log = () => {} }) {
   const entry = (await listEntries(contentDir)).find((e) => e.file === entryFile);
@@ -280,6 +284,8 @@ export async function replacePhoto({ entryFile, source, camera, contentDir, stor
   const cameraLine = camera ?? (await readCameraLine(buffer)) ?? entry.data.camera;
   const data = { ...entry.data, photo: { id, width, height }, placeholderColor };
   if (cameraLine) data.camera = cameraLine; else delete data.camera;
+  const takenAt = await readTakenAt(buffer);
+  if (takenAt) data.takenAt = takenAt; else delete data.takenAt;
   await writeEntry(newFile, data, entry.body);
   if (newFile !== entryFile) await unlink(entryFile);
   await publish?.(); // the site now points at the new photo; only then may the old one go
@@ -531,6 +537,51 @@ export async function fillCameraLines({ contentDir, storage, entryFiles, publish
     await writeEntry(entry.file, { ...rest, camera }, entry.body);
     updated.push(entry.file);
     log(`camera line added to ${basename(entry.file)}`);
+  }
+  if (updated.length) await publish?.();
+  return { updated, unchanged, problems };
+}
+
+/**
+ * Fills in a missing created date (`takenAt`) from the EXIF of the entry's original in R2 — a backfill for entries
+ * imported before the date was kept. An entry that already has one is never touched (nor its original downloaded).
+ * An original with no usable date leaves its entry as it is (unchanged, not a problem: there is nothing to recover).
+ * Each original is downloaded once even when several entries (categories) share it. Pass `entryFiles` to limit it
+ * to some entries. Returns { updated, unchanged, problems }.
+ */
+export async function fillTakenAt({ contentDir, storage, entryFiles, publish, log = () => {} }) {
+  const updated = [];
+  const unchanged = [];
+  const problems = [];
+  const dates = new Map(); // photo id -> takenAt | undefined, or an Error when its original can't be used
+  for (const entry of await listEntries(contentDir)) {
+    if (entryFiles && !entryFiles.includes(entry.file)) continue;
+    if (typeof entry.data.takenAt === 'string' && entry.data.takenAt) {
+      unchanged.push(entry.file);
+      continue;
+    }
+    const photo = entry.data.photo;
+    if (!photo?.id || !PHOTO_ID_PATTERN.test(photo.id)) {
+      problems.push({ file: entry.file, message: 'has no valid photo.id' });
+      continue;
+    }
+    if (!dates.has(photo.id)) {
+      const original = await storage.originals.get(photoKey(photo.id, 'original'));
+      dates.set(photo.id, !original || contentId(original) !== photo.id ? new Error('original missing or corrupted in R2 — cannot read EXIF') : await readTakenAt(original));
+    }
+    const takenAt = dates.get(photo.id);
+    if (takenAt instanceof Error) {
+      problems.push({ file: entry.file, message: takenAt.message });
+      continue;
+    }
+    if (!takenAt) {
+      unchanged.push(entry.file);
+      log(`no created date in the EXIF of ${basename(entry.file)}`);
+      continue;
+    }
+    await writeEntry(entry.file, { ...entry.data, takenAt }, entry.body);
+    updated.push(entry.file);
+    log(`created date ${takenAt} added to ${basename(entry.file)}`);
   }
   if (updated.length) await publish?.();
   return { updated, unchanged, problems };

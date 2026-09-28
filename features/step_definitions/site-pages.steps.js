@@ -205,7 +205,7 @@ Then('the page should show a tile for every photo in its category', function () 
   assert.deepEqual([...actual].sort(), [...expected].sort(), `${this.data.route}: tiles do not match the category's photos`);
 });
 
-Then('every photo on that page with a camera line should show it in its tile, and no tile should show a copyright', function () {
+Then('no tile on that page should show a caption, camera line or copyright', function () {
   const locale = pageLocale(this.data.page);
   const slug = categoryOfRoute(this.data.route);
   const entries = this.data.entries.filter((e) => e.frontmatter.category === slug);
@@ -214,12 +214,9 @@ Then('every photo on that page with a camera line should show it in its tile, an
     const title = shownTitle(entry, locale);
     const tile = this.data.page.root.querySelectorAll('.tile').find((t) => t.getAttribute('data-title') === title);
     assert.ok(tile, `Expected a tile for "${title}" on its category page`);
-    const rows = tile.querySelectorAll('.tile-meta .meta-row').map((r) => r.text.trim());
-    if (entry.frontmatter.camera) {
-      assert.deepEqual(rows, [entry.frontmatter.camera], `Tile for "${title}" should show exactly its camera line`);
-    } else {
-      assert.deepEqual(rows, [], `Tile for "${title}" has no camera line, so it should show no metadata`);
-    }
+    assert.equal(tile.querySelector('.tile-caption'), null, `Tile for "${title}" should show no caption`);
+    assert.equal(tile.getAttribute('data-camera'), '', `Tile for "${title}" should carry no camera line for the lightbox`);
+    if (entry.frontmatter.camera) assert.ok(!tile.toString().includes(entry.frontmatter.camera), `Tile for "${title}" shows its camera line`);
   }
 });
 

@@ -56,7 +56,7 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against twenty-eight areas. The
+tests bake in sample photos instead), then checks that built output against twenty-nine areas. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
@@ -174,6 +174,10 @@ against every page in both English and Spanish**; expected text is read from
   reason, slowest scenarios), sortable run ids, what a published run contains and where (only under
   `results/`, never cached), the index written last so it never names a missing file, retention and
   pruning, flaky-scenario trends, the command line, the runner's plan, and the GitHub workflow steps.
+- **`build-info.feature`** — the build's version (`git describe --tags --always --dirty`, tried on throwaway git
+  repositories: the short hash, a tag, commits past a tag, uncommitted changes, no git at all, a version given in the
+  environment) and that the Admin page's footer names this checkout's build and time in both languages, while
+  visitors' pages don't show it.
 - **`admin.feature`** — a basic smoke test of the Admin page: it exists in both languages, "Admin" is
   linked immediately to the right of "Contact" and marked active on its own page, it has exactly three
   tabs ("Test Results", "Pics Viewer", then "Category Maintenance") in a horizontal, labelled tab list
@@ -450,13 +454,14 @@ photo:
   width: 4000              # size of the original as displayed (EXIF rotation applied)
   height: 2667
 camera: "Nikon Z 7 · NIKKOR Z 70-200mm f/2.8 VR S · 140mm · f/5.6 · 1/125s · ISO 110"
+takenAt: "2023-11-27T18:42:10"   # when the photo was created (EXIF), camera's local time (+ its UTC offset if recorded)
 featured: false
 order: 3
 ---
 ```
 
 That is every field an entry has. There is no `exif:` block and no `copyright:` line. The `camera`
-line is the one piece of EXIF that is kept, because it is shown with each picture (see "Camera line"
+line and the created date (`takenAt`) are the only pieces of EXIF that are kept (see "Camera line"
 below).
 
 The entry holds no URL — the site builds URLs from `photo.id` and the base URL in
@@ -470,7 +475,7 @@ The entry holds no URL — the site builds URLs from `photo.id` and the base URL
 Keys are content-addressed, so a changed photo always gets a new id and web files are cached
 forever (`immutable`). Your originals are never publicly reachable. The entries and the manifest change, so they
 are stored with `Cache-Control: no-cache`. (The entries are public, like the pages that show them: title, category,
-order and camera line.)
+order, camera line and created date.)
 
 ### How the site reads them
 
@@ -502,6 +507,7 @@ npm run photos:add -- ~/Desktop/rockfish.jpg --category nature --title "Rockfish
 npm run photos:replace -- rockfish ~/Desktop/rockfish-v2.jpg   # new photo; the entry moves to the new id
 npm run photos:remove  -- rockfish                             # entry + its R2 files
 npm run photos:camera                                          # fill in camera lines that are missing
+npm run photos:dates                                           # fill in created dates that are missing, from the originals
 npm run photos:colors                                          # fill in placeholder colors that are missing
 npm run photos:verify                                          # is every entry's photo and entry file in R2?
 npm run photos:verify -- --deep                                # also re-download originals and check hashes
@@ -510,7 +516,7 @@ npm run photos:pull                                            # make the local 
 npm run photos:push                                            # publish the mirror (after editing an entry by hand)
 ```
 
-An `<entry>` (in `replace`, `remove`, `camera`) is its photo id, its title, or the path to its `.md`.
+An `<entry>` (in `replace`, `remove`, `camera`, `dates`) is its photo id, its title, or the path to its `.md`.
 
 **The local mirror.** The commands work on a folder of `.md` files, `.photo-entries/` (git-ignored), which is only a
 mirror of R2: every command first makes it match R2 (`pull`) and, if it changes an entry, publishes it (`push`). To
@@ -713,6 +719,21 @@ background the browser slows timers down, so the sign-out happens when you come 
 
 **Refresh and Sign out** are at the top of the page, across from the "Admin" title (they appear only while
 you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all three tabs.
+
+**The footer names the build** ("Build 6ba484a, built 2026-09-28 14:03 UTC"), so you can tell which code is live.
+It is stamped in when the site is built (`scripts/lib/build-info.mjs`, read by `astro.config.mjs`) and is
+`git describe --tags --always --dirty`:
+
+| Version             | Means                                                                     |
+| :------------------ | :------------------------------------------------------------------------ |
+| `6ba484a`           | no release tagged yet: the short commit hash (hover it for the full hash) |
+| `v1.2.0`            | built exactly at the commit tagged `v1.2.0`                               |
+| `v1.2.0-3-g6ba484a` | 3 commits after `v1.2.0`, at commit `6ba484a`                             |
+| `…-dirty`           | built with uncommitted changes, so no commit holds exactly this code      |
+
+To name a release, tag it before deploying: `git tag v1.0.0 && git push --tags`. A build made somewhere without git
+history can be given `BUILD_VERSION` (and `BUILD_COMMIT`) in the environment instead; with neither it says "unknown".
+Only the Admin page shows it; visitors' pages don't.
 
 ### Test Results tab
 
