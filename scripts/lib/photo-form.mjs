@@ -10,6 +10,9 @@
 //   POST /__photos/recategorize   JSON { photos: [{ id, category }], toCategory }   (category: which entry, a
 //                                       photo can be in more than one; toCategory: where it moves to)
 //                                                     -> { results: [{ id, from, to, moved }] }
+//   POST /__photos/hero-background   JSON { photos: [{ id, category }], value }   (value: true to set, false
+//                                       to clear the home page's hero-background flag)
+//                                                     -> { results: [{ id, category, changed }] }
 //
 // The form never invents anything the photo can tell it: the id (a hash of the file), the size as displayed
 // and the camera line all come from the file, through the same code `npm run photos:add` uses (addPhoto),
@@ -30,7 +33,7 @@ import { CATEGORIES } from '../../src/config/categories.ts';
 import { entryKey } from '../../src/config/photo-manifest.ts';
 import { PHOTO_ID_PATTERN } from '../../src/config/photos.ts';
 import { pullEntries, pushEntries } from './entry-sync.mjs';
-import { addPhoto, analyzePhoto, changeCategory, entryPath, listEntries, originalKeyPattern, removePhotosById } from './photos.mjs';
+import { addPhoto, analyzePhoto, changeCategory, entryPath, listEntries, originalKeyPattern, removePhotosById, setHeroBackground } from './photos.mjs';
 import { readCameraLine } from './exif.mjs';
 
 export const PHOTO_FORM_PREFIX = '/__photos/';
@@ -39,6 +42,8 @@ export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 export const MAX_REMOVALS = 100;
 /** The most photos one category change may name (the same reasoning as MAX_REMOVALS). */
 export const MAX_RECATEGORIZE = 100;
+/** The most photos one hero-background change may name (the same reasoning as MAX_REMOVALS). */
+export const MAX_HERO_BACKGROUND = 100;
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -219,6 +224,43 @@ async function recategorize({ request, contentDir, categories, publish, refresh,
   return json(200, { results });
 }
 
+/** Reads and checks a hero-background request: which photos (each by its id and the category it is
+ *  currently filed under — a photo can be in more than one) and whether to set or clear the flag. */
+async function readHeroBackground(request, categories) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    throw new FormError(400, 'bad-request', 'Send the hero-background change as JSON.');
+  }
+  const photos = body?.photos;
+  const value = body?.value;
+  if (!Array.isArray(photos) || !photos.length) throw new FormError(400, 'bad-request', 'Name at least one photo.');
+  if (photos.length > MAX_HERO_BACKGROUND) throw new FormError(400, 'bad-request', `At most ${MAX_HERO_BACKGROUND} photos can be changed at once.`);
+  if (typeof value !== 'boolean') throw new FormError(400, 'bad-request', '"value" must be true or false.');
+  const seen = new Set();
+  const named = photos.map((photo) => {
+    const id = photo?.id;
+    const category = photo?.category;
+    if (typeof id !== 'string' || !PHOTO_ID_PATTERN.test(id)) throw new FormError(400, 'bad-request', `"${id}" is not a photo id (16 hexadecimal characters).`);
+    if (typeof category !== 'string' || !categories.includes(category)) {
+      throw new FormError(400, 'bad-request', `Unknown category "${category}". Configured categories: ${categories.join(', ')}`);
+    }
+    const key = `${category}/${id}`;
+    if (seen.has(key)) throw new FormError(400, 'bad-request', `Photo ${id} in ${category} is named twice.`);
+    seen.add(key);
+    return { id, category };
+  });
+  return { photos: named, value };
+}
+
+async function heroBackground({ request, contentDir, categories, publish, refresh, log }) {
+  const { photos, value } = await readHeroBackground(request, categories); // refused before anything is read from R2
+  await refresh();
+  const results = await setHeroBackground({ photos, value, contentDir, publish, log });
+  return json(200, { results });
+}
+
 async function remove({ request, contentDir, storage, publish, refresh, log }) {
   const photos = await readRemoval(request); // refused before anything is read from R2
   await refresh();
@@ -295,6 +337,8 @@ export function createPhotoFormHandler({ contentDir, storage, sync = false, cate
           return await inTurn(() => remove({ request, contentDir, storage, publish, refresh, log }));
         case 'POST recategorize':
           return await inTurn(() => recategorize({ request, contentDir, categories, publish, refresh, log }));
+        case 'POST hero-background':
+          return await inTurn(() => heroBackground({ request, contentDir, categories, publish, refresh, log }));
         default:
           throw new FormError(404, 'not-found', 'Not found.');
       }

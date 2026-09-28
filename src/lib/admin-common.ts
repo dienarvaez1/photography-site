@@ -116,6 +116,7 @@ const ICONS: Record<string, string[]> = {
   trash: ['M3 6h18', 'M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6', 'M10 11v6', 'M14 11v6', 'M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'],
   edit: ['M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'],
   plus: ['M12 5v14', 'M5 12h14'],
+  image: ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M7 8.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0z', 'M21 15l-5-5L5 21'],
 };
 
 export function icon(name: keyof typeof ICONS): SVGSVGElement {

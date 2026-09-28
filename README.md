@@ -56,7 +56,7 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against twenty-seven areas. The
+tests bake in sample photos instead), then checks that built output against twenty-eight areas. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
@@ -146,6 +146,14 @@ against every page in both English and Spanish**; expected text is read from
   malformed requests (no photos, an unknown category, a bad id, the same photo and category twice, more than 100
   photos, not JSON) are refused; only the form's own page on localhost may ask; unpublished local changes stop it;
   and an unpublishable manifest leaves the site showing the old category, retryable once R2 works again.
+- **`photo-hero.feature`** — bulk home-background change (the Admin page's Home Background button), through the
+  same request handler and a fake R2: setting the flag marks an entry (its photo, category and every other
+  field untouched) and republishes the manifest once; a photo already at that value is left alone and
+  reported as such, alongside a real change in the same request; clearing an unmarked photo changes nothing;
+  a photo named under a category it is not actually filed under is refused, and nothing changes; malformed
+  requests (no photos, a value that isn't true/false, a bad id, the same photo and category twice, more than
+  100 photos, not JSON) are refused; only the form's own page on localhost may ask; and an unpublishable
+  manifest leaves the entry with its old flag, retryable once R2 works again.
 - **`photo-exif.feature`** — the camera line built from real JPEGs' EXIF: formatting rules, what is
   (and is never) stored, overrides, replace behaviour, and filling in missing camera lines.
 - **`localization.feature`** — locale files define identical keys, hreflang (`en`/`es`/`x-default`),
@@ -295,9 +303,9 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
 - **`pics-viewer.feature`** (browser) — the Pics Viewer against the real API code and fake buckets: Refresh
   and Sign out at the top of the page (across from the title, only while signed in, Refresh reloads only the
   tab showing, Sign out signs out of both, keyboard, Spanish, phone); the
-  Upload Photos and Remove Photos buttons across from the counter (order, icons, size, keyboard, Remove Photos
-  on the deployed site saying it only works on your computer and asking the API for nothing, also with an empty
-  bucket, in Spanish and on a phone); one
+  Upload Photos, Edit Photos, Remove Photos and Home Background buttons across from the counter (order, icons,
+  size, keyboard, Remove Photos and Home Background on the deployed site saying they only work on your
+  computer and asking the API for nothing, also with an empty bucket, in Spanish and on a phone); one
   sign-in for both tabs (sign-in and sign-out apply to each other), nothing requested until the tab is
   shown, the list drawn 20 photos at a time (a bucket of 45: the first 20 and no thumbnail of a later one requested,
   the next 20 when the end of the list is scrolled to and the last 5 after that, a "Show more" button for the keyboard
@@ -330,6 +338,14 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   changing one photo, or several at once, moves them and updates the list in place, without a page reload; choosing
   the category a photo is already in says so instead of moving it; Spanish; every state passes the accessibility
   audit; and nothing but the site and the results API is requested.
+- **`photo-hero.feature`** (browser) — the Home Background screens, with the real photo service over the very
+  buckets the Pics Viewer lists: a checkbox only on photos the site actually lists, and a bar with the count,
+  Select all, Set as background, Remove from background and Cancel; Upload Photos, Edit Photos, Remove Photos
+  and Home Background are mutually exclusive (choosing one while another shows switches to it directly);
+  setting one photo, or several at once, marks them with a "Home background" badge and updates the list in
+  place, without a page reload; setting an already-marked photo, or clearing an unmarked one, says so instead
+  of changing anything; Spanish; every state passes the accessibility audit; and nothing but the site and the
+  results API is requested.
 - **`category-maintenance.feature`** (browser) — the Category Maintenance tab, with the real category service
   over a temporary configuration: gated by the admin token (checked against the results API, shared with the
   other two tabs, wrong token refused) before anything shows; once past it, the list shows every configured
@@ -742,10 +758,11 @@ drawn later behaves like the first ones (tooltip, checkbox). **Select all (in a 
 ticks the photos shown** — the button then reads *"Select the 20 shown"* — so neither can ever include a photo
 nobody has seen.
 
-Across from the photo counter ("20 original photos"), at the right, are three buttons: **Upload Photos**
-(upload icon), **Edit Photos** (pencil icon) and **Remove Photos** (trash icon). Upload Photos opens the **New
-Photo form** (below). Edit Photos starts a **bulk category change** (next), Remove Photos a **bulk removal** (after
-that) — only one of the two at a time: choosing one while the other is showing switches to it directly.
+Across from the photo counter ("20 original photos"), at the right, are four buttons: **Upload Photos**
+(upload icon), **Edit Photos** (pencil icon), **Remove Photos** (trash icon) and **Home Background** (image
+icon). Upload Photos opens the **New Photo form** (below). Edit Photos starts a **bulk category change**
+(next), Remove Photos a **bulk removal** (after that), and Home Background a **bulk home-background change**
+(after that) — only one of the three at a time: choosing one while another is showing switches to it directly.
 
 #### Changing a photo's category in bulk
 
@@ -789,6 +806,27 @@ cannot be unpublished, nothing is deleted.
 
 Like the New Photo form, **it only works on your own computer, in `npm run dev`** (it needs your Cloudflare login,
 and the results API is read-only): on the deployed site, Remove Photos says so instead of showing checkboxes.
+
+#### Setting the home background in bulk
+
+Press **Home Background** and every photo the site actually lists gets a checkbox (the same restriction as Edit
+Photos — there is no entry to flag otherwise), with a bar above the list: *N selected*, **Select all / Select
+none**, **Set as background**, **Remove from background** (both off until something is ticked) and **Cancel**.
+Unlike a removal there is no confirmation step first, the same reasoning as Edit Photos: marking or unmarking a
+photo by mistake costs nothing to put right (choose it again), so both buttons act right away. A photo already
+set stays put and is reported as such, alongside any real change in the same request. A photo marked this way
+shows a **"Home background"** badge next to its title in the list, so it's clear which photos are currently
+chosen.
+
+Setting the flag writes only the entry's own `heroBackground` field (`scripts/lib/photos.mjs`'s
+`setHeroBackground`) — the photo itself, its files in R2, its category and every other field of its entry are
+untouched — then republishes the manifest once. The home page's hero crossfade (a slow fade between a few
+monochrome background photos, `src/pages/[...lang]/index.astro`) prefers photos marked this way, from **any
+category**, over its usual rule of picking from Landscape or Cityscape only: an explicit pick always wins, so
+the background isn't limited to wide scenery shots if you'd rather it wasn't.
+
+Like the New Photo form, **it only works on your own computer, in `npm run dev`**: on the deployed site, Home
+Background says so instead of showing checkboxes.
 
 #### New Photo form
 

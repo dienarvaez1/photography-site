@@ -18,6 +18,7 @@ const ALLOWED_FRONTMATTER_FIELDS = new Set([
   'camera',
   'placeholderColor',
   'featured',
+  'heroBackground',
   'order',
   'addedAt',
 ]);
@@ -197,6 +198,7 @@ export function listBaseRoutes() {
     '/admin/',
     '/work/abstract/',
     '/work/astro/',
+    '/work/aviation/',
     '/work/cityscape/',
     '/work/events/',
     '/work/landscape/',

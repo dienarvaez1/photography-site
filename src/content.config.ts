@@ -36,6 +36,9 @@ const photos = defineCollection({
       .regex(/^#[0-9a-f]{6}$/i)
       .optional(),
     featured: z.boolean().default(false),
+    // Explicitly chosen to appear in the home page's monochrome hero background (see photo-manifest.ts's own
+    // copy of this field for the fuller explanation).
+    heroBackground: z.boolean().default(false),
     // Lower numbers sort first within a category; ties fall back to date desc.
     order: z.number().default(0),
     // When this entry was added (see photo-manifest.ts's own copy of this field).

@@ -267,6 +267,19 @@ Then('every hero photo should be from the landscape or cityscape category', func
   }
 });
 
+// An admin's explicit pick (heroBackground, set from the Admin page's Pics Viewer) is meant to override the
+// landscape/cityscape rule from any category; none of the sample library's own photos carry that flag, so
+// this can't be exercised end to end without either mutating the shared fixture library (risking every other
+// scenario that reads it) or an extra full snapshot build just for one photo's flag. Reading the source is
+// the same trade-off browser-photo-recategorize.steps.js and others already make for logic this awkward to
+// drive through a real page load — the same trade-off photo-form.steps.js already makes to check
+// astro.config.mjs's own wiring.
+Then('the homepage hero should prefer an explicitly chosen photo over the landscape\\/cityscape rule', function () {
+  const source = readFileSync(join(ROOT, 'src/pages/[...lang]/index.astro'), 'utf-8');
+  assert.match(source, /const chosenHero = allPhotos\.filter\(\(p\) => p\.data\.heroBackground\)/, 'an explicit pick is gathered from every category, not just HERO_CATEGORIES');
+  assert.match(source, /heroPhotos = \(chosenHero\.length > 0 \? chosenHero :/, 'an explicit pick is used ahead of the automatic landscape/cityscape selection');
+});
+
 /** Every built CSS file's text, concatenated (small enough here to read fresh each call). */
 function allBuiltCss() {
   const dir = join(DIST_DIR, '_astro');

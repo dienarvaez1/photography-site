@@ -25,7 +25,7 @@ Feature: The contact form works end to end in a real browser
       | /contact/    | Other            | Other            |
       | /es/contact/ | Naturaleza       | Nature           |
       | /es/contact/ | Otro             | Other            |
-      | /es/contact/ | Eventos públicos | Public Events    |
+      | /es/contact/ | Eventos Sociales | Social Events    |
 
   Scenario Outline: Trouble sending is reported in the page's language and nothing is lost
     Given Web3Forms <behaviour>

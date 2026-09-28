@@ -31,6 +31,13 @@ export interface PhotoData {
    */
   placeholderColor?: string;
   featured: boolean;
+  /**
+   * Explicitly chosen, from the Admin page's Pics Viewer (Edit Photos), to appear in the home page's
+   * monochrome hero background — any category, overriding the hero's usual landscape/cityscape-only
+   * selection (see HERO_CATEGORIES in src/pages/[...lang]/index.astro). Optional so every entry from
+   * before this field existed still validates; absent is the same as `false`.
+   */
+  heroBackground?: boolean;
   order: number;
   /**
    * When this entry was added, as an ISO 8601 timestamp — set once, when the photo is first added
@@ -80,6 +87,7 @@ export function problemWith(entry: unknown): string | null {
   if (data.placeholderColor !== undefined && (typeof data.placeholderColor !== 'string' || !/^#[0-9a-f]{6}$/i.test(data.placeholderColor))) return 'has an invalid placeholder color';
   if (data.addedAt !== undefined && (typeof data.addedAt !== 'string' || Number.isNaN(Date.parse(data.addedAt)))) return 'has an invalid added-at time';
   if (typeof data.featured !== 'boolean') return 'has no featured flag';
+  if (data.heroBackground !== undefined && typeof data.heroBackground !== 'boolean') return 'has an invalid heroBackground flag';
   if (typeof data.order !== 'number' || !Number.isFinite(data.order)) return 'has no order';
   return null;
 }

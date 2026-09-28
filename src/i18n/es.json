@@ -56,7 +56,7 @@
       "description": "Fauna, plantas y el mundo natural de cerca."
     },
     "events": {
-      "label": "Eventos públicos",
+      "label": "Eventos Sociales",
       "description": "Bodas, fiestas y reuniones."
     },
     "other": {
@@ -74,6 +74,10 @@
     "drafts": {
       "label": "Borradores",
       "description": "No se muestra en el sitio; existe solo para que las herramientas siempre tengan una categoría oculta con la que probar."
+    },
+    "aviation": {
+      "label": "Aviación",
+      "description": "Exhibiciones aéreas, flotas comerciales, aviones privados o aeronaves históricas."
     }
   },
   "home": {
@@ -263,6 +267,33 @@
       "upload": "Subir fotos",
       "remove": "Eliminar fotos",
       "edit": "Editar fotos",
+      "hero": "Fondo de inicio",
+      "background": {
+        "checking": "Comprobando el servicio local de fotos…",
+        "unavailable": "Cambiar el fondo de inicio solo funciona mientras el sitio se ejecuta en tu computadora (npm run dev): necesita tu sesión de Cloudflare para publicar el cambio. Inicia el servidor de desarrollo y abre esta página desde localhost:4321.",
+        "barLabel": "Fondo de inicio",
+        "select": "Seleccionar {title}",
+        "selected": "{count} seleccionadas",
+        "selectAll": "Seleccionar todas",
+        "selectShown": "Seleccionar las {count} mostradas",
+        "selectNone": "No seleccionar ninguna",
+        "set": "Usar como fondo",
+        "clear": "Quitar del fondo",
+        "cancel": "Cancelar",
+        "setting": "Estableciendo {count} fotos como fondo de inicio…",
+        "settingOne": "Estableciendo la foto como fondo de inicio…",
+        "clearing": "Quitando {count} fotos del fondo de inicio…",
+        "clearingOne": "Quitando la foto del fondo de inicio…",
+        "done": "{count} fotos establecidas como fondo de inicio.",
+        "doneOne": "1 foto establecida como fondo de inicio.",
+        "cleared": "{count} fotos quitadas del fondo de inicio.",
+        "clearedOne": "1 foto quitada del fondo de inicio.",
+        "unchanged": "{count} ya estaban así.",
+        "unchangedOne": "Ya estaba así.",
+        "requestFailed": "No se pudo cambiar el fondo de inicio: {message}",
+        "unreachable": "no se pudo contactar con el servicio local de fotos",
+        "badge": "Fondo de inicio"
+      },
       "recategorize": {
         "checking": "Comprobando el servicio local de fotos…",
         "unavailable": "Cambiar la categoría de una foto solo funciona mientras el sitio se ejecuta en tu computadora (npm run dev): necesita tu sesión de Cloudflare para publicar el cambio. Inicia el servidor de desarrollo y abre esta página desde localhost:4321.",

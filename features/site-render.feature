@@ -48,7 +48,7 @@ Feature: The site renders its photo pages from R2 when they are requested
     When I request "/"
     Then the site should answer 200
     And the page should list these photos, in this order: "Rockfish, Orion Nebula"
-    And the category cards should show these covers: "Astrophotography: Half Moon, Nature: Rockfish, Public Events: Quinceañera"
+    And the category cards should show these covers: "Astrophotography: Half Moon, Nature: Rockfish, Social Events: Quinceañera"
 
   Scenario: A category with no photos says so, and a hidden category is still a page
     When I request "/work/pets/"
@@ -71,7 +71,7 @@ Feature: The site renders its photo pages from R2 when they are requested
       | /work/astro/             | Astrophotography · Diego Narvaez Photography     |
       | /work/pets/              | Pets · Diego Narvaez Photography                  |
       | /work/nature/            | Nature · Diego Narvaez Photography                |
-      | /work/events/            | Public Events · Diego Narvaez Photography        |
+      | /work/events/            | Social Events · Diego Narvaez Photography        |
       | /work/other/             | Other · Diego Narvaez Photography                 |
       | /work/cityscape/         | Cityscape · Diego Narvaez Photography             |
       | /work/abstract/          | Abstract · Diego Narvaez Photography              |
@@ -81,7 +81,7 @@ Feature: The site renders its photo pages from R2 when they are requested
       | /es/work/astro/          | Astrofotografía · Diego Narvaez Fotografía        |
       | /es/work/pets/           | Mascotas · Diego Narvaez Fotografía               |
       | /es/work/nature/         | Naturaleza · Diego Narvaez Fotografía             |
-      | /es/work/events/         | Eventos públicos · Diego Narvaez Fotografía       |
+      | /es/work/events/         | Eventos Sociales · Diego Narvaez Fotografía       |
       | /es/work/other/          | Otros · Diego Narvaez Fotografía                  |
       | /es/work/cityscape/      | Paisaje urbano · Diego Narvaez Fotografía         |
       | /es/work/abstract/       | Abstracto · Diego Narvaez Fotografía              |

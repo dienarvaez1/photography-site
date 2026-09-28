@@ -15,6 +15,7 @@ Feature: Site pages render correctly (English and Spanish)
       | /contact/             |
       | /admin/               |
       | /work/astro/          |
+      | /work/aviation/       |
       | /work/events/         |
       | /work/landscape/      |
       | /work/nature/         |
@@ -28,6 +29,7 @@ Feature: Site pages render correctly (English and Spanish)
       | /es/contact/          |
       | /es/admin/            |
       | /es/work/astro/       |
+      | /es/work/aviation/    |
       | /es/work/events/      |
       | /es/work/landscape/   |
       | /es/work/nature/      |
@@ -93,6 +95,7 @@ Feature: Site pages render correctly (English and Spanish)
     Examples:
       | route                 |
       | /work/astro/          |
+      | /work/aviation/       |
       | /work/events/         |
       | /work/landscape/      |
       | /work/nature/         |
@@ -104,6 +107,7 @@ Feature: Site pages render correctly (English and Spanish)
       | /work/cityscape/      |
       | /work/abstract/       |
       | /es/work/astro/       |
+      | /es/work/aviation/    |
       | /es/work/events/      |
       | /es/work/landscape/   |
       | /es/work/nature/      |
@@ -135,6 +139,9 @@ Feature: Site pages render correctly (English and Spanish)
       | route |
       | /     |
       | /es/  |
+
+  Scenario: An admin's explicit pick overrides the hero's landscape/cityscape rule, from any category
+    Then the homepage hero should prefer an explicitly chosen photo over the landscape/cityscape rule
 
   Scenario: Every sub-heading site-wide is the same size as the About page's
     Then every h2 and h3 sub-heading site-wide should be the same size as the About page's own

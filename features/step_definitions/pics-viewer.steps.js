@@ -191,20 +191,23 @@ Then('every original should appear exactly once', function () {
   assert.deepEqual(this.data.pics.rows.map((r) => r.id).sort(), [...this.data.pics.ids].sort());
 });
 
-Then("the Pics Viewer's Upload Photos button should open the New Photo form, and Remove Photos and Edit Photos should only ask the local photo service, and make no request to the API", function () {
+Then("the Pics Viewer's Upload Photos button should open the New Photo form, and Remove Photos, Edit Photos and Home Background should only ask the local photo service, and make no request to the API", function () {
   const code = readFileSync(join(ROOT, 'src/lib/pics-viewer.ts'), 'utf-8');
-  const body = code.slice(code.indexOf('function summary('), code.indexOf('// --- Editing or removing photos in bulk'));
+  const body = code.slice(code.indexOf('function summary('), code.indexOf('// --- Editing, removing or setting the home background for photos in bulk'));
   assert.match(body, /icon\('upload'\)|button\('upload', 'upload'\)/);
   assert.match(body, /button\('edit', 'edit'\)/);
   assert.match(body, /button\('remove', 'trash'\)/);
-  // The buttons themselves ask for nothing: Upload opens the form, and Edit / Remove each start their own bulk
-  // action, all of which use the local photo service (src/lib/photo-service.ts), never the results API.
+  assert.match(body, /button\('hero', 'image'\)/);
+  // The buttons themselves ask for nothing: Upload opens the form, and Edit / Remove / Home Background each
+  // start their own bulk action, all of which use the local photo service (src/lib/photo-service.ts), never
+  // the results API.
   assert.doesNotMatch(body, /api<|api\(|fetch\(|\.put\(|\.delete\(|method:/);
   assert.match(body, /if \(kind === 'upload'\) \{[^}]*openForm\(\);/);
   assert.match(body, /void toggleMode\(kind, status\)/);
   assert.match(code, /photoForm\(\{/);
   assert.match(code, /removalBar\(\{/);
   assert.match(code, /recategorizeBar\(\{/);
+  assert.match(code, /heroBackgroundBar\(\{/);
   // ...and the results API still only knows GET, so nothing here can delete through it.
   assert.match(readFileSync(join(ROOT, 'workers/results-api/src/index.mjs'), 'utf-8'), /request\.method !== 'GET'/);
 });

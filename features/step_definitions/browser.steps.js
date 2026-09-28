@@ -2,7 +2,7 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { AxeBuilder } from '@axe-core/playwright';
-import { ROOT, listBuiltRoutes, listNotFoundRoutes, loadContentEntries, loadMessages } from '../support/lib.js';
+import { ROOT, listBuiltRoutes, listNotFoundRoutes, loadCategoriesConfig, loadContentEntries, loadMessages } from '../support/lib.js';
 import { open, useDevice } from '../support/browser.js';
 
 const photos = await import(join(ROOT, 'src/config/photos.ts'));
@@ -427,10 +427,13 @@ When('I open the Portfolio submenu', async function () {
   await page(this).locator('#nav-work-toggle').click();
 });
 
-Then('the Portfolio submenu should list {int} categories, all visible', async function (count) {
+Then('the Portfolio submenu should list every visible category', async function () {
+  // Read fresh rather than a hardcoded count: which categories are visible is admin-editable content
+  // (Category Maintenance), not a fixed site invariant, so this stays correct however many are hidden.
+  const { VISIBLE_CATEGORIES } = await loadCategoriesConfig();
   const links = page(this).locator('#nav-work-dropdown a');
-  assert.equal(await links.count(), count);
-  for (let i = 0; i < count; i++) assert.ok(await links.nth(i).isVisible(), `category link ${i} hidden`);
+  assert.equal(await links.count(), VISIBLE_CATEGORIES.length);
+  for (let i = 0; i < VISIBLE_CATEGORIES.length; i++) assert.ok(await links.nth(i).isVisible(), `category link ${i} hidden`);
 });
 
 Then('keyboard focus should be on the menu button', async function () {
@@ -445,11 +448,13 @@ When('I tab until keyboard focus reaches the Portfolio menu', async function () 
   assert.fail('Tab never reached the Portfolio menu');
 });
 
-Then('the Portfolio dropdown should be visible with its {int} category links', async function (count) {
+Then('the Portfolio dropdown should be visible with every visible category link', async function () {
+  // Same reasoning as "the Portfolio submenu should list every visible category": read live, not hardcoded.
+  const { VISIBLE_CATEGORIES } = await loadCategoriesConfig();
   const dropdown = page(this).locator('#nav-work-dropdown');
   await settle(350); // the dropdown fades in over 150 ms
   assert.equal(await dropdown.evaluate((el) => getComputedStyle(el).opacity), '1', 'dropdown is not shown on keyboard focus');
-  assert.equal(await page(this).locator('#nav-work-dropdown a').count(), count);
+  assert.equal(await page(this).locator('#nav-work-dropdown a').count(), VISIBLE_CATEGORIES.length);
   assert.ok(await page(this).locator('#nav-work-dropdown a').first().isVisible());
 });
 

@@ -24,12 +24,12 @@ Feature: The navigation works on phones and with the keyboard
     When I open "/"
     And I open the mobile menu
     And I open the Portfolio submenu
-    Then the Portfolio submenu should list 9 categories, all visible
+    Then the Portfolio submenu should list every visible category
 
   Scenario: On a laptop, tabbing to Portfolio reveals its dropdown
     When I open "/"
     And I tab until keyboard focus reaches the Portfolio menu
-    Then the Portfolio dropdown should be visible with its 9 category links
+    Then the Portfolio dropdown should be visible with every visible category link
 
   Scenario: The keyboard can reach every navigation link in order
     When I open "/"

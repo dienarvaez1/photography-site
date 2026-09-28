@@ -141,7 +141,7 @@ export async function listEntries(contentDir) {
   return entries;
 }
 
-const FIELD_ORDER = ['title', 'titles', 'category', 'photo', 'camera', 'placeholderColor', 'featured', 'order', 'addedAt'];
+const FIELD_ORDER = ['title', 'titles', 'category', 'photo', 'camera', 'placeholderColor', 'featured', 'heroBackground', 'order', 'addedAt'];
 
 /** YAML lines for `key: value`; nested objects become an indented block (no trailing space after the key). */
 function yamlLines(key, value, indent) {
@@ -348,6 +348,43 @@ export async function changeCategory({ photos, toCategory, contentDir, categorie
   for (const { id, from, newFile } of saved) log(`  moved ${id} from ${from} to ${toCategory} (${newFile})`);
   const done = new Map(moves.map((m) => [`${m.from}/${m.id}`, true]));
   return photos.map(({ id, category }) => ({ id, from: category, to: toCategory, moved: done.get(`${category}/${id}`) ?? false }));
+}
+
+/**
+ * Marks or unmarks entries for the home page's hero background (the `heroBackground` field) — the photo
+ * itself, its files in R2 and every other field of its entry are untouched, and it stays exactly where it
+ * is filed (unlike changeCategory, nothing moves). Each photo is named by its id together with the category
+ * it is filed under (a photo can be in more than one, and only the ones named are touched). An entry
+ * already at that value is left alone (nothing to do, not an error): a bulk edit that includes one by
+ * mistake should not fail the rest. Returns [{ id, category, changed }] in the order given, `changed` false
+ * for that no-op.
+ */
+export async function setHeroBackground({ photos, value, contentDir, publish, log = () => {} }) {
+  const entries = await listEntries(contentDir);
+  const found = photos.map(({ id, category }) => {
+    const file = entryPath(contentDir, category, id);
+    const entry = entries.find((e) => e.file === file);
+    if (!entry) throw new Error(`${file} is not a photo entry`);
+    return { id, category, file, entry };
+  });
+  const changing = found.filter(({ entry }) => Boolean(entry.data.heroBackground) !== value);
+  // Saved before anything is written, so a publish failure below can put the mirror back exactly as it
+  // read — the same safety net changeCategory uses, and for the same reason: a person retries, not works
+  // around a half-applied change by hand.
+  const saved = await Promise.all(changing.map(async (item) => ({ ...item, text: await readFile(item.file, 'utf-8') })));
+  for (const { file, entry } of saved) {
+    const { heroBackground: _drop, ...rest } = entry.data;
+    await writeEntry(file, value ? { ...rest, heroBackground: true } : rest, entry.body);
+  }
+  try {
+    if (saved.length) await publish?.(); // the home page shows the new set of background photos, in one write
+  } catch (error) {
+    for (const { file, text } of saved) await writeFile(file, text);
+    throw error;
+  }
+  for (const { id, category, file } of saved) log(`  ${value ? 'set' : 'cleared'} heroBackground on ${category}/${id} (${file})`);
+  const done = new Set(saved.map(({ id, category }) => `${category}/${id}`));
+  return found.map(({ id, category }) => ({ id, category, changed: done.has(`${category}/${id}`) }));
 }
 
 /** The one key an original may have for a photo id: `photos/<id>/original.<extension>` (uploads always use `.jpg`). */

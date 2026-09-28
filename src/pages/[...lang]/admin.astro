@@ -46,6 +46,7 @@ const knownPhotos = Object.fromEntries(
       category: getLocalizedCategory(entry.data.category, locale)?.label ?? entry.data.category,
       categorySlug: entry.data.category,
       thumb: photoVariant(entry.data.photo, 'w400'),
+      heroBackground: Boolean(entry.data.heroBackground),
     },
   ])
 );
@@ -251,6 +252,7 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .pic-link { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 0 var(--space-2); align-items: center; padding: 0.6rem 1rem; min-height: 44px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); color: var(--fg); text-decoration: none; }
   .pic-link:hover, .pic-link:focus-visible { border-color: var(--accent); }
   .pic-title { grid-column: 2; align-self: end; font-weight: 600; overflow-wrap: anywhere; }
+  .pic-title .results-badge { margin-left: 0.5rem; font-weight: normal; }
   .pic-category { grid-column: 3; align-self: end; color: var(--fg-muted); font-size: 0.85rem; text-align: right; }
   .pic-key { grid-column: 2 / -1; align-self: start; margin-top: 0.25rem; color: var(--fg-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
   .pic-tip { position: absolute; z-index: 5; left: 1rem; top: calc(100% - 0.25rem); width: min(26rem, calc(100% - 2rem)); padding: 0.75rem 1rem; background: var(--bg-elevated); color: var(--fg); border: 1px solid var(--accent); border-radius: var(--radius); box-shadow: 0 8px 24px rgb(0 0 0 / 0.5); font-size: 0.9rem; }
@@ -295,10 +297,10 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .pic-select { display: grid; place-items: center; width: 44px; min-height: 44px; cursor: pointer; }
   .pic-check { width: 1.4rem; height: 1.4rem; accent-color: var(--bad); cursor: pointer; }
   .pic.selected .pic-link { border-color: var(--bad); }
-  /* Editing a category is not destructive: its checkboxes and selected-row border use the ordinary
-     accent color instead of the Remove Photos bar's warning red. */
-  .pics-list.edit .pic-check { accent-color: var(--accent); }
-  .pics-list.edit .pic.selected .pic-link { border-color: var(--accent); }
+  /* Editing a category or the home background is not destructive: their checkboxes and selected-row
+     border use the ordinary accent color instead of the Remove Photos bar's warning red. */
+  .pics-list.edit .pic-check, .pics-list.hero .pic-check { accent-color: var(--accent); }
+  .pics-list.edit .pic.selected .pic-link, .pics-list.hero .pic.selected .pic-link { border-color: var(--accent); }
   .pics-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); margin-top: var(--space-2); }
   .pics-shown { margin: 0; color: var(--fg-muted); }
   .pics-shown:focus { outline: none; }

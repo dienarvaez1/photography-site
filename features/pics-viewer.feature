@@ -230,7 +230,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     Then no built page or script should contain the originals bucket's name
 
   Scenario: Upload Photos opens the New Photo form, and Remove Photos and Edit Photos show their checkboxes
-    Then the Pics Viewer's Upload Photos button should open the New Photo form, and Remove Photos and Edit Photos should only ask the local photo service, and make no request to the API
+    Then the Pics Viewer's Upload Photos button should open the New Photo form, and Remove Photos, Edit Photos and Home Background should only ask the local photo service, and make no request to the API
 
   Scenario: The Pics Viewer only ever shows the site's own thumbnail, and never a picture the API names
     Then the Pics Viewer's code should create no image but the thumbnail taken from the page's own photo data, and should only ask the API for the list and for one photo by its id

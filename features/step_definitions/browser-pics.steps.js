@@ -305,20 +305,22 @@ When('I show the Pics Viewer in its {string} state', async function (state) {
 
 const action = (world, name) => panel(world).getByRole('button', { name, exact: true });
 
-Then('the photo counter should be at the left of its row, with {string} then {string} then {string} across from it at the right, all on one line', async function (first, second, third) {
+Then(/^the photo counter should be at the left of its row, with ((?:"[^"]+"(?:, | and )?)+) across from it at the right, in that order and all on one line$/, async function (list) {
+  const names = [...list.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
   await eventually(async () => (await panel(this).locator('.pics-summary').count()) === 1, 'the summary row');
   const boxes = await panel(this).locator('.pics-summary').evaluate((row) => ({
     row: row.getBoundingClientRect().toJSON(),
     counter: row.querySelector('.results-count').getBoundingClientRect().toJSON(),
     buttons: [...row.querySelectorAll('button')].map((b) => ({ text: b.textContent.trim(), ...b.getBoundingClientRect().toJSON() })),
   }));
-  assert.deepEqual(boxes.buttons.map((b) => b.text), [first, second, third], 'the three buttons, in this order');
-  const [a, , c] = boxes.buttons;
-  assert.ok(Math.abs(a.y - boxes.counter.y) < boxes.counter.height + 40 && a.y < boxes.counter.y + boxes.counter.height + 40, 'across from the counter');
-  assert.ok(boxes.buttons.every((b) => Math.abs(b.y - a.y) < 2), 'the buttons are on one line');
-  assert.ok(boxes.counter.x + boxes.counter.width <= a.x, 'the counter is at the left of the buttons');
+  assert.deepEqual(boxes.buttons.map((b) => b.text), names, 'the buttons, in this order');
+  const first = boxes.buttons[0];
+  const last = boxes.buttons[boxes.buttons.length - 1];
+  assert.ok(Math.abs(first.y - boxes.counter.y) < boxes.counter.height + 40 && first.y < boxes.counter.y + boxes.counter.height + 40, 'across from the counter');
+  assert.ok(boxes.buttons.every((b) => Math.abs(b.y - first.y) < 2), 'the buttons are on one line');
+  assert.ok(boxes.counter.x + boxes.counter.width <= first.x, 'the counter is at the left of the buttons');
   for (let i = 0; i < boxes.buttons.length - 1; i++) assert.ok(boxes.buttons[i].x + boxes.buttons[i].width <= boxes.buttons[i + 1].x, `${boxes.buttons[i].text} is left of ${boxes.buttons[i + 1].text}`);
-  assert.ok(Math.abs(c.x + c.width - (boxes.row.x + boxes.row.width)) < 2, 'the buttons end at the right edge of the row');
+  assert.ok(Math.abs(last.x + last.width - (boxes.row.x + boxes.row.width)) < 2, 'the buttons end at the right edge of the row');
 });
 
 Then('the {string} button should show the {string} icon and be named only by its text', async function (name, glyph) {
@@ -333,15 +335,15 @@ Then('the {string} button should show the {string} icon and be named only by its
   assert.equal(parts.label, null);
 });
 
-Then('the three icons should be different drawings', async function () {
+Then('the four icons should be different drawings', async function () {
   const drawings = await panel(this).locator('.pics-action svg').evaluateAll((svgs) => svgs.map((s) => [...s.querySelectorAll('path')].map((p) => p.getAttribute('d')).join('|')));
-  assert.equal(drawings.length, 3);
-  assert.equal(new Set(drawings).size, 3, 'every icon must be a distinct drawing');
+  assert.equal(drawings.length, 4);
+  assert.equal(new Set(drawings).size, 4, 'every icon must be a distinct drawing');
   assert.ok(drawings.every((d) => d.length > 20));
 });
 
 Then('every action button should be in the tab order and at least 44 pixels tall', async function () {
-  await eventually(async () => (await panel(this).locator('.pics-action').count()) === 3, 'every button');
+  await eventually(async () => (await panel(this).locator('.pics-action').count()) === 4, 'every button');
   const buttons = await panel(this).locator('.pics-action').evaluateAll((bs) => bs.map((b) => ({ tabIndex: b.tabIndex, disabled: b.disabled, height: b.getBoundingClientRect().height, width: b.getBoundingClientRect().width })));
   for (const b of buttons) {
     assert.ok(b.tabIndex >= 0 && !b.disabled);
@@ -362,7 +364,7 @@ When(/^I (click|focus and press Enter on|focus and press Space on) the "([^"]+)"
   await page(this).keyboard.press(how.endsWith('Enter on') ? 'Enter' : 'Space');
 });
 
-Then('the Pics Viewer should offer no Upload Photos, Edit Photos or Remove Photos button', async function () {
+Then('the Pics Viewer should offer no Upload Photos, Edit Photos, Remove Photos or Home Background button', async function () {
   assert.equal(await panel(this).locator('.pics-action').count(), 0);
 });
 

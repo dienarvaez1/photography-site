@@ -56,7 +56,7 @@
       "description": "Wildlife, plants, and the natural world up close."
     },
     "events": {
-      "label": "Public Events",
+      "label": "Social Events",
       "description": "Weddings, parties, and gatherings."
     },
     "other": {
@@ -74,6 +74,10 @@
     "drafts": {
       "label": "Drafts",
       "description": "Not shown on the site; kept here only so the tools always have a hidden category to test against."
+    },
+    "aviation": {
+      "label": "Aviation",
+      "description": "Airshows, commercial fleets, private jets, or historical aircraft."
     }
   },
   "home": {
@@ -263,6 +267,33 @@
       "upload": "Upload Photos",
       "remove": "Remove Photos",
       "edit": "Edit Photos",
+      "hero": "Home Background",
+      "background": {
+        "checking": "Checking the local photo service…",
+        "unavailable": "Changing the home background only works while the site runs on your computer (npm run dev): it needs your Cloudflare login to publish the change. Start the dev server and open this page from localhost:4321.",
+        "barLabel": "Home background",
+        "select": "Select {title}",
+        "selected": "{count} selected",
+        "selectAll": "Select all",
+        "selectShown": "Select the {count} shown",
+        "selectNone": "Select none",
+        "set": "Set as background",
+        "clear": "Remove from background",
+        "cancel": "Cancel",
+        "setting": "Setting {count} photos as the home background…",
+        "settingOne": "Setting the photo as the home background…",
+        "clearing": "Removing {count} photos from the home background…",
+        "clearingOne": "Removing the photo from the home background…",
+        "done": "{count} photos set as the home background.",
+        "doneOne": "1 photo set as the home background.",
+        "cleared": "{count} photos removed from the home background.",
+        "clearedOne": "1 photo removed from the home background.",
+        "unchanged": "{count} were already set that way.",
+        "unchangedOne": "It was already set that way.",
+        "requestFailed": "The home background could not be changed: {message}",
+        "unreachable": "the local photo service could not be reached",
+        "badge": "Home background"
+      },
       "recategorize": {
         "checking": "Checking the local photo service…",
         "unavailable": "Changing a photo's category only works while the site runs on your computer (npm run dev): it needs your Cloudflare login to publish the change. Start the dev server and open this page from localhost:4321.",

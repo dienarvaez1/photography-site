@@ -5,6 +5,7 @@
 // returns numbers and text. Everything from the API is put on the page as text.
 import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, parseJson, remembered, type Child, type Messages } from './admin-common';
 import type { FormCategory } from './photo-form';
+import type { HeroBackgroundBar, HeroBackgroundResult } from './photo-hero';
 import type { RemovalBar, RemoveResult } from './photo-remove';
 import type { RecategorizeBar, RecategorizeResult } from './photo-recategorize';
 import { serviceAvailable } from './photo-service';
@@ -40,17 +41,19 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   let shownCount = PICS_PAGE_SIZE;
   let more: HTMLElement | null = null; // "Showing 20 of 87 photos" and the Show more button, while there is more to show
   let pager: IntersectionObserver | null = null;
-  // Which bulk action's checkboxes are showing, if either — never both at once (choosing one cancels the other).
-  let mode: 'none' | 'remove' | 'edit' = 'none';
-  let bar: RemovalBar | RecategorizeBar | null = null;
-  // The removal and category-change code are each loaded when their button is first pressed (they are only
-  // ever used on the owner's computer), so the page's own script stays small.
+  // Which bulk action's checkboxes are showing, if either — never more than one at once (choosing one cancels the others).
+  let mode: 'none' | 'remove' | 'edit' | 'hero' = 'none';
+  let bar: RemovalBar | RecategorizeBar | HeroBackgroundBar | null = null;
+  // The removal, category-change and hero-background code are each loaded when their button is first pressed
+  // (they are only ever used on the owner's computer), so the page's own script stays small.
   let removal: typeof import('./photo-remove') | null = null;
   let recategorization: typeof import('./photo-recategorize') | null = null;
+  let heroBg: typeof import('./photo-hero') | null = null;
   let deleting = false; // a removal is under way: nothing may redraw the list until it is over
   let applying = false; // a category change is under way: nothing may redraw the list until it is over
+  let settingHero = false; // a hero-background change is under way: nothing may redraw the list until it is over
   const selected = new Set<string>();
-  let notice: { text: string; alert: boolean } | null = null; // what the last removal or category change did, shown until the next action
+  let notice: { text: string; alert: boolean } | null = null; // what the last bulk action did, shown until the next one
   const details = new Map<string, Promise<Details>>(); // one request per photo, however often it is hovered
 
   const api = <T,>(path: string) => apiGet<T>(apiUrl, token, path);
@@ -164,15 +167,16 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     container.querySelector<HTMLElement>('[data-action="upload"]')?.focus();
   }
 
-  /** "<count> original photos" with the three action buttons across from it, at the right. */
+  /** "<count> original photos" with the four action buttons across from it, at the right. */
   function summary(count: number) {
     const status = el('p', { class: 'pics-status', attrs: { role: notice?.alert ? 'alert' : 'status' } });
     if (notice) status.textContent = notice.text;
-    const button = (kind: 'upload' | 'edit' | 'remove', glyph: 'upload' | 'edit' | 'trash') => {
+    const button = (kind: 'upload' | 'edit' | 'remove' | 'hero', glyph: 'upload' | 'edit' | 'trash' | 'image') => {
       const node = el('button', { class: 'results-button pics-action', attrs: { type: 'button', 'data-action': kind } }, icon(glyph), el('span', { text: m(`pics.${kind}`) }));
       if (kind !== 'upload') node.setAttribute('aria-pressed', String(mode === kind));
-      // Upload Photos opens the New Photo form; Edit Photos and Remove Photos each show a checkbox on every
-      // eligible photo (see photo-recategorize.ts and photo-remove.ts) — only one of the two at a time.
+      // Upload Photos opens the New Photo form; Edit Photos, Remove Photos and Home Background each show a
+      // checkbox on every eligible photo (see photo-recategorize.ts, photo-remove.ts and photo-hero.ts) —
+      // only one of the three at a time.
       node.addEventListener('click', () => {
         notice = null;
         if (kind === 'upload') {
@@ -184,22 +188,24 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
       });
       return node;
     };
-    const actions = el('div', { class: 'pics-actions' }, button('upload', 'upload'), button('edit', 'edit'), button('remove', 'trash'));
+    const actions = el('div', { class: 'pics-actions' }, button('upload', 'upload'), button('edit', 'edit'), button('remove', 'trash'), button('hero', 'image'));
     return [el('div', { class: 'pics-summary' }, el('p', { class: 'results-count', text: m('pics.count', { count }) }), actions), status];
   }
 
-  // --- Editing or removing photos in bulk -----------------------------------------------------------------------------------
+  // --- Editing, removing or setting the home background for photos in bulk ---------------------------------------------------
 
-  const modeKey = { remove: 'removal', edit: 'recategorize' } as const;
+  const modeKey = { remove: 'removal', edit: 'recategorize', hero: 'background' } as const;
 
-  /** Edit Photos / Remove Photos: shows the checkboxes for that action (once the local photo service is known to
-   *  be there), switches directly to the other one if it was showing, or hides them if it was already this one. */
-  async function toggleMode(kind: 'remove' | 'edit', status: HTMLElement) {
-    if (deleting || applying) return;
+  /** Edit Photos / Remove Photos / Home Background: shows the checkboxes for that action (once the local photo
+   *  service is known to be there), switches directly to another one if it was showing, or hides them if it
+   *  was already this one. */
+  async function toggleMode(kind: 'remove' | 'edit' | 'hero', status: HTMLElement) {
+    if (deleting || applying || settingHero) return;
     if (mode === kind) return stopMode();
     status.textContent = m(`pics.${modeKey[kind]}.checking`);
     if (kind === 'remove') removal ??= await import('./photo-remove');
-    else recategorization ??= await import('./photo-recategorize');
+    else if (kind === 'edit') recategorization ??= await import('./photo-recategorize');
+    else heroBg ??= await import('./photo-hero');
     if (!(await serviceAvailable())) {
       status.textContent = m(`pics.${modeKey[kind]}.unavailable`);
       return;
@@ -264,6 +270,32 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     void render();
   }
 
+  // --- Setting the home background in bulk -----------------------------------------------------------------------------------
+
+  /** The hero-background change is over (or failed): say what happened (set, cleared, already-there, or the
+   *  request itself failing), and look at the list again — every changed photo now shows its new badge. */
+  function heroBackgroundDone(value: boolean, outcome: HeroBackgroundResult[] | Error) {
+    settingHero = false;
+    mode = 'none';
+    selected.clear();
+    if (outcome instanceof Error) {
+      notice = { text: m('pics.background.requestFailed', { message: outcome.message || m('pics.background.unreachable') }), alert: true };
+    } else {
+      const changed = outcome.filter((r) => r.changed);
+      const unchanged = outcome.length - changed.length;
+      // Same reasoning as recategorizeDone: the page's own server-rendered `known` is the only place this
+      // badge comes from, so a changed photo needs patching there to show its new state without a reload.
+      for (const { id } of changed) if (known[id]) known[id] = { ...known[id], heroBackground: value };
+      const parts = [
+        changed.length ? m(changed.length === 1 ? (value ? 'pics.background.doneOne' : 'pics.background.clearedOne') : value ? 'pics.background.done' : 'pics.background.cleared', { count: changed.length }) : '',
+        unchanged ? m(unchanged === 1 ? 'pics.background.unchangedOne' : 'pics.background.unchanged', { count: unchanged }) : '',
+      ];
+      notice = { text: parts.filter(Boolean).join(' '), alert: false };
+    }
+    details.clear();
+    void render();
+  }
+
   // --- The list -------------------------------------------------------------------------------------------------------------
 
   async function renderList(run: number) {
@@ -282,13 +314,14 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   function buildRow(row: PicRow) {
     const link = el('a', { class: 'pic-link', attrs: { href: `#${PICS_TAB}` } },
       thumbnail(row.id),
-      el('span', { class: 'pic-title', text: row.title ?? row.id }),
+      el('span', { class: 'pic-title' }, row.title ?? row.id, row.heroBackground ? el('span', { class: 'results-badge', text: m('pics.background.badge') }) : null),
       row.category ? el('span', { class: 'pic-category', text: row.category }) : el('span', { class: 'pic-category', text: m('pics.notOnSite') }),
       el('span', { class: 'pic-key', text: row.key }));
     const item = el('li', { class: 'pic' }, link);
-    // A checkbox during Remove Photos (any original can be deleted, entry or not); during Edit Photos only
-    // for a photo the site actually lists (there is no category to move otherwise).
-    if (mode === 'remove' || (mode === 'edit' && row.categorySlug !== null)) {
+    // A checkbox during Remove Photos (any original can be deleted, entry or not); during Edit Photos and
+    // Home Background only for a photo the site actually lists (there is no category to move, or entry to
+    // flag, otherwise).
+    if (mode === 'remove' || ((mode === 'edit' || mode === 'hero') && row.categorySlug !== null)) {
       const box = el('input', { class: 'pic-check', attrs: { type: 'checkbox', 'data-id': row.id, 'aria-label': m(`pics.${modeKey[mode]}.select`, { title: `${row.title ?? row.id} (${row.id})` }) } });
       box.checked = selected.has(row.id);
       item.classList.toggle('selected', box.checked);
@@ -426,7 +459,29 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
               },
               onDone: recategorizeDone,
             })
-          : null;
+          : mode === 'hero' && heroBg
+            ? heroBg.heroBackgroundBar({
+                m,
+                rows,
+                selected,
+                shown: () => shownCount,
+                onSelectAll: (all) => {
+                  selected.clear();
+                  if (all) for (const row of rows.slice(0, shownCount)) if (row.categorySlug !== null) selected.add(row.id);
+                  for (const box of root.querySelectorAll<HTMLInputElement>('.pic-check')) {
+                    box.checked = selected.has(box.dataset.id ?? '');
+                    box.closest('.pic')?.classList.toggle('selected', box.checked);
+                  }
+                  bar?.update();
+                },
+                onCancel: stopMode,
+                perform: (photos, value) => {
+                  settingHero = true;
+                  return heroBg!.setHeroBackground(photos, value);
+                },
+                onDone: heroBackgroundDone,
+              })
+            : null;
     show(
       ...summary(rows.length),
       bar?.element ?? null,
@@ -438,7 +493,7 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
   }
 
   async function render() {
-    if (deleting || applying) return; // a bulk action is under way: it redraws the list itself when it is over
+    if (deleting || applying || settingHero) return; // a bulk action is under way: it redraws the list itself when it is over
     const run = ++generation;
     hideTip();
     pager?.disconnect(); // the list about to be replaced is not watched any more

@@ -1,12 +1,15 @@
 [
   {
-    "slug": "real-estate"
+    "slug": "real-estate",
+    "hidden": true
   },
   {
-    "slug": "landscape"
+    "slug": "landscape",
+    "hidden": true
   },
   {
-    "slug": "portrait"
+    "slug": "portrait",
+    "hidden": true
   },
   {
     "slug": "astro"
@@ -25,13 +28,18 @@
     "hidden": true
   },
   {
-    "slug": "cityscape"
+    "slug": "cityscape",
+    "hidden": true
   },
   {
     "slug": "abstract"
   },
   {
     "slug": "drafts",
+    "hidden": true
+  },
+  {
+    "slug": "aviation",
     "hidden": true
   }
 ]
