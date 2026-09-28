@@ -2,40 +2,37 @@
 import { SITE } from '../config/site';
 import { getLocale, useTranslations } from '../i18n';
 
-interface Props {
-  /** Show which build of the site this is (see scripts/lib/build-info.mjs) — the Admin page does; visitors' pages don't. */
-  showBuild?: boolean;
-}
-
-const { showBuild = false } = Astro.props;
 const t = useTranslations(getLocale(Astro));
 
 const year = new Date().getFullYear();
-// "2026-09-28 14:03 UTC": the same in every language, and unambiguous about the time zone.
-const builtAt = import.meta.env.BUILD_TIME;
-const builtText = `${builtAt.slice(0, 10)} ${builtAt.slice(11, 16)} UTC`;
+// Which build this is (scripts/lib/build-info.mjs): the release tag, or the short commit hash. The full hash is in the
+// hover text and, with when it was built, in data attributes for anyone checking which code is live.
+// Each spelled out in full: the build replaces the literal `import.meta.env.NAME` (astro.config.mjs's `define`), so a
+// destructured `import.meta.env` would not see them.
+const BUILD_LABEL = import.meta.env.BUILD_LABEL;
+const BUILD_COMMIT = import.meta.env.BUILD_COMMIT;
+const BUILD_TIME = import.meta.env.BUILD_TIME;
 ---
 
 <footer class="site-footer">
   <div class="wrap footer-bar">
     <p>{t('footer.copyright', { year, author: SITE.author })}</p>
-    {showBuild && (
-      <p class="build-info" data-version={import.meta.env.BUILD_VERSION} data-commit={import.meta.env.BUILD_COMMIT ?? ''} title={import.meta.env.BUILD_COMMIT ?? undefined}>
-        {t('footer.build', { version: import.meta.env.BUILD_VERSION })}, {t('footer.built')} <time datetime={builtAt}>{builtText}</time>
+    <div class="footer-end">
+      <div class="footer-links">
+        {SITE.social.instagram && (
+          <a href={SITE.social.instagram} target="_blank" rel="noopener noreferrer">
+            {t('footer.instagram')}<span class="visually-hidden"> {t('footer.opensInNewTab')}</span>
+          </a>
+        )}
+        {SITE.social.facebook && (
+          <a href={SITE.social.facebook} target="_blank" rel="noopener noreferrer">
+            {t('footer.facebook')}<span class="visually-hidden"> {t('footer.opensInNewTab')}</span>
+          </a>
+        )}
+      </div>
+      <p class="build-info" data-build={BUILD_LABEL} data-commit={BUILD_COMMIT ?? ''} data-built-at={BUILD_TIME} title={BUILD_COMMIT ?? undefined}>
+        {t('footer.build', { version: BUILD_LABEL })}
       </p>
-    )}
-    <div class="footer-links">
-      {SITE.social.instagram && (
-        <a href={SITE.social.instagram} target="_blank" rel="noopener noreferrer">
-          {t('footer.instagram')}<span class="visually-hidden"> {t('footer.opensInNewTab')}</span>
-        </a>
-      )}
-      {SITE.social.facebook && (
-        <a href={SITE.social.facebook} target="_blank" rel="noopener noreferrer">
-          {t('footer.facebook')}<span class="visually-hidden"> {t('footer.opensInNewTab')}</span>
-        </a>
-      )}
-      <a href={`mailto:${SITE.email}`}>{SITE.email}</a>
     </div>
   </div>
 </footer>
@@ -59,6 +56,15 @@ const builtText = `${builtAt.slice(0, 10)} ${builtAt.slice(11, 16)} UTC`;
 
   .footer-bar p {
     margin: 0;
+  }
+
+  /* The right-hand group: the social links, then the build in the footer's right corner. */
+  .footer-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-left: auto;
   }
 
   .footer-links {

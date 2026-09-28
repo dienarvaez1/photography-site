@@ -17,8 +17,7 @@
     "instagram": "Instagram",
     "facebook": "Facebook",
     "opensInNewTab": "(opens in a new tab)",
-    "build": "Build {version}",
-    "built": "built"
+    "build": "Build {version}"
   },
   "gallery": {
     "openPhoto": "Open photo: {title}",

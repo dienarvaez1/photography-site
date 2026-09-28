@@ -174,10 +174,11 @@ against every page in both English and Spanish**; expected text is read from
   reason, slowest scenarios), sortable run ids, what a published run contains and where (only under
   `results/`, never cached), the index written last so it never names a missing file, retention and
   pruning, flaky-scenario trends, the command line, the runner's plan, and the GitHub workflow steps.
-- **`build-info.feature`** — the build's version (`git describe --tags --always --dirty`, tried on throwaway git
-  repositories: the short hash, a tag, commits past a tag, uncommitted changes, no git at all, a version given in the
-  environment) and that the Admin page's footer names this checkout's build and time in both languages, while
-  visitors' pages don't show it.
+- **`build-info.feature`** — which build the footer names, tried on throwaway git repositories: the short hash
+  before any tag, the tag for a tagged release, the short hash again once past it, `-dirty` (never a tag) with
+  uncommitted changes, "unknown" without git, a name given in the environment; every page's footer ends with this
+  checkout's build (both languages, Admin included), with its full hash and build time, and no footer shows the
+  email address.
 - **`admin.feature`** — a basic smoke test of the Admin page: it exists in both languages, "Admin" is
   linked immediately to the right of "Contact" and marked active on its own page, it has exactly three
   tabs ("Test Results", "Pics Viewer", then "Category Maintenance") in a horizontal, labelled tab list
@@ -286,7 +287,8 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   itself (on a screen wide enough to hover) jumps to the home page's "Explore by Category" section, clear
   of the sticky header, from any page or the home page itself; on a phone, tapping Portfolio still opens
   its submenu instead, since there's no hover there; the skip link; the active page is marked; works in
-  Spanish.
+  Spanish; the footer's build sits in its right corner (on the copyright's line on a laptop, inside the screen on a
+  phone).
 - **`language-and-location.feature`** — the switcher goes to the equivalent page and remembers the
   choice; a remembered choice beats the country; a first visit lands in the country's language
   (Mexico → Spanish, USA stays); the browser-language fallback; query and anchor survive the
@@ -722,20 +724,19 @@ background the browser slows timers down, so the sign-out happens when you come 
 **Refresh and Sign out** are at the top of the page, across from the "Admin" title (they appear only while
 you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all three tabs.
 
-**The footer names the build** ("Build 6ba484a, built 2026-09-28 14:03 UTC"), so you can tell which code is live.
-It is stamped in when the site is built (`scripts/lib/build-info.mjs`, read by `astro.config.mjs`) and is
-`git describe --tags --always --dirty`:
+**Every page's footer names the build**, in its right corner ("Build v1.0.1"), so you can tell which code is live.
+It is stamped in when the site is built (`scripts/lib/build-info.mjs`, read by `astro.config.mjs`):
 
-| Version             | Means                                                                     |
-| :------------------ | :------------------------------------------------------------------------ |
-| `6ba484a`           | no release tagged yet: the short commit hash (hover it for the full hash) |
-| `v1.2.0`            | built exactly at the commit tagged `v1.2.0`                               |
-| `v1.2.0-3-g6ba484a` | 3 commits after `v1.2.0`, at commit `6ba484a`                             |
-| `…-dirty`           | built with uncommitted changes, so no commit holds exactly this code      |
+| Footer shows    | When                                                                          |
+| :-------------- | :---------------------------------------------------------------------------- |
+| `v1.2.0`        | the build is exactly the commit tagged `v1.2.0`, with nothing uncommitted: a release |
+| `6ba484a`       | any other commit (hover it for the full hash)                                 |
+| `6ba484a-dirty` | built with uncommitted changes, so no commit holds exactly this code          |
 
-To name a release, tag it before deploying: `git tag v1.0.0 && git push --tags`. A build made somewhere without git
-history can be given `BUILD_VERSION` (and `BUILD_COMMIT`) in the environment instead; with neither it says "unknown".
-Only the Admin page shows it; visitors' pages don't.
+To make a release, tag it before deploying: `git tag -a v1.2.0 -m v1.2.0 && git push origin v1.2.0`. The page also
+carries the full commit hash and when it was built (`data-commit`, `data-built-at` on `.build-info`). A build made
+somewhere without git history can be given `BUILD_VERSION` (and `BUILD_COMMIT`) in the environment instead; with
+neither it says "unknown".
 
 ### Test Results tab
 

@@ -70,7 +70,7 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
 ---
 
 <!-- Not for search engines, and not in the sitemap. It is public: put Cloudflare Access in front of it before it shows real data. -->
-<BaseLayout title={t('admin.title')} description={t('admin.description')} noindex reloadNavLinks showBuild>
+<BaseLayout title={t('admin.title')} description={t('admin.description')} noindex reloadNavLinks>
   <!-- Without JavaScript the tabs can't switch, so show every panel instead of hiding all but the first. -->
   <noscript slot="head">
     <style is:inline>

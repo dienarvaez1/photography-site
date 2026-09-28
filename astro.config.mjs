@@ -40,8 +40,8 @@ const localizedNotFoundPages = {
 // when they are requested, from the entries in R2, so a new photo needs no build and no deploy.
 const SNAPSHOT = process.env.PHOTOS_SNAPSHOT === '1';
 
-// Which code this build is (scripts/lib/build-info.mjs), read once here and stamped into the site as constants — the
-// Admin page's footer shows it. Under `astro dev` it is read when the server starts.
+// Which code this build is (scripts/lib/build-info.mjs), read once here and stamped into the site as constants — every
+// page's footer shows it. Under `astro dev` it is read when the server starts.
 const BUILD = buildInfo({ cwd: fileURLToPath(new URL('.', import.meta.url)) });
 
 // Pages rendered on request are not in the sitemap unless listed: the home pages, the "All" gallery
@@ -91,7 +91,7 @@ export default defineConfig({
   vite: {
     define: {
       'import.meta.env.PHOTOS_SNAPSHOT': JSON.stringify(SNAPSHOT),
-      'import.meta.env.BUILD_VERSION': JSON.stringify(BUILD.version),
+      'import.meta.env.BUILD_LABEL': JSON.stringify(BUILD.label),
       'import.meta.env.BUILD_COMMIT': JSON.stringify(BUILD.commit),
       'import.meta.env.BUILD_TIME': JSON.stringify(BUILD.builtAt),
     },

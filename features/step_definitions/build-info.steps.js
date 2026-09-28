@@ -61,19 +61,19 @@ When('it is built at {string}', function (time) {
   state(this).now = new Date(time);
 });
 
-Then('its build version should be {string}', function (version) {
-  assert.equal(info(this).version, version);
+Then('its build label should be {string}', function (label) {
+  assert.equal(info(this).label, label);
 });
 
-Then('its build version should be the short hash of its latest commit', function () {
-  assert.equal(info(this).version, shortHash(this));
+Then('its build label should be the short hash of its latest commit', function () {
+  assert.equal(info(this).label, shortHash(this));
 });
 
-Then('its build version should be the short hash of its latest commit, followed by {string}', function (suffix) {
-  assert.equal(info(this).version, `${shortHash(this)}${suffix}`);
+Then('its build label should be the short hash of its latest commit, followed by {string}', function (suffix) {
+  assert.equal(info(this).label, `${shortHash(this)}${suffix}`);
 });
 
-Then('its build version should be {string} followed by the short hash of its latest commit', function (prefix) {
+Then('its full version should be {string} followed by the short hash of its latest commit', function (prefix) {
   assert.equal(info(this).version, `${prefix}${shortHash(this)}`);
 });
 
@@ -107,25 +107,29 @@ const buildLine = (world) => world.data.page.root.querySelector('.site-footer .b
 // What this checkout's build would be called now — the same code the site's own build ran moments ago.
 const thisCheckout = () => buildInfo({ cwd: ROOT, env: {} });
 
-Then('its footer should say {string} followed by this checkout\'s build version', function (word) {
+Then('its footer should say {string} followed by this checkout\'s build label, as its last item', function (word) {
   const line = buildLine(this);
-  assert.ok(line, `${this.data.route}: no build line in the footer`);
-  assert.ok(line.text.replace(/\s+/g, ' ').trim().startsWith(`${word}${thisCheckout().version},`), line.text);
-  assert.equal(line.getAttribute('data-version'), thisCheckout().version);
+  assert.ok(line, `${this.data.route}: no build in the footer`);
+  assert.equal(line.text.replace(/\s+/g, ' ').trim(), `${word}${thisCheckout().label}`);
+  assert.equal(line.getAttribute('data-build'), thisCheckout().label);
+  const bar = this.data.page.root.querySelector('.site-footer .footer-bar');
+  const last = (node) => (node.childNodes.filter((n) => n.nodeType === 1).at(-1));
+  assert.equal(last(last(bar)), line, 'the build is the footer\'s last item (its right corner)');
 });
 
-Then('its footer should give this checkout\'s full commit hash', function () {
-  assert.equal(buildLine(this).getAttribute('data-commit'), thisCheckout().commit);
-});
-
-Then('its footer should give when the site was built, as a machine-readable UTC time', function () {
-  const time = buildLine(this).querySelector('time');
-  const iso = time.getAttribute('datetime');
+Then('its footer should give this checkout\'s full commit hash and when the site was built', function () {
+  const line = buildLine(this);
+  assert.equal(line.getAttribute('data-commit'), thisCheckout().commit);
+  const iso = line.getAttribute('data-built-at');
   assert.equal(new Date(iso).toISOString(), iso, 'an ISO 8601 UTC time');
   assert.ok(Date.now() - Date.parse(iso) < 6 * 60 * 60 * 1000, `built recently: ${iso}`);
-  assert.equal(time.text.trim(), `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`);
 });
 
-Then('its footer should not mention the build', function () {
-  assert.equal(buildLine(this), null, `${this.data.route} shows the build`);
+Then('no page\'s footer should show an email address', function () {
+  for (const { route, page } of this.data.pages) {
+    const footer = page.root.querySelector('.site-footer');
+    assert.ok(footer, `${route}: no footer`);
+    assert.equal(footer.querySelectorAll('a[href^="mailto:"]').length, 0, `${route}: a mailto link in the footer`);
+    assert.ok(!/@/.test(footer.text), `${route}: an email address in the footer`);
+  }
 });

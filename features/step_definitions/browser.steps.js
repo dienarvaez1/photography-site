@@ -938,3 +938,31 @@ When('I click the link {string}', async function (name) {
   await page(this).getByRole('link', { name, exact: true }).first().click();
   await page(this).waitForLoadState('load');
 });
+
+// ---------------------------------------------------------------- the footer's build ------------------------------
+
+/** Where the footer's build label is, against the footer's own content box and the copyright line. */
+const footerBoxes = (world) => page(world).locator('.site-footer .footer-bar').evaluate((bar) => {
+  const style = getComputedStyle(bar);
+  const barBox = bar.getBoundingClientRect();
+  return {
+    build: bar.querySelector('.build-info').getBoundingClientRect().toJSON(),
+    copyright: bar.querySelector(':scope > p').getBoundingClientRect().toJSON(),
+    contentRight: barBox.right - parseFloat(style.paddingRight),
+    viewport: document.documentElement.clientWidth,
+  };
+});
+
+Then('the build should sit at the right edge of the footer, on the copyright\'s line', async function () {
+  const b = await footerBoxes(this);
+  assert.ok(Math.abs(b.build.right - b.contentRight) <= 1, `at the right edge: ${JSON.stringify(b)}`);
+  const middle = (box) => box.top + box.height / 2;
+  assert.ok(Math.abs(middle(b.build) - middle(b.copyright)) <= 4, `on the copyright's line: ${JSON.stringify(b)}`);
+});
+
+Then('the build should sit at the right edge of the footer, inside the screen', async function () {
+  const b = await footerBoxes(this);
+  assert.ok(Math.abs(b.build.right - b.contentRight) <= 1, `at the right edge: ${JSON.stringify(b)}`);
+  assert.ok(b.build.left >= 0 && b.build.right <= b.viewport, `inside the screen: ${JSON.stringify(b)}`);
+});
+

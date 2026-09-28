@@ -100,3 +100,22 @@ Feature: The navigation works on phones and with the keyboard
     When I open "/es/"
     And I open the mobile menu
     Then the mobile menu should be open with the "Sobre mí" and "Contacto" links visible
+
+  # --- The footer's build, in its right corner ------------------------------------------------------------------------
+
+  Scenario Outline: On a laptop the build sits in the footer's right corner, on every kind of page
+    When I open "<route>"
+    Then the build should sit at the right edge of the footer, on the copyright's line
+
+    Examples:
+      | route         |
+      | /             |
+      | /work/nature/ |
+      | /admin/       |
+      | /es/contact/  |
+
+  Scenario: On a phone the build is still at the footer's right, inside the screen
+    Given the visitor uses a phone
+    When I open "/"
+    Then the build should sit at the right edge of the footer, inside the screen
+
