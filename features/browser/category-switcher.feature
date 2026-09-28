@@ -19,6 +19,21 @@ Feature: The category page's filter and sort switch the gallery in place
     Then the gallery heading should say "Pets"
     And the gallery should show 2 photos
 
+  # --- "All": every visible category, no filter ---------------------------------------------------------------------
+
+  Scenario: Clicking the "All" filter swaps in every visible category's photos, in place
+    When I open "/work/nature/"
+    And I click the category filter "All"
+    Then only one page navigation should have happened
+    And the gallery heading should say "All"
+    And the address should end with "/work/all/"
+
+  Scenario: Clicking a specific category from "All" swaps back to just that category
+    When I open "/work/all/"
+    And I click the category filter "Pets"
+    Then the gallery heading should say "Pets"
+    And the gallery should show 2 photos
+
   Scenario: The pills and the rebuilt tiles keep their styling after a switch, not just their class names
     When I open "/work/nature/"
     And I click the category filter "Pets"

@@ -39,12 +39,13 @@ const localizedNotFoundPages = {
 // when they are requested, from the entries in R2, so a new photo needs no build and no deploy.
 const SNAPSHOT = process.env.PHOTOS_SNAPSHOT === '1';
 
-// Pages rendered on request are not in the sitemap unless listed: the home pages and every category's page.
+// Pages rendered on request are not in the sitemap unless listed: the home pages, the "All" gallery
+// (work/[category].astro's own pseudo-category, ALL_SLUG) and every real category's page.
 const requestPages = SNAPSHOT
   ? []
   : LOCALES.flatMap((locale) => {
       const prefix = locale === DEFAULT_LOCALE ? '' : `/${locale}`;
-      return [`${prefix}/`, ...CATEGORIES.map((c) => `${prefix}/work/${c.slug}/`)].map((path) => new URL(path, SITE.url).href);
+      return [`${prefix}/`, `${prefix}/work/all/`, ...CATEGORIES.map((c) => `${prefix}/work/${c.slug}/`)].map((path) => new URL(path, SITE.url).href);
     });
 
 // https://astro.build/config

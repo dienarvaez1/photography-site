@@ -196,6 +196,7 @@ export function listBaseRoutes() {
     '/about/',
     '/contact/',
     '/admin/',
+    '/work/all/',
     '/work/abstract/',
     '/work/astro/',
     '/work/aviation/',

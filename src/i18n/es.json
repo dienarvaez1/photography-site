@@ -94,7 +94,9 @@
     "filterLabel": "Categorías",
     "sortLabel": "Ordenar por",
     "sortCurated": "Orden curado",
-    "sortNewest": "Más recientes primero"
+    "sortNewest": "Más recientes primero",
+    "allLabel": "Todas",
+    "allDescription": "Todas las fotos, de todas las categorías."
   },
   "about": {
     "title": "Sobre mí",

@@ -94,7 +94,9 @@
     "filterLabel": "Categories",
     "sortLabel": "Sort by",
     "sortCurated": "Curated order",
-    "sortNewest": "Newest first"
+    "sortNewest": "Newest first",
+    "allLabel": "All",
+    "allDescription": "Every photo, from every category."
   },
   "about": {
     "title": "About",

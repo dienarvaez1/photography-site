@@ -28,7 +28,9 @@ async function expectedNavLabels(locale) {
   return VISIBLE_CATEGORIES.map((c) => categories[c.slug].label).sort((a, b) => a.localeCompare(b, locale));
 }
 
-const navLabels = (root) => root.querySelectorAll('#nav-work-dropdown a').map((a) => a.text.trim());
+// Real category links only: `.nav-dropdown-all` (Header.astro) is "All", a pseudo-category prepended
+// ahead of them, not one of the categories these comparisons are about.
+const navLabels = (root) => root.querySelectorAll('#nav-work-dropdown a:not(.nav-dropdown-all)').map((a) => a.text.trim());
 
 When('I load the built page {string}', function (route) {
   this.data.route = route;
@@ -75,6 +77,17 @@ Then(
     }
   }
 );
+
+Then('the first link in the header {string} menu on every page should be "All"', async function (menuName) {
+  assert.equal(menuName, 'Portfolio');
+  const { DEFAULT_LOCALE } = await loadLocaleConfig();
+  for (const { route, locale, page } of this.data.pages) {
+    const first = page.root.querySelector('#nav-work-dropdown a');
+    assert.ok(first, `${route}: no links in the Portfolio dropdown`);
+    assert.equal(first.getAttribute('href'), localizedRoute('/work/all/', locale, DEFAULT_LOCALE), `${route}: first dropdown link does not lead to the "All" gallery`);
+    assert.equal(first.text.trim(), loadMessages(locale).work.allLabel, `${route}: first dropdown link is not labelled "All" in ${locale}`);
+  }
+});
 
 Then('the header {string} menu on every page should not contain a link for any hidden category', async function (menuName) {
   assert.equal(menuName, 'Portfolio');
@@ -140,6 +153,22 @@ Then('each of those pages should show the {string} message in its language', fun
       `Hidden category page does not show the ${this.data.locale} empty-state message "${expected}"`
     );
   }
+});
+
+// "All" (work/[category].astro's own pseudo-category) has no real category of its own to enumerate
+// entries by, so these check what the built page actually shows (each tile's own data-category —
+// Gallery.astro's, the photo's real category), not a literal category match against `slug`.
+const tileCategories = (page) => page.root.querySelectorAll('.tile').map((t) => t.getAttribute('data-category'));
+
+Then('the "All" gallery should include a photo from at least two different categories', function () {
+  const categories = new Set(tileCategories(this.data.page));
+  assert.ok(categories.size >= 2, `Expected photos from at least two categories, got: ${[...categories].join(', ') || 'none'}`);
+});
+
+Then('the "All" gallery should show no photo from a hidden category', function () {
+  const hiddenSlugs = new Set(this.data.categories.filter((c) => c.hidden).map((c) => c.slug));
+  const violations = tileCategories(this.data.page).filter((slug) => hiddenSlugs.has(slug));
+  assert.deepEqual(violations, [], 'The "All" gallery shows a photo from a hidden category');
 });
 
 Then('the contact page should show the real form only if a Web3Forms access key is configured', function () {
@@ -219,6 +248,17 @@ Then('the homepage should show a {string} section only if a visible photo is mar
   } else {
     assert.ok(!hasSection, `No photo is featured, but the homepage still shows an (empty) "${heading}" section`);
   }
+});
+
+// A specific category is real, admin-editable content: it can end up with no photos in it
+// (recategorized or removed away), which is exactly what once left this button pointing at an empty
+// page — it used to name one outright. "All" (see work/[category].astro's own ALL_SLUG) never has
+// that problem: it shows every visible category's photos, so it's empty only if the whole site is.
+Then('the {string} button should link to {string}', function (label, href) {
+  assert.equal(label, 'View the Work');
+  const link = this.data.page.root.querySelector('a.btn-primary');
+  assert.ok(link, 'no "View the Work" button on the homepage');
+  assert.equal(link.getAttribute('href'), href);
 });
 
 Then('each tile should load its photo sizes from the public photo bucket', function () {

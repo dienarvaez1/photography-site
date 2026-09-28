@@ -36,6 +36,13 @@ Then('the photo {string} should not be marked Home background', async function (
   if (count !== 0) throw new Error(`"${text}" is still marked Home background`);
 });
 
+// --- Reopening with the current members already ticked ---------------------------------------------------------------------------
+
+Then('the photo {string} should not be ticked', async function (text) {
+  const checked = await row(this, text).locator('.pic-check').isChecked();
+  if (checked) throw new Error(`"${text}"'s checkbox is ticked`);
+});
+
 // --- Quality --------------------------------------------------------------------------------------------------------------------
 
 When('I show the home background change in its {string} state', async function (name) {

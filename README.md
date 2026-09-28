@@ -271,9 +271,12 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   place (no full-page navigation, the manifest fetched once), relabels the page, and updates the
   address; the Back button returns to the previous category; the sort control reorders the photos
   without touching the address, and is hidden without JavaScript rather than shown inert; works in
-  Spanish; the lightbox still works on a category switched to client-side.
+  Spanish; the lightbox still works on a category switched to client-side; clicking "All" swaps in
+  every visible category's photos the same way, and clicking a specific category from "All" swaps
+  back to just that one.
 - **`navigation.feature`** — the mobile menu opens and collapses (Escape returns focus to its
-  button); the Portfolio submenu; keyboard tab order; the dropdown on keyboard focus; clicking Portfolio
+  button); the Portfolio submenu; keyboard tab order; the dropdown on keyboard focus; "All" sits
+  first in the dropdown, ahead of the real categories, and leads to every category's photos; clicking Portfolio
   itself (on a screen wide enough to hover) jumps to the home page's "Explore by Category" section, clear
   of the sticky header, from any page or the home page itself; on a phone, tapping Portfolio still opens
   its submenu instead, since there's no hover there; the skip link; the active page is marked; works in
@@ -979,11 +982,14 @@ npm run deploy
 This asks you to log in to Cloudflare once, then uploads `dist/` directly. Useful for a first
 deploy or one-off pushes if you'd rather not connect a git provider yet.
 
-### Adding a custom domain later
+### Custom domain
 
-Cloudflare Pages custom domains are also free. In your Pages project: **Custom domains → Set up
-a domain**, and follow the DNS instructions (trivial if the domain's nameservers are already on
-Cloudflare). No plan change needed.
+The site is served at **diego-narvaez-photography.org**, a free Cloudflare Custom Domain for the
+Worker (no plan change needed), alongside its `*.workers.dev` address. To add or change one: **Workers
+& Pages → photography-site → Settings → Domains & Routes → Add**, and follow the DNS instructions
+(trivial if the domain's nameservers are already on Cloudflare). After adding or changing it, update
+`SITE.url` in `src/config/site.ts` to match (Astro's `site` setting, the sitemap, `robots.txt` and every
+canonical/OG URL all follow it) and deploy again.
 
 ### When you might start paying
 

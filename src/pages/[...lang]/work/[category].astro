@@ -18,30 +18,50 @@ import {
   useTranslations,
 } from '../../../i18n';
 
+// "All" is a pseudo-category, not a real configured one: every visible category's photos with no
+// filter, not a category of its own to edit in Category Maintenance or offer on the contact form.
+// The header's Portfolio dropdown prepends the exact same pseudo-category (see Header.astro).
+// Repeated as a literal in getStaticPaths just below, not shared as one constant: Astro extracts and
+// runs that function in isolation (to build every route's params before rendering any of them), a
+// scope that doesn't see this module's other top-level code — a plain `ALL_SLUG` reference there
+// fails at build time with "ALL_SLUG is not defined", imports (CATEGORIES, localeStaticParams) below
+// excepted.
+const ALL_SLUG = 'all';
+
 // Rendered when requested, from the entries in R2 (`output: 'server'`, see astro.config.mjs); the tests' snapshot build makes it static.
 export function getStaticPaths() {
-  return localeStaticParams().flatMap(({ params }) => CATEGORIES.map((category) => ({ params: { ...params, category: category.slug } })));
+  return localeStaticParams().flatMap(({ params }) => [
+    { params: { ...params, category: 'all' } }, // ALL_SLUG, see its own comment above
+    ...CATEGORIES.map((category) => ({ params: { ...params, category: category.slug } })),
+  ]);
 }
 
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
 const { category: slug, lang } = Astro.params;
-if (!isLangParam(lang) || !CATEGORIES.some((c) => c.slug === slug)) return notFound();
-const category = getLocalizedCategory(slug!, locale)!;
-const photos = (await getPhotos()).filter((p) => p.data.category === slug).sort((a, b) => a.data.order - b.data.order);
+const isAll = slug === ALL_SLUG;
+if (!isLangParam(lang) || (!isAll && !CATEGORIES.some((c) => c.slug === slug))) return notFound();
+
+// Every other visible category, for the on-page filter bar and (via categoriesData below) the script
+// that progressively enhances it: clicking one is a real link (works with no JS, exactly like the
+// header's Work dropdown), swapped in place instead of navigating once the script has loaded.
+// `data-categories` carries what the script needs to relabel the page for a category it wasn't
+// server-rendered for — just the small amount of per-category text (label, description), not the
+// photos themselves (those come from the manifest, fetched separately — see the script). "All" is
+// prepended here, first, the same pseudo-category the header's dropdown prepends too.
+const allCategory = { slug: ALL_SLUG, label: t('work.allLabel'), description: t('work.allDescription') };
+const sortedCategories = [allCategory, ...getSortedVisibleCategories(locale)];
+const visibleSlugs = new Set(sortedCategories.map((c) => c.slug));
+const categoriesData = JSON.stringify(sortedCategories.map((c) => ({ slug: c.slug, label: c.label, description: c.description })));
+
+const category = isAll ? allCategory : getLocalizedCategory(slug!, locale)!;
+const photos = (await getPhotos())
+  .filter((p) => (isAll ? visibleSlugs.has(p.data.category) : p.data.category === slug))
+  .sort((a, b) => a.data.order - b.data.order);
 
 // Share this category's first photo when the page is linked on social media / messaging apps.
 const first = photos[0];
 const share = first ? photoVariant(first.data.photo, 'full') : undefined;
-
-// Every other visible category, for the on-page filter bar: clicking one is a real link (works
-// with no JS, exactly like the header's Work dropdown), progressively enhanced by the script below
-// to swap the grid in place instead of navigating. `data-categories` carries what the script needs
-// to relabel the page for a category it wasn't server-rendered for — just the small amount of
-// per-category text (label, description), not the photos themselves (those come from the manifest,
-// fetched separately — see the script).
-const sortedCategories = getSortedVisibleCategories(locale);
-const categoriesData = JSON.stringify(sortedCategories.map((c) => ({ slug: c.slug, label: c.label, description: c.description })));
 // The one string the script needs to build a tile's aria-label for a photo it fetched itself,
 // rather than pulling in the whole i18n module (with both locales' full message trees) into the
 // client bundle just for this.
@@ -107,7 +127,11 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
 
   <section class="wrap section work-photos">
     <p id="empty-message" class="empty-message" hidden={photos.length > 0}>{t('work.empty')}</p>
-    <Gallery photos={photos} category={slug} />
+    {/* Not `slug` on "All": a page mixing every category has no one category of its own for the
+        lightbox's "View <category> gallery" link to default to before any photo is opened — same
+        reasoning as the home page's Featured strip, which passes no category prop for the same
+        reason. Gallery falls back to the first tile's own real category instead. */}
+    <Gallery photos={photos} category={isAll ? undefined : slug} />
   </section>
 </BaseLayout>
 
@@ -294,6 +318,9 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
   // — see src/pages/api/photos.json.ts.
   const PHOTOS_API_URL = '/api/photos.json';
   const EAGER_TILES = 3;
+  // Must match this same page's own ALL_SLUG, above — its frontmatter runs only on the server, so
+  // this client script (a separate bundle) can't import it and needs its own copy of the constant.
+  const ALL_SLUG = 'all';
   type SortMode = 'order' | 'newest';
 
   const localizePath = (path: string, locale: string) => (locale === DEFAULT_LOCALE ? path : `/${locale}${path}`);
@@ -424,7 +451,13 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
       } catch {
         return false; // offline or the manifest is unreachable: stay on whatever is already shown
       }
-      const filtered = sortEntries(entries.filter((e) => e.category === slug), sort);
+      // "All" shows every entry whose category is one of the ones this page already knows about (the
+      // visible ones — `categories` is the exact same list the pills are built from, "All" included,
+      // and no real entry's own category is ever literally "all"), not a filter by one category.
+      const filtered = sortEntries(
+        slug === ALL_SLUG ? entries.filter((e) => categories.some((c) => c.slug === e.category)) : entries.filter((e) => e.category === slug),
+        sort
+      );
 
       headingEl!.textContent = category.label;
       descriptionEl!.textContent = category.description;

@@ -47,6 +47,10 @@ Feature: Site pages render correctly (English and Spanish)
     When I load every built page
     Then the header "Portfolio" menu on every page should list exactly the visible category labels of its language in alphabetical order
 
+  Scenario: The "All" link sits first in the header's Portfolio dropdown, in every language
+    When I load every built page
+    Then the first link in the header "Portfolio" menu on every page should be "All"
+
   Scenario: A hidden category is not linked from the header navigation on any page
     Given the configured categories
     When I load every built page
@@ -74,6 +78,12 @@ Feature: Site pages render correctly (English and Spanish)
       | locale |
       | en     |
       | es     |
+
+  Scenario: The "All" gallery aggregates every visible category's photos, and only those
+    Given the configured categories
+    When I load the built page "/work/all/"
+    Then the "All" gallery should include a photo from at least two different categories
+    And the "All" gallery should show no photo from a hidden category
 
   Scenario Outline: The contact page shows the correct state for the configured Web3Forms key
     When I load the built page "<route>"
@@ -142,6 +152,15 @@ Feature: Site pages render correctly (English and Spanish)
 
   Scenario: An admin's explicit pick overrides the hero's landscape/cityscape rule, from any category
     Then the homepage hero should prefer an explicitly chosen photo over the landscape/cityscape rule
+
+  Scenario Outline: "View the Work" leads to the "All" gallery, never a specific category
+    When I load the built page "<route>"
+    Then the "View the Work" button should link to "<href>"
+
+    Examples:
+      | route | href           |
+      | /     | /work/all/     |
+      | /es/  | /es/work/all/  |
 
   Scenario: Every sub-heading site-wide is the same size as the About page's
     Then every h2 and h3 sub-heading site-wide should be the same size as the About page's own

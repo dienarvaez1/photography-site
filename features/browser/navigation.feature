@@ -36,6 +36,13 @@ Feature: The navigation works on phones and with the keyboard
     And I hover over Portfolio and move the pointer down toward its first category
     Then the dropdown should still be open and its first category clickable
 
+  Scenario: "All" sits first in the dropdown and leads to every category's photos
+    When I open "/about/"
+    And I hover over Portfolio
+    And I click the Portfolio dropdown's "All" link
+    Then the address should end with "/work/all/"
+    And the gallery heading should say "All"
+
   # --- Clicking Portfolio itself, on a screen wide enough to hover ---------------------------------------------------
 
   Scenario: Clicking Portfolio on a wide enough screen goes to the home page's category section

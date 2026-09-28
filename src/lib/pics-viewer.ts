@@ -212,6 +212,17 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     }
     mode = kind;
     selected.clear();
+    // Home Background starts with its current members already ticked — the admin can see at a glance
+    // what's set and Remove from background right away, rather than having to reconstruct the current
+    // set by eye from the badges first. Edit Photos and Remove Photos start empty on purpose (an
+    // explicit choice every time), so this is Home Background's own case, not the general rule.
+    if (kind === 'hero' && listing) {
+      for (const row of listing.rows) if (row.heroBackground) selected.add(row.id);
+      // The same "never hide an already-ticked row" rule renderList() applies on every fresh look:
+      // a member beyond the first page still needs to be shown, checked, not just present in `selected`.
+      const needed = Math.max(0, ...[...selected].map((id) => listing!.rows.findIndex((row) => row.id === id) + 1));
+      shownCount = rowsToShow(listing.rows.length, needed, PICS_PAGE_SIZE);
+    }
     paint();
     container.querySelector<HTMLInputElement>('.pic-check')?.focus();
   }

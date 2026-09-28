@@ -89,6 +89,15 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
         </button>
         <div class="nav-dropdown" id="nav-work-dropdown">
           <div class="nav-dropdown-panel">
+            {/* Every photo, no filter — the same pseudo-category work/[category].astro's own filter
+                bar prepends, first, ahead of the real ones below (a border sets it apart from them). */}
+            <a
+              href={localizePath('/work/all/', locale)}
+              class:list={{ 'nav-dropdown-all': true, active: currentPath === '/work/all' }}
+              data-astro-reload={forceReload}
+            >
+              {t('work.allLabel')}
+            </a>
             {sortedCategories.map((c) => (
               <a
                 href={localizePath(`/work/${c.slug}/`, locale)}
@@ -280,6 +289,13 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
   .nav-dropdown a.active {
     color: var(--fg);
     background: rgba(255, 255, 255, 0.04);
+  }
+
+  /* Sets "All" apart from the specific categories under it, since it isn't one of them. */
+  .nav-dropdown-all {
+    margin-bottom: 0.25rem;
+    padding-bottom: calc(0.7rem + 0.25rem);
+    border-bottom: 1px solid var(--border);
   }
 
   .nav-toggle {

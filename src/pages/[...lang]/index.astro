@@ -122,7 +122,7 @@ const heroPhotos = (chosenHero.length > 0 ? chosenHero : featuredHero.length > 0
       <h1>{t('home.heroTitle')}</h1>
       <p class="hero-copy">{t('home.heroCopy')}</p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href={localizePath('/work/landscape/', locale)}>{t('home.viewWork')}</a>
+        <a class="btn btn-primary" href={localizePath('/work/all/', locale)}>{t('home.viewWork')}</a>
         <a class="btn" href={localizePath('/contact/', locale)}>{t('home.bookSession')}</a>
       </div>
     </div>
@@ -150,7 +150,13 @@ const heroPhotos = (chosenHero.length > 0 ? chosenHero : featuredHero.length > 0
     position: relative;
     display: flex;
     align-items: flex-start;
-    min-height: 88svh;
+    /* Shorter than it was (88svh): an admin can now set any photo as this background (Pics Viewer's
+       Home Background, any category, not just wide landscape/cityscape shots — see HERO_CATEGORIES'
+       own comment above), and object-fit: cover below crops harder the further the frame's own
+       aspect ratio strays from the photo's — a tall, short-of-full-height frame like this one crops
+       far less aggressively across a wider range of photos, portrait ones included, than a
+       near-full-height one did. */
+    min-height: 70svh;
     overflow: hidden;
   }
 

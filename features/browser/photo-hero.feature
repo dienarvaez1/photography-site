@@ -101,6 +101,17 @@ Feature: The Admin page's Home Background button sets or clears the photos ticke
     And the photo "Half Moon" should be marked Home background
     And the photo "Orion Nebula" should be marked Home background
 
+  Scenario: Reopening Home Background starts with its current members already ticked
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I click the "Home Background" button
+    And I tick the photo "Half Moon"
+    And I click the "Set as background" button of the home background bar
+    And I click the "Home Background" button
+    Then the photo "Half Moon" should be ticked
+    And the photo "Orion Nebula" should not be ticked
+    And the home background bar should say "1 selected"
+
   Scenario: Setting an already-marked photo again changes nothing, and says so
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"

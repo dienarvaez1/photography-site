@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { HtmlValidate } from 'html-validate';
 import sharp from 'sharp';
-import { DIST_DIR, NOINDEX_ROUTES, ROOT, listBuiltRoutes, listNotFoundRoutes, pageLocale, readBuiltPage } from '../support/lib.js';
+import { DIST_DIR, NOINDEX_ROUTES, ROOT, listBuiltRoutes, listNotFoundRoutes, loadCategoriesConfig, pageLocale, readBuiltPage } from '../support/lib.js';
 
 const photos = await import(join(ROOT, 'src/config/photos.ts'));
 const site = (await import(join(ROOT, 'src/config/site.ts'))).SITE;
@@ -56,13 +56,17 @@ Then('the file {string} should be a 1200 by 630 image under 100 KB', async funct
   assert.ok(kb(statSync(join(ROOT, file)).size) < 100);
 });
 
-Then("every category page with photos should share the full-size version of its first photo, with that photo's size and title", function () {
+Then("every category page with photos should share the full-size version of its first photo, with that photo's size and title", async function () {
+  // "All" (work/[category].astro's own pseudo-category) has no entries of its own literal category —
+  // it's every visible category's, with no filter — so its "first photo" is found the same way the
+  // page itself finds one, not by a literal category match.
+  const { VISIBLE_CATEGORIES } = await loadCategoriesConfig();
+  const visibleSlugs = new Set(VISIBLE_CATEGORIES.map((c) => c.slug));
   let checked = 0;
   for (const { route, locale, page } of this.data.pages.filter((p) => isCategoryPage(p.route))) {
     const slug = route.match(/\/work\/([^/]+)\//)[1];
-    const first = this.data.entries
-      .filter((e) => e.frontmatter.category === slug)
-      .sort((a, b) => (a.frontmatter.order ?? 0) - (b.frontmatter.order ?? 0))[0];
+    const inScope = slug === 'all' ? this.data.entries.filter((e) => visibleSlugs.has(e.frontmatter.category)) : this.data.entries.filter((e) => e.frontmatter.category === slug);
+    const first = inScope.sort((a, b) => (a.frontmatter.order ?? 0) - (b.frontmatter.order ?? 0))[0];
     if (!first) {
       assert.equal(meta(page.root, 'meta[property="og:image"]'), shown('/og-image.png'), `${route}: an empty category falls back to the branded image`);
       continue;

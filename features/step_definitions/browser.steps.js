@@ -445,10 +445,11 @@ Then('the {string} heading should be scrolled into view, clear of the sticky hea
 Then('the Portfolio submenu should list every visible category', async function () {
   // Read fresh rather than a hardcoded count: which categories are visible is admin-editable content
   // (Category Maintenance), not a fixed site invariant, so this stays correct however many are hidden.
+  // +1 for "All" (.nav-dropdown-all), prepended ahead of the real categories, not one of them.
   const { VISIBLE_CATEGORIES } = await loadCategoriesConfig();
   const links = page(this).locator('#nav-work-dropdown a');
-  assert.equal(await links.count(), VISIBLE_CATEGORIES.length);
-  for (let i = 0; i < VISIBLE_CATEGORIES.length; i++) assert.ok(await links.nth(i).isVisible(), `category link ${i} hidden`);
+  assert.equal(await links.count(), VISIBLE_CATEGORIES.length + 1);
+  for (let i = 0; i < VISIBLE_CATEGORIES.length + 1; i++) assert.ok(await links.nth(i).isVisible(), `category link ${i} hidden`);
 });
 
 Then('keyboard focus should be on the menu button', async function () {
@@ -466,6 +467,14 @@ When('I tab until keyboard focus reaches the Portfolio menu', async function () 
 // Regression test for the dropdown closing mid-transit: moves the pointer in small steps from the
 // button toward its first category link, the way a real cursor travels, rather than teleporting there
 // in one jump (which would never have crossed the gap that used to break this).
+When('I hover over Portfolio', async function () {
+  await page(this).locator('#nav-work-toggle').hover();
+});
+
+When('I click the Portfolio dropdown\'s {string} link', async function (label) {
+  await page(this).locator('#nav-work-dropdown a', { hasText: label }).first().click();
+});
+
 When('I hover over Portfolio and move the pointer down toward its first category', async function () {
   const button = page(this).locator('#nav-work-toggle');
   await button.hover();
@@ -493,7 +502,8 @@ Then('the Portfolio dropdown should be visible with every visible category link'
   const dropdown = page(this).locator('#nav-work-dropdown');
   await settle(350); // the dropdown fades in over 150 ms
   assert.equal(await dropdown.evaluate((el) => getComputedStyle(el).opacity), '1', 'dropdown is not shown on keyboard focus');
-  assert.equal(await page(this).locator('#nav-work-dropdown a').count(), VISIBLE_CATEGORIES.length);
+  // +1 for "All" (.nav-dropdown-all), prepended ahead of the real categories, not one of them.
+  assert.equal(await page(this).locator('#nav-work-dropdown a').count(), VISIBLE_CATEGORIES.length + 1);
   assert.ok(await page(this).locator('#nav-work-dropdown a').first().isVisible());
 });
 
@@ -503,10 +513,10 @@ const accessibleName = (world) => page(world).evaluate(() => {
 });
 
 Then('tabbing through the page should reach these in order:', async function (table) {
-  const { nav } = loadMessages('en');
-  const { categories } = loadMessages('en');
+  const { nav, work, categories } = loadMessages('en');
   const visible = (await import(join(ROOT, 'src/config/categories.ts'))).VISIBLE_CATEGORIES.map((c) => categories[c.slug].label).sort((a, b) => a.localeCompare(b));
-  const expected = table.raw().flat().flatMap((item) => (item === 'skip link' ? [nav.skipToContent] : item === 'home' ? ['Diego Narvaez'] : item === 'each category' ? visible : [item]));
+  // "All" (work.allLabel) comes first, ahead of the real categories, not sorted in among them.
+  const expected = table.raw().flat().flatMap((item) => (item === 'skip link' ? [nav.skipToContent] : item === 'home' ? ['Diego Narvaez'] : item === 'each category' ? [work.allLabel, ...visible] : [item]));
   const seen = [];
   for (let i = 0; i < expected.length; i++) {
     await page(this).keyboard.press('Tab');
