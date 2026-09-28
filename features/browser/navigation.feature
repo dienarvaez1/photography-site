@@ -31,6 +31,39 @@ Feature: The navigation works on phones and with the keyboard
     And I tab until keyboard focus reaches the Portfolio menu
     Then the Portfolio dropdown should be visible with every visible category link
 
+  Scenario: The dropdown stays open while moving the pointer down from Portfolio to a category
+    When I open "/"
+    And I hover over Portfolio and move the pointer down toward its first category
+    Then the dropdown should still be open and its first category clickable
+
+  # --- Clicking Portfolio itself, on a screen wide enough to hover ---------------------------------------------------
+
+  Scenario: Clicking Portfolio on a wide enough screen goes to the home page's category section
+    When I open "/about/"
+    And I click the Portfolio menu
+    Then the address should end with "/#explore-by-category"
+    And the "Explore by Category" heading should be scrolled into view, clear of the sticky header
+
+  Scenario: Clicking Portfolio on the home page itself scrolls straight to the category section
+    When I open "/"
+    And I click the Portfolio menu
+    Then the address should end with "/#explore-by-category"
+    And the "Explore by Category" heading should be scrolled into view, clear of the sticky header
+
+  Scenario: On a phone, tapping Portfolio still opens its submenu instead of navigating away
+    Given the visitor uses a phone
+    When I open "/about/"
+    And I open the mobile menu
+    And I click the Portfolio menu
+    Then the Portfolio submenu should list every visible category
+    And the address should end with "/about/"
+
+  Scenario: Clicking Portfolio speaks Spanish
+    When I open "/es/about/"
+    And I click the Portfolio menu
+    Then the address should end with "/es/#explore-by-category"
+    And the "Explorar por categoría" heading should be scrolled into view, clear of the sticky header
+
   Scenario: The keyboard can reach every navigation link in order
     When I open "/"
     Then tabbing through the page should reach these in order:

@@ -273,8 +273,11 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   without touching the address, and is hidden without JavaScript rather than shown inert; works in
   Spanish; the lightbox still works on a category switched to client-side.
 - **`navigation.feature`** — the mobile menu opens and collapses (Escape returns focus to its
-  button); the Portfolio submenu; keyboard tab order; the dropdown on keyboard focus; the skip link; the
-  active page is marked; works in Spanish.
+  button); the Portfolio submenu; keyboard tab order; the dropdown on keyboard focus; clicking Portfolio
+  itself (on a screen wide enough to hover) jumps to the home page's "Explore by Category" section, clear
+  of the sticky header, from any page or the home page itself; on a phone, tapping Portfolio still opens
+  its submenu instead, since there's no hover there; the skip link; the active page is marked; works in
+  Spanish.
 - **`language-and-location.feature`** — the switcher goes to the equivalent page and remembers the
   choice; a remembered choice beats the country; a first visit lands in the country's language
   (Mexico → Spanish, USA stays); the browser-language fallback; query and anchor survive the

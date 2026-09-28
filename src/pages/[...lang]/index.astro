@@ -135,7 +135,7 @@ const heroPhotos = (chosenHero.length > 0 ? chosenHero : featuredHero.length > 0
     </section>
   )}
 
-  <section class="wrap section" data-reveal>
+  <section class="wrap section" id="explore-by-category" data-reveal>
     <h2>{t('home.exploreByCategory')}</h2>
     <div class="category-grid">
       {covers.map(({ category, cover }) => (
@@ -213,6 +213,12 @@ const heroPhotos = (chosenHero.length > 0 ? chosenHero : featuredHero.length > 0
 
   .section {
     padding-block: var(--space-6);
+  }
+
+  #explore-by-category {
+    /* The header is sticky, so a plain #explore-by-category jump (from the Portfolio menu, or any
+       link to this anchor) would tuck the heading right under it; this keeps it clear. */
+    scroll-margin-top: 5.5rem;
   }
 
   .section h2 {

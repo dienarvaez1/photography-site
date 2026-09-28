@@ -30,6 +30,9 @@ const t = useTranslations(locale);
 const currentPath = splitLocalePath(Astro.url.pathname).path.replace(/\/+$/, '') || '/';
 const sortedCategories = getSortedVisibleCategories(locale);
 const alternates = getAlternates(Astro.url.pathname);
+// Where the "Portfolio" menu itself goes (desktop click; see the script below) — the home page's own
+// "Explore by Category" section, not a work page: hovering already offers every category directly.
+const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`;
 ---
 
 <header class="site-header">
@@ -68,25 +71,34 @@ const alternates = getAlternates(Astro.url.pathname);
 
     <nav id="primary-nav" class="primary-nav">
       <div class="nav-group">
+        {/* A real <button>, not a link: aria-expanded/aria-controls need it to announce right as a
+            disclosure control (see accessibility-and-compatibility.feature). Hovering or tabbing to
+            it already reveals the dropdown below (CSS :hover/:focus-within) — its own click goes
+            straight to the home page's category section instead, on a screen wide enough to hover in
+            the first place; on a narrow one, with no hover, clicking it opens the dropdown instead
+            (see initHeader below). */}
         <button
           type="button"
           class="nav-label"
           id="nav-work-toggle"
           aria-expanded="false"
           aria-controls="nav-work-dropdown"
+          data-explore-href={exploreByCategoryHref}
         >
           {t('nav.work')}
         </button>
         <div class="nav-dropdown" id="nav-work-dropdown">
-          {sortedCategories.map((c) => (
-            <a
-              href={localizePath(`/work/${c.slug}/`, locale)}
-              class:list={{ active: currentPath === `/work/${c.slug}` }}
-              data-astro-reload={forceReload}
-            >
-              {c.label}
-            </a>
-          ))}
+          <div class="nav-dropdown-panel">
+            {sortedCategories.map((c) => (
+              <a
+                href={localizePath(`/work/${c.slug}/`, locale)}
+                class:list={{ active: currentPath === `/work/${c.slug}` }}
+                data-astro-reload={forceReload}
+              >
+                {c.label}
+              </a>
+            ))}
+          </div>
         </div>
       </div>
       <a href={localizePath('/about/', locale)} class:list={{ active: currentPath === '/about' }} data-astro-reload={forceReload}>
@@ -223,14 +235,13 @@ const alternates = getAlternates(Astro.url.pathname);
     top: 100%;
     left: 50%;
     transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    min-width: 180px;
-    padding: var(--space-1);
-    margin-top: var(--space-2);
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    /* The gap before the visible panel (below) is padding, not margin, and stays part of this
+       element's own box: margin would leave a dead zone with nothing to hover in between, and since
+       the whole thing switches to pointer-events: none while closed, the pointer sliding through that
+       gap would hit-test straight past it to the page behind — dropping .nav-group's :hover (and with
+       it, this dropdown's own pointer-events) before the pointer ever reaches a category, closing the
+       menu on the way down to it instead of letting it be clicked. */
+    padding-top: var(--space-2);
     opacity: 0;
     /* Kept focusable (not visibility:hidden) so keyboard users tabbing
        to these links triggers :focus-within below and reveals them —
@@ -244,6 +255,16 @@ const alternates = getAlternates(Astro.url.pathname);
   .nav-group:focus-within .nav-dropdown {
     opacity: 1;
     pointer-events: auto;
+  }
+
+  .nav-dropdown-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 180px;
+    padding: var(--space-1);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
   }
 
   .nav-dropdown a {
@@ -352,10 +373,15 @@ const alternates = getAlternates(Astro.url.pathname);
          so it must stay clickable regardless of focus state. */
       pointer-events: auto;
       display: none;
+      padding: 0;
+    }
+
+    .nav-dropdown-panel {
       border: none;
       background: none;
-      margin-top: var(--space-1);
+      min-width: 0;
       padding: 0;
+      margin-top: var(--space-1);
     }
 
     .nav-group.open .nav-dropdown {
@@ -405,10 +431,17 @@ const alternates = getAlternates(Astro.url.pathname);
     removeKeydown = () => document.removeEventListener('keydown', onKeydown);
 
     navLabel?.addEventListener('click', () => {
+      // Narrow enough that hovering was never an option (matches the CSS breakpoint above): clicking
+      // is the only way to reach the dropdown at all, so it opens it, the same as it always has.
       if (window.innerWidth <= 720) {
         const isOpen = navGroup?.classList.toggle('open');
         navLabel.setAttribute('aria-expanded', String(Boolean(isOpen)));
+        return;
       }
+      // Wide enough to have already hovered (or tabbed) the dropdown open: the button's own click
+      // goes to the home page's category section instead of doing nothing.
+      const href = navLabel.getAttribute('data-explore-href');
+      if (href) window.location.href = href;
     });
 
     // Clicking the language switcher is an explicit choice: remember it so the

@@ -427,6 +427,21 @@ When('I open the Portfolio submenu', async function () {
   await page(this).locator('#nav-work-toggle').click();
 });
 
+// The same click as "I open the Portfolio submenu" above — named neutrally because what it does
+// depends on the device (opens the submenu on a phone, navigates on a wide enough screen: see
+// Header.astro's own script).
+When('I click the Portfolio menu', async function () {
+  await page(this).locator('#nav-work-toggle').click();
+});
+
+Then('the {string} heading should be scrolled into view, clear of the sticky header', async function (text) {
+  const heading = page(this).getByRole('heading', { name: text });
+  await heading.waitFor({ state: 'visible', timeout: 4000 });
+  const box = await heading.boundingBox();
+  assert.ok(box, `no box for the "${text}" heading`);
+  assert.ok(box.y > 40, `the "${text}" heading is too close to (or under) the sticky header: y=${box.y}`);
+});
+
 Then('the Portfolio submenu should list every visible category', async function () {
   // Read fresh rather than a hardcoded count: which categories are visible is admin-editable content
   // (Category Maintenance), not a fixed site invariant, so this stays correct however many are hidden.
@@ -446,6 +461,30 @@ When('I tab until keyboard focus reaches the Portfolio menu', async function () 
     if ((await active(this))?.id === 'nav-work-toggle') return;
   }
   assert.fail('Tab never reached the Portfolio menu');
+});
+
+// Regression test for the dropdown closing mid-transit: moves the pointer in small steps from the
+// button toward its first category link, the way a real cursor travels, rather than teleporting there
+// in one jump (which would never have crossed the gap that used to break this).
+When('I hover over Portfolio and move the pointer down toward its first category', async function () {
+  const button = page(this).locator('#nav-work-toggle');
+  await button.hover();
+  const buttonBox = await button.boundingBox();
+  const targetBox = await page(this).locator('#nav-work-dropdown a').first().boundingBox();
+  const steps = 12;
+  for (let i = 1; i <= steps; i++) {
+    const x = buttonBox.x + buttonBox.width / 2 + (targetBox.x + targetBox.width / 2 - (buttonBox.x + buttonBox.width / 2)) * (i / steps);
+    const y = buttonBox.y + buttonBox.height / 2 + (targetBox.y + targetBox.height / 2 - (buttonBox.y + buttonBox.height / 2)) * (i / steps);
+    await page(this).mouse.move(x, y);
+  }
+});
+
+Then('the dropdown should still be open and its first category clickable', async function () {
+  const link = page(this).locator('#nav-work-dropdown a').first();
+  await link.waitFor({ state: 'visible', timeout: 500 });
+  await link.click();
+  await page(this).waitForLoadState('load');
+  assert.match(new URL(page(this).url()).pathname, /^\/work\//, page(this).url());
 });
 
 Then('the Portfolio dropdown should be visible with every visible category link', async function () {
