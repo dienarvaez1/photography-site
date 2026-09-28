@@ -92,6 +92,18 @@ When('I edit the category {string}', async function (slug) {
   await send(this, 'POST', 'edit', { slug, label: 'Whatever' });
 });
 
+When('I change the slug of the category {string} to {string}', async function (slug, newSlug) {
+  await send(this, 'POST', 'edit', { slug, newSlug });
+});
+
+When('I change the slug and English label of the category {string} to {string} and {string}', async function (slug, newSlug, label) {
+  await send(this, 'POST', 'edit', { slug, newSlug, label });
+});
+
+When('I set the description of the category {string} to {string} in English and {string} in Spanish', async function (slug, description, descriptionEs) {
+  await send(this, 'POST', 'edit', { slug, description, descriptionEs });
+});
+
 When('I remove the category {string}', async function (slug) {
   await send(this, 'POST', 'remove', { slug });
 });
@@ -173,6 +185,16 @@ Then('the English name of {string} on disk should still be {string}', async func
 Then('the Spanish name of {string} on disk should still be {string}', async function (slug, label) {
   const messages = await readJson(state(this).localeFiles.es);
   assert.equal(messages.categories[slug].label, label);
+});
+
+Then('the English description of {string} on disk should be {string}', async function (slug, description) {
+  const messages = await readJson(state(this).localeFiles.en);
+  assert.equal(messages.categories[slug].description, description);
+});
+
+Then('the Spanish description of {string} on disk should be {string}', async function (slug, description) {
+  const messages = await readJson(state(this).localeFiles.es);
+  assert.equal(messages.categories[slug].description, description);
 });
 
 Then('nothing about {string} should have changed on disk', async function (slug) {

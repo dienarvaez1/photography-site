@@ -41,6 +41,20 @@ Given('the category {string} in the browser fixture already has a photo', async 
   });
 });
 
+// --- Signing in --------------------------------------------------------------------------------------------------------------
+
+Then('Category Maintenance should ask for the admin token', async function () {
+  await panel(this).locator('#categories-token').waitFor({ state: 'visible', timeout: 8000 });
+  await panel(this).getByLabel('Admin token').waitFor({ state: 'visible' });
+});
+
+When('I sign in to Category Maintenance with the token {string}', async function (token) {
+  const field = panel(this).locator('#categories-token');
+  await field.fill(token);
+  await field.press('Enter');
+  await settle(200);
+});
+
 // --- Viewing the list --------------------------------------------------------------------------------------------------
 
 // .category-name specifically, not the whole row: a row's .category-meta also shows its slug (e.g.
@@ -57,6 +71,16 @@ Then('the Category Maintenance list should not show a row for {string}', async f
 Then('the Category Maintenance row for {string} should be marked Hidden', async function (name) {
   const row = panel(this).locator('.category-row', { hasText: name }).first();
   await row.locator('.results-badge', { hasText: 'Hidden' }).waitFor();
+});
+
+Then('the Category Maintenance row for {string} should show the URL {string}', async function (name, url) {
+  const row = panel(this).locator('.category-row', { hasText: name }).first();
+  await row.locator('.category-meta', { hasText: url }).waitFor();
+});
+
+Then('the Category Maintenance row for {string} should show {int} photo', async function (name, count) {
+  const row = panel(this).locator('.category-row', { hasText: name }).first();
+  await row.locator('.category-meta', { hasText: count === 1 ? '1 photo' : `${count} photos` }).waitFor();
 });
 
 // --- Adding --------------------------------------------------------------------------------------------------------------
@@ -103,7 +127,14 @@ When('I tick the Hidden box for {string} and save it', async function (name) {
 
 When('I change the English name of {string} to {string} and save it', async function (name, newName) {
   const row = panel(this).locator('.category-row', { hasText: name }).first();
-  await row.locator('.category-edit-fields input[type="text"]').first().fill(newName);
+  await row.getByLabel('Name (English)').fill(newName);
+  await row.locator('.category-edit-fields button', { hasText: 'Save' }).click();
+  await settle(300);
+});
+
+When('I change the slug of {string} to {string} and save it', async function (name, newSlug) {
+  const row = panel(this).locator('.category-row', { hasText: name }).first();
+  await row.getByLabel('Slug').fill(newSlug);
   await row.locator('.category-edit-fields button', { hasText: 'Save' }).click();
   await settle(300);
 });

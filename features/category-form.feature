@@ -74,6 +74,49 @@ Feature: Category Maintenance writes the site's own category files
     Then the category service should answer with status 404
     And the category service should report the error "not-found"
 
+  # --- Editing: changing the slug --------------------------------------------------------------------------------
+
+  Scenario: Changing a category's slug moves its photos and its text in both locales
+    Given the category "nature" already has a photo in the library
+    When I change the slug of the category "nature" to "wildlife"
+    Then the category service should answer with status 200
+    And the category configuration files on disk should list "wildlife"
+    And the category configuration files on disk should not mention "nature"
+    When I ask the category service for the current list
+    Then the category list should include "wildlife" labelled "Nature" in English and "Naturaleza" in Spanish
+    And the category list should not include "nature"
+    And the category "wildlife" should show 1 photos
+
+  Scenario: Changing a category's slug and its label together applies both to the new slug
+    When I change the slug and English label of the category "nature" to "wildlife" and "Wildlife"
+    Then the category service should answer with status 200
+    When I ask the category service for the current list
+    Then the category list should include "wildlife" labelled "Wildlife" in English and "Naturaleza" in Spanish
+
+  Scenario: Changing a category's slug to one that already exists is refused
+    When I change the slug of the category "nature" to "drafts"
+    Then the category service should answer with status 409
+    And the category service should report the error "duplicate"
+
+  Scenario Outline: A category's new slug must be lowercase letters, digits and single hyphens
+    When I change the slug of the category "nature" to "<slug>"
+    Then the category service should answer with status 400
+
+    Examples:
+      | slug       |
+      | Night Sky  |
+      | night_sky  |
+      | -night-sky |
+      | 1night     |
+
+  # --- Editing: descriptions --------------------------------------------------------------------------------------
+
+  Scenario: Editing a category's descriptions in both languages
+    When I set the description of the category "nature" to "Wild places." in English and "Lugares silvestres." in Spanish
+    Then the category service should answer with status 200
+    And the English description of "nature" on disk should be "Wild places."
+    And the Spanish description of "nature" on disk should be "Lugares silvestres."
+
   # --- Removing -------------------------------------------------------------------------------------------------
 
   Scenario: Removing a category with no photos removes it everywhere

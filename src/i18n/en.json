@@ -380,7 +380,7 @@
         "heading": "New category",
         "intro": "Writes the category to src/config/categories.json and its name and description to every language file, exactly as hand-editing them would. It needs a commit and a deploy to reach the live site.",
         "slug": "Slug",
-        "slugHint": "Lowercase letters, digits and single hyphens, starting with a letter (used in the category's URL, e.g. /work/night-sky/). Cannot be changed later.",
+        "slugHint": "Lowercase letters, digits and single hyphens, starting with a letter (used in the category's URL, e.g. /work/night-sky/). Can be changed later from Edit Categories, which also moves the category's photos and updates its URL.",
         "label": "Name (English)",
         "labelEs": "Name (Spanish)",
         "description": "Description (English)",
@@ -401,8 +401,7 @@
       },
       "editRow": {
         "hiddenLabel": "Hidden",
-        "labelAria": "Name (English) for {category}",
-        "labelEsAria": "Name (Spanish) for {category}",
+        "slugHint": "Changing the slug moves the category's photos and changes its URL.",
         "save": "Save",
         "saving": "Saving…",
         "saved": "Saved.",

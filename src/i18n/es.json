@@ -380,7 +380,7 @@
         "heading": "Nueva categoría",
         "intro": "Escribe la categoría en src/config/categories.json y su nombre y descripción en cada archivo de idioma, igual que editarlos a mano. Necesita un commit y un despliegue para llegar al sitio en vivo.",
         "slug": "Slug",
-        "slugHint": "Letras minúsculas, dígitos y guiones simples, empezando con una letra (se usa en la URL de la categoría, p. ej. /work/night-sky/). No se puede cambiar después.",
+        "slugHint": "Letras minúsculas, dígitos y guiones simples, empezando con una letra (se usa en la URL de la categoría, p. ej. /work/night-sky/). Se puede cambiar después desde Editar categorías, lo que también mueve las fotos de la categoría y actualiza su URL.",
         "label": "Nombre (inglés)",
         "labelEs": "Nombre (español)",
         "description": "Descripción (inglés)",
@@ -401,8 +401,7 @@
       },
       "editRow": {
         "hiddenLabel": "Oculta",
-        "labelAria": "Nombre (inglés) de {category}",
-        "labelEsAria": "Nombre (español) de {category}",
+        "slugHint": "Cambiar el slug mueve las fotos de la categoría y cambia su URL.",
         "save": "Guardar",
         "saving": "Guardando…",
         "saved": "Guardado.",

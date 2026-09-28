@@ -29,8 +29,10 @@ const resultsMessages = adminMessages.results;
 // The Pics Viewer shares the token form, errors and buttons with the Test Results tab.
 const { gate, errors, signOut, refresh, loading } = adminMessages.results;
 const picsMessages = { pics: adminMessages.pics, gate, errors, signOut, refresh, loading };
-// Category Maintenance needs no token gate (categories are public, unlike Pics Viewer's private originals).
-const categoryMessages = { categories: adminMessages.categories };
+// Category Maintenance sits behind the same admin token as the other two tabs: its list and its own
+// Add/Edit/Remove controls (real content changes, even though the list itself is public once inside)
+// only show once signed in.
+const categoryMessages = { categories: adminMessages.categories, gate, errors, signOut, refresh, loading };
 
 // The categories the New Photo form offers (every configured one, hidden or not), in the page's language.
 const formCategories = CATEGORIES.map(({ slug }) => ({ slug, label: getLocalizedCategory(slug, locale)?.label ?? slug }));
@@ -127,11 +129,14 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
               <noscript><p>{t('admin.pics.needsJs')}</p></noscript>
             </div>
           ) : (
-            /* No token gate, unlike the other two tabs: categories are public information, and the
-               list is server-rendered straight into data-categories-list — nothing to sign in to see. */
-            <div class="results" data-category-maintenance data-messages={JSON.stringify(categoryMessages)} data-categories-list={JSON.stringify(categoryRows)}>
+            /* Gated by the admin token like the other two tabs (mountCategoryMaintenance): the list still
+               travels down as data-categories-list, server-rendered same as before, so it's ready the
+               instant the gate opens — the token check itself needs no data from this page. */
+            <div class="results" data-category-maintenance data-api={RESULTS_API_URL} data-messages={JSON.stringify(categoryMessages)} data-categories-list={JSON.stringify(categoryRows)}>
               <p class="results-intro">{t('admin.categories.intro')}</p>
-              <div data-categories-root aria-live="polite"></div>
+              <div data-categories-root aria-live="polite">
+                <p>{t('admin.results.loading')}</p>
+              </div>
               <noscript><p>{t('admin.categories.needsJs')}</p></noscript>
             </div>
           )}
@@ -310,10 +315,27 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .category-info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
   .category-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; overflow-wrap: anywhere; }
   .category-meta { color: var(--fg-muted); font-size: 0.85rem; }
-  .category-edit-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; width: 100%; }
+  /* Each logical group (slug + Hidden, then one row per language pairing its Name with its own
+     Description, then Save) gets its own row, so a row's fields never wrap into an unrelated one —
+     .category-edit-row wraps within itself instead. */
+  .category-edit-fields { display: flex; flex-direction: column; gap: 0.6rem; width: 100%; }
+  .category-edit-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem 0.75rem; }
+  /* The last row (Save + status) is the only one with no labels above its content, so it centers instead. */
+  .category-edit-fields > .category-edit-row:last-child { align-items: center; }
+  .category-field-inline { display: flex; flex-direction: column; gap: 0.15rem; }
+  .category-field-inline label { font-size: 0.8rem; color: var(--fg-muted); }
   .category-field-inline input { min-height: 40px; padding: 0.3rem 0.6rem; background: var(--bg); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; width: 12rem; max-width: 100%; box-sizing: border-box; }
+  /* A description runs much longer than a name, so its box is twice as wide, then 40% wider still. */
+  .category-field-inline.wide input { width: 33.6rem; }
+  .category-edit-fields > .results-hint { margin: -0.35rem 0 0; }
   .category-edit-status { color: var(--fg-muted); font-size: 0.85rem; min-height: 1.2em; }
-  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 640px) {
+    /* Narrow enough that two side-by-side fields would otherwise squeeze to unreadable widths — stack each
+       row's fields instead, full width. */
+    .category-edit-row { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+    /* .wide repeated: it must match the desktop rule's own specificity to actually override it here. */
+    .category-field-inline input, .category-field-inline.wide input { width: 100%; }
+  }
 </style>
 
 <script>

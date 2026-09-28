@@ -1,12 +1,16 @@
-// The Admin page's Category Maintenance tab. Categories are public information (unlike Pics Viewer's private
-// originals), so this needs no sign-in: the list comes straight from the page's own server-rendered data.
-// Add, Edit (hide/show and rename) and Remove each go through the local Category Maintenance service
-// (category-service.ts, scripts/lib/category-form.mjs), which exists only in `astro dev`: it writes the site's
-// own source files (src/config/categories.json and each locale's `categories.<slug>` in src/i18n/*.json)
-// directly — real source, so a change still needs a commit and a deploy to reach the live site, but no
-// hand-editing of the files. Every answer from the service is put on the page as text.
-import { el, icon, messageReader, parseJson, type Messages } from './admin-common';
+// The Admin page's Category Maintenance tab. Gated by the same admin token as Pics Viewer and Test Results
+// (checked against the results API — the same one they already use — the moment it's entered; this tab needs
+// none of that API's own data, only its yes/no on the token). Once past the gate, the list itself comes
+// straight from the page's own server-rendered data — categories are public information, unlike Pics
+// Viewer's private originals, so nothing further is fetched just to show it. Add, Edit (hide/show, rename and
+// re-describe) and Remove each go through the local Category Maintenance service (category-service.ts,
+// scripts/lib/category-form.mjs), which exists only in `astro dev`: it writes the site's own source files
+// (src/config/categories.json and each locale's `categories.<slug>` in src/i18n/*.json) directly — real
+// source, so a change still needs a commit and a deploy to reach the live site, but no hand-editing of the
+// files. Every answer from either service is put on the page as text.
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, parseJson, remembered, type Messages } from './admin-common';
 import { ServiceError, call, serviceAvailable } from './category-service';
+import { resolveApiUrl } from './results-view';
 
 export interface CategoryRow {
   slug: string;
@@ -37,6 +41,7 @@ export function mountCategoryMaintenance(container: HTMLElement, panel: HTMLElem
   const messages = parseJson<Messages>(container.dataset.messages ?? '{}');
   const m = messageReader(messages);
   const t = (key: string, values?: Record<string, string | number>) => m(`categories.${key}`, values);
+  const apiUrl = resolveApiUrl(container.dataset.api ?? '', location.search, location.hostname);
 
   // The page's own server-rendered list — accurate as of when it loaded, and all this tab needs while the
   // local service isn't reachable (e.g. the deployed site, or before `astro dev` starts). Replaced by the
@@ -49,7 +54,55 @@ export function mountCategoryMaintenance(container: HTMLElement, panel: HTMLElem
   let bar: RemovalBar | null = null;
   let notice: { text: string; alert: boolean } | null = null;
 
-  const show = (...nodes: (Node | string | null | undefined | false)[]) => root.replaceChildren(...(nodes.filter(Boolean) as (Node | string)[]));
+  let token = remembered.get();
+  let verified = false; // the token above has been checked against the results API this page view
+  let generation = 0; // a newer render() makes an older, slower one's answer stale
+
+  const show = (...nodes: (Node | string | null | undefined | false)[]) => {
+    root.replaceChildren(...(nodes.filter(Boolean) as (Node | string)[]));
+    root.removeAttribute('aria-busy');
+  };
+
+  // --- Sign in -------------------------------------------------------------------------------------------------
+
+  function renderGate(problem?: unknown) {
+    const { form, input } = gateForm(m, 'categories', (given) => {
+      token = given;
+      remembered.set(given);
+      void render();
+    }, problem);
+    show(form);
+    if (problem) input.focus();
+  }
+
+  /** Shows the sign-in gate, or checks a not-yet-verified token against the results API (the same one Pics
+   *  Viewer and Test Results use — this tab needs none of its data, only its yes/no on the token) before
+   *  revealing the list. Already-verified tokens repaint straight away: nothing here changes per token. */
+  async function render() {
+    const run = ++generation;
+    if (!token) {
+      verified = false;
+      return renderGate();
+    }
+    if (verified) return paint();
+    root.setAttribute('aria-busy', 'true');
+    show(el('p', { class: 'results-loading', text: m('loading') }));
+    try {
+      await apiGet<unknown>(apiUrl, token, '/index');
+      if (run !== generation) return;
+      verified = true;
+      paint();
+    } catch (error) {
+      if (run !== generation) return;
+      if (error instanceof ApiError && (error.kind === 'unauthorized' || error.kind === 'notConfigured')) {
+        token = '';
+        remembered.set('');
+        renderGate(error);
+      } else {
+        show(el('p', { class: 'results-error', text: errorMessage(m, error), attrs: { role: 'alert' } }));
+      }
+    }
+  }
 
   // --- The count and the Add / Edit / Remove buttons ---------------------------------------------------------
 
@@ -170,40 +223,72 @@ export function mountCategoryMaintenance(container: HTMLElement, panel: HTMLElem
   // --- Edit Categories (hide/show, rename) ----------------------------------------------------------------------
 
   function buildEditRow(row: CategoryRow): HTMLElement {
+    const field = (idSuffix: string, labelText: string, value: string, wide = false) => {
+      const id = `category-edit-${idSuffix}-${row.slug}`;
+      const input = el('input', { attrs: { type: 'text', id, value } });
+      return { input, node: el('div', { class: wide ? 'category-field-inline wide' : 'category-field-inline' }, el('label', { text: labelText, attrs: { for: id } }), input) };
+    };
+    const slugField = field('slug', t('form.slug'), row.slug);
+    const labelField = field('label', t('form.label'), row.label);
+    const labelEsField = field('label-es', t('form.labelEs'), row.labelEs);
+    // Much wider than the name field (see .category-field-inline.wide in admin.astro) — a description runs
+    // much longer than a name.
+    const descriptionField = field('description', t('form.description'), row.description, true);
+    const descriptionEsField = field('description-es', t('form.descriptionEs'), row.descriptionEs, true);
     const hiddenBox = el('input', { attrs: { type: 'checkbox' } });
     hiddenBox.checked = row.hidden;
-    const labelInput = el('input', { attrs: { type: 'text', value: row.label, 'aria-label': t('editRow.labelAria', { category: row.label }) } });
-    const labelEsInput = el('input', { attrs: { type: 'text', value: row.labelEs, 'aria-label': t('editRow.labelEsAria', { category: row.label }) } });
     const status = el('span', { class: 'category-edit-status', attrs: { role: 'status' } });
     const saveBtn = el('button', { class: 'results-button', text: t('editRow.save'), attrs: { type: 'button' } });
+    const controls = [slugField.input, labelField.input, labelEsField.input, descriptionField.input, descriptionEsField.input, hiddenBox, saveBtn];
     saveBtn.addEventListener('click', () => void save());
 
     async function save() {
-      for (const control of [hiddenBox, labelInput, labelEsInput, saveBtn]) control.disabled = true;
+      for (const control of controls) control.disabled = true;
       status.textContent = t('editRow.saving');
+      const newSlug = slugField.input.value.trim();
+      const renaming = newSlug !== row.slug;
       try {
         const updated = await call<CategoryRow>('/edit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug: row.slug, hidden: hiddenBox.checked, label: labelInput.value.trim(), labelEs: labelEsInput.value.trim() }),
+          body: JSON.stringify({
+            slug: row.slug,
+            newSlug: renaming ? newSlug : undefined,
+            hidden: hiddenBox.checked,
+            label: labelField.input.value.trim(),
+            labelEs: labelEsField.input.value.trim(),
+            description: descriptionField.input.value.trim(),
+            descriptionEs: descriptionEsField.input.value.trim(),
+          }),
         });
         rows = rows.map((r) => (r.slug === row.slug ? updated : r));
-        status.textContent = t('editRow.saved');
+        if (renaming) {
+          // The row's own identity just changed slug, so it needs rebuilding against the new one — a save
+          // that doesn't rename stays in place instead, so editing doesn't keep losing keyboard focus.
+          paintList();
+        } else {
+          status.textContent = t('editRow.saved');
+          for (const control of controls) control.disabled = false;
+        }
       } catch (error) {
         status.textContent = t('editRow.failed', { category: row.label, message: error instanceof Error ? error.message : String(error) });
-      } finally {
-        for (const control of [hiddenBox, labelInput, labelEsInput, saveBtn]) control.disabled = false;
+        for (const control of controls) control.disabled = false;
       }
     }
+
+    const hiddenLabel = el('label', { class: 'photo-form-check' }, hiddenBox, el('span', { text: t('editRow.hiddenLabel') }));
 
     return el(
       'div',
       { class: 'category-edit-fields' },
-      el('label', { class: 'photo-form-check' }, hiddenBox, el('span', { text: t('editRow.hiddenLabel') })),
-      el('label', { class: 'category-field-inline' }, el('span', { class: 'visually-hidden', text: t('form.label') }), labelInput),
-      el('label', { class: 'category-field-inline' }, el('span', { class: 'visually-hidden', text: t('form.labelEs') }), labelEsInput),
-      saveBtn,
-      status
+      // Slug and Hidden sit together — both are about the category's identity, not its wording — with the
+      // slug's own hint directly under them; each language then gets its own line, name next to its own
+      // description, so translating one language doesn't mean jumping between two separate rows.
+      el('div', { class: 'category-edit-row' }, slugField.node, hiddenLabel),
+      el('p', { class: 'results-hint', text: t('editRow.slugHint') }),
+      el('div', { class: 'category-edit-row' }, labelField.node, descriptionField.node),
+      el('div', { class: 'category-edit-row' }, labelEsField.node, descriptionEsField.node),
+      el('div', { class: 'category-edit-row' }, saveBtn, status)
     );
   }
 
@@ -388,10 +473,43 @@ export function mountCategoryMaintenance(container: HTMLElement, panel: HTMLElem
     show(...summary(), formOpen ? formHost : null, bar?.element ?? null, el('ul', { class: `category-list${mode !== 'none' ? ` selecting ${mode}` : ''}` }, ...rows.map(buildRow)));
   }
 
-  paint();
-
-  // The tab has no remote data to (re)load, so it just needs to repaint once (its script only ever mounts
-  // once per tab, but every :root re-render — e.g. a locale switch reload — starts this fresh) and again
-  // whenever the panel is shown, in case another tab or the local service changed something meanwhile.
-  new MutationObserver(() => !panel.hidden && paintList()).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+  // Nothing is requested while the tab is hidden; showing it checks the token (once) and paints the list.
+  function sync() {
+    if (panel.hidden) return;
+    if (!verified) return void render();
+    // Already signed in and drawn once: just refresh the list in case another tab or the local service
+    // changed something meanwhile, the same way every other reveal of this tab already did before the gate.
+    paintList();
+  }
+  window.addEventListener(AUTH_EVENT, () => {
+    const next = remembered.get();
+    if (next === token) return;
+    token = next;
+    verified = false;
+    generation++;
+    formOpen = false;
+    formHost.replaceChildren(); // signing out (or in as someone else) closes the form
+    mode = 'none'; // ...and any bulk-action checkboxes
+    selected.clear();
+    bar = null;
+    notice = null;
+    if (!panel.hidden) void render();
+    else root.replaceChildren();
+  });
+  // The page's Refresh button asks the local service for the current list when this tab is showing (the
+  // token itself needs no re-checking: AUTH_EVENT already covers a token that changed).
+  window.addEventListener(REFRESH_EVENT, () => {
+    if (panel.hidden || !verified) return;
+    call<{ categories: CategoryRow[] }>('/status')
+      .then((fresh) => {
+        rows = fresh.categories;
+        paintList();
+      })
+      .catch(() => {
+        // The local service isn't reachable (e.g. this is the deployed site): nothing to refresh from.
+      });
+  });
+  new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+  // Look once the tabs have applied the address (a link to another tab must not load this one).
+  setTimeout(sync, 0);
 }

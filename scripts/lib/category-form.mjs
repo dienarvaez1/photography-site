@@ -6,8 +6,10 @@
 //                                            descriptionEs, photoCount }, ...] }
 //   POST /__categories/add     JSON { slug, label, labelEs, description, descriptionEs, hidden? }
 //                                                     -> the new category, in the same shape as `status`
-//   POST /__categories/edit    JSON { slug, hidden?, label?, labelEs? }
+//   POST /__categories/edit    JSON { slug, newSlug?, hidden?, label?, labelEs?, description?, descriptionEs? }
 //                                                     -> the updated category, in the same shape as `status`
+//                                                        (a `newSlug` renames it, moving any of its photos and
+//                                                        its locale text along with it)
 //   POST /__categories/remove  JSON { slug }          -> { slug }
 //
 // Unlike photos, a category is not R2 data: it is the site's own source (src/config/categories.json, and each
@@ -16,8 +18,8 @@
 // (scripts/lib/entry-sync.mjs) the New Photo form already keeps in step. A category still needs a commit and a
 // deploy to reach the live site, same as any other source change; this only saves hand-editing the files.
 import { readFile, writeFile } from 'node:fs/promises';
-import { pullEntries } from './entry-sync.mjs';
-import { listEntries } from './photos.mjs';
+import { pullEntries, pushEntries } from './entry-sync.mjs';
+import { changeCategory, listEntries } from './photos.mjs';
 
 export const CATEGORY_FORM_PREFIX = '/__categories/';
 
@@ -92,6 +94,9 @@ export function createCategoryFormHandler({ contentDir, storage, sync = false, l
   const writeCategoriesFile = (list) => writeJsonFile(categoriesFile, list);
   const readLocaleFile = (locale) => readJsonFile(localeFiles[locale]);
   const writeLocaleFile = (locale, messages) => writeJsonFile(localeFiles[locale], messages);
+  // Only needed for a slug rename, to push the moved photo entries' new category to R2 the same way the
+  // New Photo form's own edits do (see changeCategory in photos.mjs) — undefined in tests that don't sync.
+  const publish = sync ? () => pushEntries({ contentDir, storage, log }) : undefined;
 
   function describeOne(list, textByLocale, slug) {
     const found = list.find((c) => c.slug === slug);
@@ -145,32 +150,71 @@ export function createCategoryFormHandler({ contentDir, storage, sync = false, l
     const body = await readBody(request);
     const list = await readCategoriesFile();
     const slug = knownSlug(list, body);
+    let targetSlug = slug;
+
+    const wantsRename = typeof body?.newSlug === 'string' && body.newSlug.trim() && body.newSlug.trim().toLowerCase() !== slug;
+    if (wantsRename) {
+      const newSlug = body.newSlug.trim().toLowerCase();
+      if (!SLUG_PATTERN.test(newSlug) || newSlug.length > MAX_SLUG_LENGTH) {
+        throw new FormError(400, 'bad-request', 'The slug must be lowercase letters, digits and single hyphens, starting with a letter (e.g. "night-sky").');
+      }
+      if (list.some((c) => c.slug === newSlug)) throw new FormError(409, 'duplicate', `"${newSlug}" already exists.`);
+
+      list.find((c) => c.slug === slug).slug = newSlug;
+      await writeCategoriesFile(list);
+
+      for (const locale of locales) {
+        const messages = await readLocaleFile(locale);
+        if (messages.categories && slug in messages.categories) {
+          const { [slug]: text, ...rest } = messages.categories;
+          messages.categories = { ...rest, [newSlug]: text };
+          await writeLocaleFile(locale, messages);
+        }
+      }
+
+      // Existing photos must follow their category, or they'd be left pointing at a slug that no longer
+      // exists — the same primitive the New Photo form's own bulk-recategorize uses.
+      if (sync) await pullEntries({ contentDir, storage, log });
+      const moving = (await listEntries(contentDir)).filter((e) => e.data.category === slug);
+      if (moving.length > 0) {
+        const photos = moving.map((e) => ({ id: e.data.photo.id, category: slug }));
+        await changeCategory({ photos, toCategory: newSlug, contentDir, categories: list.map((c) => c.slug), publish, log });
+      }
+      targetSlug = newSlug;
+    }
 
     if ('hidden' in body) {
-      const entry = list.find((c) => c.slug === slug);
+      const entry = list.find((c) => c.slug === targetSlug);
       if (body.hidden) entry.hidden = true;
       else delete entry.hidden;
       await writeCategoriesFile(list);
     }
 
-    const wantsLabel = typeof body?.label === 'string' || typeof body?.labelEs === 'string';
-    if (wantsLabel) {
+    const wantsText = ['label', 'labelEs', 'description', 'descriptionEs'].some((field) => typeof body?.[field] === 'string');
+    if (wantsText) {
       const label = body.label === undefined ? undefined : requiredText(body, 'label');
       const labelEs = body.labelEs === undefined ? undefined : requiredText(body, 'labelEs');
-      const byLocale = { en: label, es: labelEs };
+      const description = body.description === undefined ? undefined : requiredText(body, 'description');
+      const descriptionEs = body.descriptionEs === undefined ? undefined : requiredText(body, 'descriptionEs');
+      const byLocale = { en: { label, description }, es: { label: labelEs, description: descriptionEs } };
       for (const locale of locales) {
-        if (byLocale[locale] === undefined) continue;
+        const { label: newLabel, description: newDescription } = byLocale[locale];
+        if (newLabel === undefined && newDescription === undefined) continue;
         const messages = await readLocaleFile(locale);
-        const current = messages.categories?.[slug];
-        if (!current) throw new FormError(404, 'not-found', `"${slug}" has no ${locale} text yet.`);
-        messages.categories[slug] = { ...current, label: byLocale[locale] };
+        const current = messages.categories?.[targetSlug];
+        if (!current) throw new FormError(404, 'not-found', `"${targetSlug}" has no ${locale} text yet.`);
+        messages.categories[targetSlug] = {
+          ...current,
+          ...(newLabel === undefined ? {} : { label: newLabel }),
+          ...(newDescription === undefined ? {} : { description: newDescription }),
+        };
         await writeLocaleFile(locale, messages);
       }
     }
 
     const [refreshed, en, es] = await Promise.all([readCategoriesFile(), readLocaleFile('en'), readLocaleFile('es')]);
-    const photoCount = (await listEntries(contentDir)).filter((e) => e.data.category === slug).length;
-    return json(200, { ...describeOne(refreshed, { en, es }, slug), photoCount });
+    const photoCount = (await listEntries(contentDir)).filter((e) => e.data.category === targetSlug).length;
+    return json(200, { ...describeOne(refreshed, { en, es }, targetSlug), photoCount });
   }
 
   async function remove({ request }) {

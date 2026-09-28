@@ -217,8 +217,11 @@ against every page in both English and Spanish**; expected text is read from
   files): listing shows both languages' text and each category's photo count; adding writes the new category to
   all three files and refuses a duplicate slug, a slug that isn't lowercase letters/digits/hyphens, or a missing
   field; editing can hide/show a category and rename it in one language without touching the other, and refuses
-  an unknown slug; removing deletes a category from all three files, but refuses (and changes nothing) while any
-  photo still uses it; and only the tab's own page on localhost may use the service.
+  an unknown slug; changing a category's slug moves its photos and its text to the new slug in both locales (in
+  the same request as a text change, or on its own), and refuses one that's already taken or badly formed;
+  editing a category's description in either language updates just that locale's file; removing deletes a
+  category from all three files, but refuses (and changes nothing) while any photo still uses it; and only the
+  tab's own page on localhost may use the service.
 - **`site-render.feature`** — the production build in the real Workers runtime (workerd, via `wrangler dev`) over a
   local copy of the web bucket that is changed while the site runs: the home, category and Admin pages are left to the
   Worker (and listed in the sitemap) while about, contact and the error pages are built; category pages list the
@@ -328,14 +331,16 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   the category a photo is already in says so instead of moving it; Spanish; every state passes the accessibility
   audit; and nothing but the site and the results API is requested.
 - **`category-maintenance.feature`** (browser) — the Category Maintenance tab, with the real category service
-  over a temporary configuration (needs no sign-in: categories are public): the list shows every configured
+  over a temporary configuration: gated by the admin token (checked against the results API, shared with the
+  other two tabs, wrong token refused) before anything shows; once past it, the list shows every configured
   category; Add Category writes a new one and shows it in the list, or shows why a taken slug was refused;
-  Edit Categories hides/shows and renames a category in place, without a page reload; Remove Categories deletes
-  a category with no photos left in it, but reports (and keeps) one that still has photos; and without the
-  local service, Edit says it only works on the owner's computer instead of doing anything.
+  Edit Categories hides/shows, renames, re-slugs (moving its photos) and re-describes a category in place,
+  without a page reload; Remove Categories deletes a category with no photos left in it, but reports (and
+  keeps) one that still has photos; and without the local service, Edit says it only works on the owner's
+  computer instead of doing anything.
 - **`admin-timeout.feature`** (browser) — with the page's clock under the test's control: still signed in at
-  4:55 and signed out at 5:00 (both tabs, whichever is showing, header buttons gone, token forgotten, tooltip
-  closed, no more requests); a mouse move, key press, scroll, click or tap restarts the 5 minutes but the
+  4:55 and signed out at 5:00 (all three tabs, whichever is showing, header buttons gone, token forgotten,
+  tooltip closed, no more requests); a mouse move, key press, scroll, click or tap restarts the 5 minutes but the
   page's own refresh does not; a tab left longer than 5 minutes and reloaded is signed out, one reloaded
   sooner stays signed in; the reminder goes away on the next sign-in and never shows after a manual sign-out;
   it works with storage blocked, in Spanish, is announced to screen readers and passes the accessibility audit.
@@ -673,19 +678,19 @@ forms only to Web3Forms, no plugins, no framing. Astro is configured not to inli
 ## Admin page
 
 `/admin/` (and `/es/admin/`) works like any other page, but is **not linked from the header** — go there
-directly by typing the address. It has two tabs side by side: **Test Results** and **Pics Viewer** (in
-Spanish: *Resultados de pruebas* and *Visor de fotos*). The tabs follow the WAI-ARIA tabs pattern: arrow
-keys, Home and End move between them, the selected tab is in the URL (`/admin/#pics-viewer`), and without
-JavaScript both panels are shown.
+directly by typing the address. It has three tabs side by side: **Test Results**, **Pics Viewer** and
+**Category Maintenance** (in Spanish: *Resultados de pruebas*, *Visor de fotos* and *Mantenimiento de
+categorías*). The tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the
+selected tab is in the URL (`/admin/#pics-viewer`), and without JavaScript every panel is shown.
 
 **The Admin page signs out after 5 minutes of inactivity** (`src/config/admin.ts`): the token is forgotten,
-both tabs return to the token form, and the form says why. Moving the pointer, pressing a key, scrolling,
+all three tabs return to the token form, and the form says why. Moving the pointer, pressing a key, scrolling,
 clicking or touching the page counts as being there and restarts the 5 minutes; requests the page makes by
 itself do not. A tab left for longer than that and then reloaded is signed out too. (While the tab is in the
 background the browser slows timers down, so the sign-out happens when you come back to it at the latest.)
 
 **Refresh and Sign out** are at the top of the page, across from the "Admin" title (they appear only while
-you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for both tabs.
+you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all three tabs.
 
 ### Test Results tab
 
@@ -842,6 +847,33 @@ After pulling this change, redeploy the Worker so it gets that binding: `npm run
 address can open it and see the token prompt. It is marked `noindex` and left out of the sitemap, but
 that is not protection; the token is what protects the results. For a real login in front of the whole
 page, use [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/).
+
+### Category Maintenance tab
+
+Lists every category configured on the site (`src/config/categories.json`), hidden or not, with its name in
+each language and how many photos are in it. It sits behind the same admin token as the other two tabs —
+checked against the results API the moment it's entered (one sign-in serves all three tabs, and Sign
+out or the idle timeout signs all three out together), even though the tab itself asks that API for none of
+its own data: the list is public information once you're in, drawn straight from the page's own
+server-rendered data, and the token check exists only to gate the tab the same way its siblings are gated.
+
+Across from the category count are three buttons: **Add Category**, **Edit Categories** and **Remove
+Categories**. All three write straight to the site's own source — `src/config/categories.json` and each
+locale's `categories.<slug>` entry in `src/i18n/en.json`/`es.json` — through a local Category Maintenance
+service (`scripts/lib/category-form.mjs`) that, like the New Photo form, **only exists in `npm run dev`**: on
+the deployed site these buttons say so instead of doing anything.
+
+- **Add Category** asks for a slug, a name and a description in each language, and whether it starts hidden.
+- **Edit Categories** lets you change a category's slug, its name and its description in each language, and
+  toggle it hidden — all from the same row, saved with one **Save** button. Changing the slug renames the
+  category everywhere at once: its entry in `categories.json`, its text in both locale files, its URL
+  (`/work/<slug>/`), and every photo already filed under it (moved the same way the Pics Viewer's bulk
+  category change moves one).
+- **Remove Categories** deletes a category with no photos left in it; one that still has photos is refused
+  and reported, so a category is never deleted out from under photos still filed there.
+
+A change here still needs a commit and a deploy to reach the live site, the same as hand-editing those files
+would — this only saves doing that by hand.
 
 ## Error pages
 

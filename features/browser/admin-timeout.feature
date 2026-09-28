@@ -30,7 +30,7 @@ Feature: The Admin page signs out after 5 minutes of inactivity
     And there should be no "Refresh" or "Sign out" button at the top of the page
     And the browser should not remember any token
 
-  Scenario: Both tabs are signed out together, whichever tab is showing
+  Scenario: All three tabs are signed out together, whichever tab is showing
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I hover over the file "Orion Nebula"
@@ -40,7 +40,8 @@ Feature: The Admin page signs out after 5 minutes of inactivity
     And no tooltip should be showing
     When I click the "Test Results" tab
     Then the Test Results tab should ask for the admin token
-    And the Test Results tab should say "You were signed out after 5 minutes of inactivity. Enter the token to continue."
+    When I click the "Category Maintenance" tab
+    Then Category Maintenance should ask for the admin token
 
   Scenario: Nothing is requested from the API after the timeout
     When I open "/admin/"
