@@ -108,6 +108,7 @@ Feature: The Admin page's Home Background button sets or clears the photos ticke
     And I click the "Home Background" button
     And I tick the photo "Half Moon"
     And I click the "Set as background" button of the home background bar
+    And the Pics Viewer should say "1 photo set as the home background."
     And I click the "Home Background" button
     Then the photo "Half Moon" should be ticked
     And the photo "Orion Nebula" should not be ticked
@@ -119,11 +120,27 @@ Feature: The Admin page's Home Background button sets or clears the photos ticke
     And I click the "Home Background" button
     And I tick the photo "Half Moon"
     And I click the "Set as background" button of the home background bar
+    And the Pics Viewer should say "1 photo set as the home background."
     And I click the "Home Background" button
     And I tick the photo "Half Moon"
     And I click the "Set as background" button of the home background bar
     Then the Pics Viewer should say "It was already set that way."
     And the photo "Half Moon" should be marked Home background
+
+  Scenario: On a slow connection the next action still waits for the last one to finish
+    # Seen on GitHub's runners: reopening Home Background before "Set as background" had answered was ignored (a bulk
+    # action refuses to start while another is under way), and the test went on to click the old, busy bar.
+    Given the local photo service takes 1500 milliseconds to answer
+    When I open "/admin/#pics-viewer"
+    And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And I click the "Home Background" button
+    And I tick the photo "Half Moon"
+    And I click the "Set as background" button of the home background bar
+    And the Pics Viewer should say "1 photo set as the home background."
+    And I click the "Home Background" button
+    Then the photo "Half Moon" should be ticked
+    When I click the "Set as background" button of the home background bar
+    Then the Pics Viewer should say "It was already set that way."
 
   Scenario: Removing a marked photo from the background clears its mark, and says so
     When I open "/admin/#pics-viewer"
@@ -131,6 +148,7 @@ Feature: The Admin page's Home Background button sets or clears the photos ticke
     And I click the "Home Background" button
     And I tick the photo "Half Moon"
     And I click the "Set as background" button of the home background bar
+    And the Pics Viewer should say "1 photo set as the home background."
     And I click the "Home Background" button
     And I tick the photo "Half Moon"
     And I click the "Remove from background" button of the home background bar

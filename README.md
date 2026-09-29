@@ -383,8 +383,9 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   and Home Background are mutually exclusive (choosing one while another shows switches to it directly);
   setting one photo, or several at once, marks them with a "Home background" badge and updates the list in
   place, without a page reload; setting an already-marked photo, or clearing an unmarked one, says so instead
-  of changing anything; Spanish; every state passes the accessibility audit; and nothing but the site and the
-  results API is requested.
+  of changing anything; the next action still waits for the last one on a slow photo service (as on a busy CI
+  runner); Spanish; every state passes the accessibility audit; and nothing but the site and the results API is
+  requested.
 - **`category-maintenance.feature`** (browser) — the Category Maintenance tab, with the real category service
   over a temporary configuration: gated by the admin token (checked against the results API, shared with the
   other two tabs, wrong token refused) before anything shows; once past it, the list shows every configured

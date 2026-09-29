@@ -169,6 +169,8 @@ function servePhotoService(req, res, next) {
   const service = currentWorld?.b.photoService;
   if (!service) return next();
   service.requests.push({ method: req.method, path: new URL(req.url, 'http://localhost').pathname.replace('/__photos/', '') });
+  // A slow service (as on a busy CI runner): scenarios that start one bulk action before the last one finished show up.
+  if (service.delayMs) return void setTimeout(() => service.middleware(req, res, next), service.delayMs);
   return service.middleware(req, res, next);
 }
 

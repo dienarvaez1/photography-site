@@ -1,4 +1,4 @@
-import { When, Then } from '@cucumber/cucumber';
+import { Given, When, Then } from '@cucumber/cucumber';
 
 const page = (world) => world.b.page;
 const panel = (world) => page(world).locator('#panel-pics-viewer');
@@ -60,4 +60,8 @@ When('I show the home background change in its {string} state', async function (
   await heroBar(this).waitFor({ state: 'visible', timeout: 8000 });
   if (name === 'choosing') return;
   await row(this, 'Half Moon').locator('.pic-check').check();
+});
+
+Given('the local photo service takes {int} milliseconds to answer', function (ms) {
+  this.b.photoService.delayMs = ms;
 });
