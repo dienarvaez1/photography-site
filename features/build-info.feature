@@ -33,6 +33,15 @@ Feature: Every page's footer says which build of the site it is
     Then its build label should be the short hash of its latest commit, followed by "-dirty"
     And its build should be marked dirty
 
+  Scenario: A file nobody has added to git yet doesn't count as an uncommitted change, for the build or a test run
+    Given a git repository with one commit
+    And a new file is put in it without adding it to git
+    Then its build should not be marked dirty
+    And its test and Lighthouse runs should not be marked as having uncommitted changes
+    When one of its files is changed without committing
+    Then its build should be marked dirty
+    And its test and Lighthouse runs should be marked as having uncommitted changes
+
   Scenario: Somewhere without git the build still gets a label
     Given a folder that is not a git repository
     Then its build label should be "unknown"

@@ -49,7 +49,16 @@ Given('{int} more commits are made', async function (count) {
   for (let i = 0; i < count; i++) await commit(state(this).dir, 100 + i);
 });
 
-Given('one of its files is changed without committing', async function () {
+Given('a new file is put in it without adding it to git', async function () {
+  await writeFile(join(state(this).dir, 'draft.html'), '<p>not added to git</p>\n');
+});
+
+Then(/^its test and Lighthouse runs should (be|not be) marked as having uncommitted changes$/, async function (be) {
+  const { gitInfo } = await import('../../scripts/lib/results.mjs');
+  assert.equal(gitInfo(state(this).dir, {}).dirty, be === 'be');
+});
+
+When('one of its files is changed without committing', async function () {
   await writeFile(join(state(this).dir, 'file.txt'), 'not committed\n');
 });
 

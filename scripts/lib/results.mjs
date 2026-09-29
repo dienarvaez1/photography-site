@@ -108,7 +108,9 @@ export function gitInfo(cwd = process.cwd(), env = process.env) {
   return {
     commit: env.GITHUB_SHA?.slice(0, 7) || git('rev-parse', '--short', 'HEAD') || 'unknown',
     branch: env.GITHUB_REF_NAME || git('rev-parse', '--abbrev-ref', 'HEAD') || 'unknown',
-    dirty: env.GITHUB_SHA ? false : git('status', '--porcelain') !== '',
+    // Only changes to tracked files count, as in the site's own build label (git describe --dirty): a new file nobody
+    // has added yet (a draft doc, say) changes nothing that was built or tested.
+    dirty: env.GITHUB_SHA ? false : git('status', '--porcelain', '--untracked-files=no') !== '',
   };
 }
 
