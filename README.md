@@ -20,6 +20,8 @@ paid backend.
 | `npm test`                      | Run the offline test suite (see Testing)                            |
 | `npm run test:browser`          | Run the real-browser tests in Chromium (see Testing)                |
 | `npm run test:lighthouse`       | Measure the live site with Google Lighthouse against its budgets (see Testing) |
+| `npm run test:lighthouse:record` | Measure the live site with Lighthouse, then store the run in R2 for the Admin page (see Testing) |
+| `npm run lighthouse-results:publish` | Upload `test-results/lighthouse/` to R2 as one run (also `lighthouse-results:list`, `lighthouse-results:show`, `lighthouse-results:prune`, or `npm run lighthouse-results -- help`) |
 | `npm run deploy`                | **Guarded deploy**: keys + tests + photo check, build, deploy, live smoke check |
 | `npm run deploy:unchecked`      | Build and deploy without the checks (emergencies only)              |
 | `npm run test:record`           | Run both suites with reporters, then store the results in R2 (see Test results) |
@@ -57,7 +59,7 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against thirty areas. The
+tests bake in sample photos instead), then checks that built output against thirty-two areas. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
@@ -184,6 +186,18 @@ against every page in both English and Spanish**; expected text is read from
   no network): every page and device listed in order with its scores, timings and size, links to its full report and
   to the page; a measurement over budget marked and what it missed spelled out; a browser error counted and shown
   as text, never markup; the page self-contained (no scripts, nothing fetched), naming the site, time and runs.
+- **`lighthouse-results.feature`** — Lighthouse runs stored in R2 (fake bucket, made-up measurements): each run's
+  reports, index page and summary under `lighthouse-results/` and never under `results/`; the summary (site, runs per
+  page, commit, every page and device, totals); an over-budget run not ok, and the index naming the page; runs newest
+  first with their median performance per device; the index written last; nothing usable refused before any upload;
+  retention; the test results' own publisher leaving the Lighthouse folder alone; the command line; and the Admin
+  tab's logic (its addresses, which links it follows, how scores and timings read).
+- **`lighthouse-api.feature`** — the results API's Lighthouse routes, called through the real handler over runs
+  published by the real publisher: index (newest first), latest, one run with a signed link per file (15 minutes);
+  every route but the signed files needs the admin token (none, wrong, not set up); malformed ids and unknown routes
+  refused; reports served sandboxed and uncached; the run's index page served with its report links signed, and
+  those links working; expired, tampered and test-results signatures refused, in both directions; and nothing read
+  outside `lighthouse-results/`.
 - **`admin.feature`** — a basic smoke test of the Admin page: it exists in both languages, "Admin" is
   linked immediately to the right of "Contact" and marked active on its own page, it has exactly three
   tabs ("Test Results", "Pics Viewer", then "Category Maintenance") in a horizontal, labelled tab list
@@ -309,7 +323,13 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   with no violations, errors or blocked requests; the policy is provably enforced (an injected inline
   script is blocked); the browser picks the right image size for phone, laptop and sharp screens;
   layout shift stays under 0.02 with slow images; the logos take their final space before loading.
-- **`admin.feature`** (browser) — the three tabs really sit side by side on laptop and phone; clicking,
+- **`lighthouse-results.feature`** (browser) — the Lighthouse Test Results tab against the real results API code and
+  a fake bucket of published runs: the token gate (nothing requested before signing in, a wrong token refused, one
+  sign-in for every tab, Sign out), the latest run and every run newest first with their totals, a run's table of every
+  page and device, what was over budget, signed report links opening in a new tab, the run's index page and raw data,
+  the way back and the Back button, an unknown run, no runs yet, Spanish, and the accessibility audit and no sideways
+  scrolling on laptop and phone.
+- **`admin.feature`** (browser) — the four tabs really sit side by side on laptop and phone; clicking,
   arrow keys, Home/End (with wrap-around), deep links like `/admin/#pics-viewer`, Spanish, no-JavaScript, and
   that the page works at its address although the header never links to it, with no errors or CSP violations.
 - **`results-viewer.feature`** (browser) — the Test Results tab against the real results API code and a
@@ -374,7 +394,7 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   keeps) one that still has photos; and without the local service, Edit says it only works on the owner's
   computer instead of doing anything.
 - **`admin-timeout.feature`** (browser) — with the page's clock under the test's control: still signed in at
-  4:55 and signed out at 5:00 (all three tabs, whichever is showing, header buttons gone, token forgotten,
+  4:55 and signed out at 5:00 (all four tabs, whichever is showing, header buttons gone, token forgotten,
   tooltip closed, no more requests); a mouse move, key press, scroll, click or tap restarts the 5 minutes but the
   page's own refresh does not; a tab left longer than 5 minutes and reloaded is signed out, one reloaded
   sooner stays signed in; the reminder goes away on the next sign-in and never shows after a manual sign-out;
@@ -418,6 +438,21 @@ photo paints at about 5.8 s (every photo of the site on one page). Tighten them 
 - **`site-performance.feature`** (`@lighthouse`) — the home page (both languages), the All and Nature galleries, About
   and Contact, on a phone and a laptop: performance, accessibility, best practices and SEO scores; the four timing
   metrics; the page's total download; and no errors in the browser console.
+
+**Keeping the runs.** `npm run test:lighthouse:record` measures the site and then publishes the run to the same private
+bucket as the test results, under its own folder, where the Admin page's **Lighthouse Test Results** tab reads it:
+
+```text
+photography-site-test/lighthouse-results/index.json                     every run, newest first (the newest 100)
+photography-site-test/lighthouse-results/latest.json                    the newest run
+photography-site-test/lighthouse-results/runs/<run id>/summary.json     every page and device, and what was over budget
+photography-site-test/lighthouse-results/runs/<run id>/index.html       the run's index page
+photography-site-test/lighthouse-results/runs/<run id>/<device>-<page>.html   each page's full Lighthouse report
+```
+
+A run that misses its budgets is still published (that is what the tab is for); the command's exit code says it
+failed. From the command line: `npm run lighthouse-results:list` (recent runs), `npm run lighthouse-results:show
+[run id]` (one run, and what was over budget) and `npm run lighthouse-results:prune` (keep only the newest 100).
 
 ## Test results in R2
 
@@ -746,19 +781,19 @@ both). Until 29 Sep 2026 the script wasn't allowed, so the browser blocked it on
 ## Admin page
 
 `/admin/` (and `/es/admin/`) works like any other page, but is **not linked from the header** — go there
-directly by typing the address. It has three tabs side by side: **Test Results**, **Pics Viewer** and
-**Category Maintenance** (in Spanish: *Resultados de pruebas*, *Visor de fotos* and *Mantenimiento de
-categorías*). The tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the
+directly by typing the address. It has four tabs side by side: **Test Results**, **Lighthouse Test Results**,
+**Pics Viewer** and **Category Maintenance** (in Spanish: *Resultados de pruebas*, *Resultados de Lighthouse*, *Visor
+de fotos* and *Mantenimiento de categorías*); on a phone the row of tabs scrolls sideways. The tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the
 selected tab is in the URL (`/admin/#pics-viewer`), and without JavaScript every panel is shown.
 
 **The Admin page signs out after 5 minutes of inactivity** (`src/config/admin.ts`): the token is forgotten,
-all three tabs return to the token form, and the form says why. Moving the pointer, pressing a key, scrolling,
+all four tabs return to the token form, and the form says why. Moving the pointer, pressing a key, scrolling,
 clicking or touching the page counts as being there and restarts the 5 minutes; requests the page makes by
 itself do not. A tab left for longer than that and then reloaded is signed out too. (While the tab is in the
 background the browser slows timers down, so the sign-out happens when you come back to it at the latest.)
 
 **Refresh and Sign out** are at the top of the page, across from the "Admin" title (they appear only while
-you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all three tabs.
+you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all four tabs.
 
 **Every page's footer names the build**, in its right corner ("Build v1.0.1"), so you can tell which code is live.
 It is stamped in when the site is built (`scripts/lib/build-info.mjs`, read by `astro.config.mjs`):
@@ -804,6 +839,21 @@ Until the secret exists the Worker refuses everything. If the Worker gets anothe
 with real data: `npm run results-api:dev` and open `http://localhost:4321/admin/?api=http://localhost:8788`
 (the `?api=` override only works on localhost); the local Worker needs `--var ADMIN_TOKEN:<token>` or a
 `.dev.vars` file (git-ignored).
+
+### Lighthouse Test Results tab
+
+It shows the Lighthouse runs stored in R2 (`photography-site-test`, under `lighthouse-results/`; see *Lighthouse:
+measuring the live site*), built like the Test Results tab and behind the **same admin token**: one sign-in serves
+every tab, and Sign out, Refresh and the 5-minute sign-out apply to it too. It starts from the store's two entry
+points, the latest run (a card) and every run, newest first, each with its commit, when it was measured, how many
+measurements were within budget and the median performance score on a phone and a laptop. Opening a run
+(`/admin/#lighthouse-results/run/<run id>`) shows every page and device with its four scores (coloured on
+Lighthouse's own scale), its four timings, size, browser errors and whether it met its budget, then what was over
+budget (each problem once, with where it happened), a link to each page's full Lighthouse report, and the run's own
+index page and raw data. The reports open through the same short-lived (15 minute) signed links as the test reports,
+served sandboxed by the results API (`/lighthouse/...` routes); a Lighthouse link never opens a test-results file, or
+the reverse. The results API needs no new setup: it already reads the test bucket, and `npm run results-api:deploy`
+publishes the new routes.
 
 ### Pics Viewer tab
 
@@ -956,7 +1006,7 @@ page, use [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/p
 
 Lists every category configured on the site (`src/config/categories.json`), hidden or not, with its name in
 each language and how many photos are in it. It sits behind the same admin token as the other two tabs —
-checked against the results API the moment it's entered (one sign-in serves all three tabs, and Sign
+checked against the results API the moment it's entered (one sign-in serves all four tabs, and Sign
 out or the idle timeout signs all three out together), even though the tab itself asks that API for none of
 its own data: the list is public information once you're in, drawn straight from the page's own
 server-rendered data, and the token check exists only to gate the tab the same way its siblings are gated.
@@ -1004,9 +1054,9 @@ than a large screen (`photoSrcSet` never lists the same width twice for small ph
 gallery photos load eagerly (the first with high priority); the rest lazily. Every image declares its
 width and height so the page can't jump while loading; the header logos are right-sized (the small
 icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
-26 KB, styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
-page's client-side category switcher; the Admin pages, which carry the results viewer and are opened
-only by you, may have 48 KB of scripts). If you change `PHOTO_VARIANTS`, run
+27 KB, styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
+page's client-side category switcher; the Admin pages, which carry four tabs of tools and are opened
+only by you, may have 48 KB of HTML and 55 KB of scripts, with the Lighthouse tab's code loaded only when it is opened). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 
 ## Deployment to Cloudflare Pages (free)

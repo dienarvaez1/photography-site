@@ -51,6 +51,11 @@ tags:
     description: Recorded test runs (`npm run test:record`), newest first.
   - name: Originals
     description: The original photos in the private originals bucket. Never returns picture data.
+  - name: Lighthouse results
+    description: |
+      Recorded Lighthouse runs (`npm run test:lighthouse:record`), newest first, stored under `lighthouse-results/` in
+      the test bucket and shown on the Admin page's **Lighthouse Test Results** tab. Same shape and protection as the
+      test results; a signed link is bound to its store, so a test-results link never opens a Lighthouse file.
   - name: Site API
     description: Public, read-only data served from the site's own origin.
   - name: Photo service
@@ -288,6 +293,123 @@ paths:
               example: { error: not-found, message: No original "9999999999999999". }
         '405': { $ref: '#/components/responses/MethodNotAllowed' }
         '500': { $ref: '#/components/responses/Misconfigured' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  /lighthouse/index:
+    get:
+      tags: [Results API, Lighthouse results]
+      operationId: listLighthouseRuns
+      summary: Every recorded Lighthouse run, newest first
+      description: '`lighthouse-results/index.json`: the newest 100 runs. With none recorded yet, an empty list.'
+      responses:
+        '200':
+          description: The index of Lighthouse runs.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LighthouseIndex' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  /lighthouse/latest:
+    get:
+      tags: [Results API, Lighthouse results]
+      operationId: getLatestLighthouseRun
+      summary: The newest Lighthouse run's summary
+      responses:
+        '200':
+          description: The newest run.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LighthouseSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No Lighthouse run has been recorded yet (`error` is `not-found`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  /lighthouse/runs/{runId}:
+    get:
+      tags: [Results API, Lighthouse results]
+      operationId: getLighthouseRun
+      summary: One Lighthouse run, with signed links to its index page and reports
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: The run and its file links (`index.html`, `<device>-<page>.html`, `summary.json`).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [summary, links, linksExpireInSeconds]
+                properties:
+                  summary: { $ref: '#/components/schemas/LighthouseSummary' }
+                  links: { type: object, additionalProperties: { type: string, format: uri } }
+                  linksExpireInSeconds: { type: integer, const: 900 }
+        '400':
+          description: The run id is malformed (`error` is `bad-request`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such run (`error` is `not-found`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  /lighthouse/files/{runId}/{path}:
+    get:
+      tags: [Results API, Lighthouse results]
+      operationId: getLighthouseFile
+      summary: One stored Lighthouse file, through a signed link
+      description: |
+        Only reached through a link from `GET /lighthouse/runs/{runId}` (`sig` is the HMAC-SHA256 of
+        `lighthouse:<runId>/<path>|<exp>`, keyed by the admin token). HTML is served sandboxed. The run's `index.html`
+        is served with its links to each report signed the same way, so it works exactly as it does on disk.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - name: path
+          in: path
+          required: true
+          schema: { type: string, example: mobile-home.html }
+        - name: exp
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: sig
+          in: query
+          required: true
+          schema: { type: string, pattern: '^[0-9a-f]{64}$' }
+      responses:
+        '200':
+          description: The file.
+          content:
+            text/html: { schema: { type: string } }
+            application/json: { schema: { type: object } }
+        '400':
+          description: The run id or path is malformed (`error` is `bad-request`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: The link has expired (`expired`) or its signature is wrong (`forbidden`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: No such file (`error` is `not-found`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '503': { $ref: '#/components/responses/NotConfigured' }
 
   # ---------------------------------------------------------------------------------------------------------------
@@ -1015,6 +1137,94 @@ components:
           additionalProperties: { type: string, format: uri }
           example: { offline.html: 'https://photography-site-results.diego-narvaez.workers.dev/files/2026-09-28T15-20-26Z-8bb0581-local/offline.html?exp=1790614200&sig=9f2c4e1a7b3d5f60819a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f70' }
         linksExpireInSeconds: { type: integer, const: 900 }
+
+    # --- Lighthouse results ---------------------------------------------------------------------------------------------
+    LighthouseMeasurement:
+      type: object
+      required: [path, device, report, scores, metrics, bytes, errors, ok, misses]
+      properties:
+        path: { type: string, example: /work/nature/ }
+        device: { type: string, enum: [mobile, desktop] }
+        report: { type: string, example: mobile-work-nature.html }
+        scores:
+          type: object
+          description: 0–100.
+          properties:
+            performance: { type: integer }
+            accessibility: { type: integer }
+            best-practices: { type: integer }
+            seo: { type: integer }
+        metrics:
+          type: object
+          description: Milliseconds, except cumulative-layout-shift (unitless).
+          properties:
+            first-contentful-paint: { type: number }
+            largest-contentful-paint: { type: number }
+            total-blocking-time: { type: number }
+            cumulative-layout-shift: { type: number }
+        bytes: { type: integer, description: Total download. }
+        errors: { type: integer, description: Browser console errors. }
+        ok: { type: boolean, description: Within its budget. }
+        misses: { type: array, items: { type: string }, description: Every way it missed its budget. }
+
+    LighthouseTotals:
+      type: object
+      required: [measurements, withinBudget, overBudget]
+      properties:
+        measurements: { type: integer }
+        withinBudget: { type: integer }
+        overBudget: { type: integer }
+
+    LighthouseSummary:
+      type: object
+      required: [runId, startedAt, source, commit, branch, dirty, baseUrl, runsPerPage, ok, totals, results, files]
+      properties:
+        runId: { type: string }
+        startedAt: { type: string, format: date-time }
+        source: { type: string }
+        commit: { type: string }
+        branch: { type: string }
+        dirty: { type: boolean }
+        baseUrl: { type: string, format: uri, description: The site measured. }
+        runsPerPage: { type: integer, description: Lighthouse runs per page; the median is kept. }
+        ok: { type: boolean }
+        totals: { $ref: '#/components/schemas/LighthouseTotals' }
+        results: { type: array, items: { $ref: '#/components/schemas/LighthouseMeasurement' } }
+        files: { type: array, items: { type: string } }
+
+    LighthouseIndex:
+      type: object
+      required: [updatedAt, runs]
+      properties:
+        updatedAt: { type: [string, 'null'], format: date-time }
+        runs:
+          type: array
+          items:
+            type: object
+            required: [runId, startedAt, source, commit, branch, dirty, baseUrl, ok, totals, performance, overBudget, files]
+            properties:
+              runId: { type: string }
+              startedAt: { type: string, format: date-time }
+              source: { type: string }
+              commit: { type: string }
+              branch: { type: string }
+              dirty: { type: boolean }
+              baseUrl: { type: string, format: uri }
+              ok: { type: boolean }
+              totals: { $ref: '#/components/schemas/LighthouseTotals' }
+              performance:
+                type: object
+                description: 'Median performance score per device, e.g. `{ "mobile": 91, "desktop": 98 }`.'
+                additionalProperties: { type: integer }
+              overBudget:
+                type: array
+                maxItems: 25
+                items:
+                  type: object
+                  properties:
+                    path: { type: string }
+                    device: { type: string }
+              files: { type: array, items: { type: string } }
 
     # --- Originals ----------------------------------------------------------------------------------------------------
     OriginalList:

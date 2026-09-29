@@ -161,6 +161,7 @@
     "actionsLabel": "Acciones de la página",
     "tabs": {
       "testResults": "Resultados de pruebas",
+      "lighthouseResults": "Resultados de Lighthouse",
       "picsViewer": "Visor de fotos",
       "categoryMaintenance": "Mantenimiento de categorías"
     },
@@ -250,6 +251,72 @@
         "log": "Registro"
       },
       "needsJs": "El visor de resultados necesita JavaScript. Sin él, consulta los informes con npm run results:list."
+    },
+    "lighthouse": {
+      "intro": "Mediciones de Lighthouse del sitio en vivo, leídas del almacén privado de resultados. Elige una ejecución para ver cada página en un teléfono y en una laptop, y lo que superó el presupuesto.",
+      "empty": "Aún no se ha publicado ninguna ejecución de Lighthouse. Ejecuta npm run test:lighthouse:record.",
+      "needsJs": "El visor de resultados de Lighthouse necesita JavaScript. Sin él, consulta las ejecuciones con npm run lighthouse-results:list.",
+      "back": "← Todas las ejecuciones",
+      "latest": {
+        "heading": "Última ejecución"
+      },
+      "runs": {
+        "heading": "Todas las ejecuciones",
+        "count": "{count} ejecuciones",
+        "open": "Abrir la ejecución de Lighthouse {id}"
+      },
+      "status": {
+        "pass": "Dentro del presupuesto",
+        "fail": "Fuera del presupuesto"
+      },
+      "totals": "{within} de {total} dentro del presupuesto",
+      "performance": "rendimiento: teléfono {mobile}, laptop {desktop}",
+      "devices": {
+        "mobile": "Teléfono",
+        "desktop": "Laptop"
+      },
+      "detail": {
+        "runId": "Ejecución",
+        "measured": "Medida",
+        "site": "Sitio",
+        "runs": "Ejecuciones por página",
+        "runsValue": "{count}, se muestra la mediana",
+        "commit": "Commit",
+        "branch": "Rama",
+        "source": "Origen",
+        "dirty": "cambios sin confirmar",
+        "clean": "limpio"
+      },
+      "table": {
+        "heading": "Cada página medida",
+        "page": "Página",
+        "device": "Dispositivo",
+        "performance": "Rend.",
+        "accessibility": "Acces.",
+        "best-practices": "Buenas pr.",
+        "seo": "SEO",
+        "first-contentful-paint": "FCP",
+        "largest-contentful-paint": "LCP",
+        "total-blocking-time": "TBT",
+        "cumulative-layout-shift": "CLS",
+        "size": "Tamaño",
+        "errors": "Errores",
+        "budget": "Presupuesto",
+        "report": "Informe completo",
+        "openReport": "Informe"
+      },
+      "missed": {
+        "heading": "Lo que superó el presupuesto",
+        "none": "Todas las páginas estuvieron dentro de su presupuesto.",
+        "everywhere": "Todas las páginas medidas ({count})"
+      },
+      "files": {
+        "heading": "Archivos de la ejecución",
+        "index": "Abrir la página índice de la ejecución",
+        "summary": "Datos sin procesar (JSON)",
+        "newTab": "(se abre en una pestaña nueva)",
+        "expiry": "Los enlaces son válidos durante {minutes} minutos. Vuelve a cargar la ejecución para obtener otros nuevos."
+      }
     },
     "pics": {
       "intro": "Las fotos originales del depósito privado de originales, cada una con una pequeña miniatura (la copia web del propio sitio; los archivos originales nunca se cargan). Junto a cada archivo: la información de la cámara, cuándo se tomó, el tamaño del archivo y los derechos de autor, leídos del propio archivo.",

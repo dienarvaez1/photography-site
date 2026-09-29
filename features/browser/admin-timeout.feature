@@ -30,7 +30,7 @@ Feature: The Admin page signs out after 5 minutes of inactivity
     And there should be no "Refresh" or "Sign out" button at the top of the page
     And the browser should not remember any token
 
-  Scenario: All three tabs are signed out together, whichever tab is showing
+  Scenario: All four tabs are signed out together, whichever tab is showing
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And the details of "Orion Nebula" should show these facts:
@@ -41,6 +41,8 @@ Feature: The Admin page signs out after 5 minutes of inactivity
     And no file's details should be showing
     When I click the "Test Results" tab
     Then the Test Results tab should ask for the admin token
+    When I click the "Lighthouse Test Results" tab
+    Then the Lighthouse Test Results tab should ask for the admin token
     When I click the "Category Maintenance" tab
     Then Category Maintenance should ask for the admin token
 

@@ -151,7 +151,7 @@ function referencedBytes(root, pattern, attribute, extraImports = false) {
   return total;
 }
 
-Then("no page's HTML should exceed 30 KB, its scripts 27 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 42 KB and their scripts 55 KB", function () {
+Then("no page's HTML should exceed 30 KB, its scripts 27 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 48 KB and their scripts 55 KB", function () {
   const problems = [];
   for (const { route, page } of this.data.pages) {
     const isAdmin = /\/admin\/$/.test(route);
@@ -172,7 +172,9 @@ Then("no page's HTML should exceed 30 KB, its scripts 27 KB, or its styles 25 KB
     // Category Maintenance's Edit mode grew again for slug renaming and bilingual descriptions (53 KB), and
     // the Pics Viewer's Edit Photos grew a third bulk action (Home Background, 42/55 KB): each photo's known
     // data now carries a heroBackground flag, and the bar and badge are genuine hand-written UI, not a library.
-    if (kb(html) > (isAdmin ? 42 : 30)) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
+    // The Lighthouse Test Results tab (48 KB of HTML) brought its own texts, in the page's language, as data like the
+    // other tabs; its code is loaded only when the tab is opened, so the script budget did not move.
+    if (kb(html) > (isAdmin ? 48 : 30)) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
     if (kb(js) > (isAdmin ? 55 : 27)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
     if (kb(css) > 25) problems.push(`${route}: styles ${kb(css).toFixed(1)} KB`);
   }

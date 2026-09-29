@@ -1,31 +1,15 @@
 import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { parse } from 'node-html-parser';
-import { budgetFor, checkBudget } from '../support/lighthouse.js';
 import { renderIndex } from '../support/lighthouse-index.js';
+import { checked, fakeResult } from '../support/lighthouse-fixtures.js';
 
 const DEVICES = { phone: 'mobile', laptop: 'desktop' };
 const NAMES = { phone: 'Phone', laptop: 'Laptop' };
 const state = (world) => (world.data.lighthouseIndex ??= { results: [] });
 
-/** A Lighthouse result with just the fields the index page reads; everything not given is comfortably good. */
-function fakeLhr({ performance, lcp }) {
-  const category = (title, score) => ({ title, score });
-  const audit = (numericValue) => ({ numericValue });
-  return {
-    categories: { performance: category('Performance', performance), accessibility: category('Accessibility', 1), 'best-practices': category('Best Practices', 1), seo: category('SEO', 1) },
-    audits: {
-      'first-contentful-paint': audit(900), 'largest-contentful-paint': audit(lcp), 'total-blocking-time': audit(10),
-      'cumulative-layout-shift': audit(0), 'total-byte-weight': audit(400 * 1024), 'errors-in-console': { details: { items: [] } },
-    },
-  };
-}
-
-const slug = (path) => path.replace(/^\/|\/$/g, '').replace(/[^a-z0-9]+/gi, '-') || 'home';
-
 Given(/^Lighthouse measured "([^"]+)" on a (phone|laptop) with performance (\d+) and a Largest Contentful Paint of (\d+) ms$/, function (path, name, performance, lcp) {
-  const device = DEVICES[name];
-  state(this).results.push({ path, device, report: `${device}-${slug(path)}.html`, lhr: fakeLhr({ performance: Number(performance) / 100, lcp: Number(lcp) }) });
+  state(this).results.push(fakeResult(path, DEVICES[name], { performance: Number(performance) / 100, lcp: Number(lcp) }));
 });
 
 Given('that measurement logged the browser error {string}', function (message) {
@@ -33,8 +17,7 @@ Given('that measurement logged the browser error {string}', function (message) {
 });
 
 When('the index page is written', function () {
-  const results = state(this).results.map((r) => ({ ...r, misses: checkBudget(r.lhr, r.path, r.device), budget: budgetFor(r.path, r.device) }));
-  state(this).html = renderIndex({ baseUrl: 'https://example.org', runs: 3, generatedAt: new Date('2026-09-29T12:34:56Z'), results });
+  state(this).html = renderIndex({ baseUrl: 'https://example.org', runs: 3, generatedAt: new Date('2026-09-29T12:34:56Z'), results: checked(state(this).results) });
   state(this).root = parse(state(this).html);
 });
 

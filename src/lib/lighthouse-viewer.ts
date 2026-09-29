@@ -1,0 +1,257 @@
+// The Admin page's Lighthouse Test Results viewer. It reads the Lighthouse runs (lighthouse-results/ in the private test
+// bucket) through the results API, behind the same admin token as the other tabs: index (all runs) and latest (the
+// newest) are the entry points, and every run can be opened from the list. Built like the Test Results viewer
+// (results-viewer.ts); everything from the API is put on the page as text, never as HTML.
+import { formatDate, resolveApiUrl } from './results-view';
+import {
+  LIGHTHOUSE_LIST_HASH,
+  METRIC_IDS,
+  SCORE_IDS,
+  formatKilobytes,
+  formatMetric,
+  groupMisses,
+  isLighthouseLink,
+  lighthouseRunHash,
+  parseLighthouseRoute,
+  scoreBand,
+  type LighthouseRoute,
+  type Measurement,
+} from './lighthouse-view';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, messageReader, parseJson, remembered, type Child, type Messages } from './admin-common';
+
+type Totals = { measurements: number; withinBudget: number; overBudget: number };
+type Summary = { runId: string; startedAt: string; source: string; commit: string; branch: string; dirty: boolean; baseUrl: string; runsPerPage: number; ok: boolean; totals: Totals; results: Measurement[] };
+type IndexEntry = { runId: string; startedAt: string; source: string; commit: string; branch: string; dirty: boolean; baseUrl: string; ok: boolean; totals: Totals; performance?: Record<string, number> };
+
+export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement) {
+  const root = container.querySelector<HTMLElement>('[data-lighthouse-root]')!;
+  const messages = parseJson<Messages>(container.dataset.messages ?? '{}');
+  const locale = container.dataset.locale ?? 'en';
+  const apiUrl = resolveApiUrl(container.dataset.api ?? '', location.search, location.hostname);
+  const m = messageReader(messages);
+
+  let token = remembered.get();
+  let generation = 0; // a newer render makes older, slower answers stale
+
+  const api = <T,>(path: string) => apiGet<T>(apiUrl, token, path);
+  const show = (...nodes: Child[]) => {
+    root.replaceChildren(...(nodes.filter(Boolean) as Node[]));
+    root.removeAttribute('aria-busy');
+  };
+  const errorBox = (error: unknown) => el('p', { class: 'results-error', text: errorMessage(m, error), attrs: { role: 'alert' } });
+
+  function renderGate(problem?: unknown) {
+    const { form, input } = gateForm(m, 'lighthouse', (given) => {
+      token = given;
+      remembered.set(given);
+      void render();
+    }, problem);
+    show(form);
+    if (problem) input.focus();
+  }
+
+  // `data-astro-reload`: a same-page hash link driven by `hashchange` (see the same note in results-viewer.ts).
+  const backBar = () => el('div', { class: 'results-toolbar' }, el('a', { class: 'results-back', text: m('lighthouse.back'), attrs: { href: LIGHTHOUSE_LIST_HASH, 'data-astro-reload': '' } }));
+
+  // --- Small building blocks ------------------------------------------------------------------------------------
+
+  const badge = (ok: boolean) => el('span', { class: `results-badge ${ok ? 'ok' : 'bad'}`, text: m(ok ? 'lighthouse.status.pass' : 'lighthouse.status.fail') });
+  const totalsText = (t: Totals) => m('lighthouse.totals', { within: t.withinBudget, total: t.measurements });
+  const device = (id: string) => m(`lighthouse.devices.${id}`) || id;
+  const sourceLine = (s: { commit: string; branch: string; source: string; dirty: boolean }) => `${s.commit}${s.dirty ? ` (${m('lighthouse.detail.dirty')})` : ''} · ${s.branch} · ${s.source}`;
+  const dl = (rows: [string, Child][]) => el('dl', { class: 'results-meta' }, ...rows.flatMap(([term, value]) => [el('dt', { text: term }), el('dd', {}, value)]));
+
+  function externalLink(text: string, href: string) {
+    const link = el('a', { text, attrs: { href, target: '_blank', rel: 'noopener noreferrer' } });
+    link.append(el('span', { class: 'visually-hidden', text: ` ${m('lighthouse.files.newTab')}` }));
+    return link;
+  }
+
+  // --- The list: latest and index --------------------------------------------------------------------------------
+
+  function performanceText(entry: IndexEntry) {
+    const perf = entry.performance ?? {};
+    return m('lighthouse.performance', { mobile: perf.mobile ?? '–', desktop: perf.desktop ?? '–' });
+  }
+
+  function runLink(entry: IndexEntry) {
+    const link = el('a', { class: 'results-run lighthouse-run', attrs: { href: lighthouseRunHash(entry.runId), 'aria-label': m('lighthouse.runs.open', { id: entry.runId }), 'data-astro-reload': '' } });
+    link.append(
+      el('span', { class: 'run-when', text: formatDate(entry.startedAt, locale) }),
+      badge(entry.ok),
+      el('span', { class: 'run-what', text: sourceLine(entry) }),
+      el('span', { class: 'run-totals', text: `${totalsText(entry.totals)} · ${performanceText(entry)}` })
+    );
+    return link;
+  }
+
+  /** The latest run's summary has every measurement, not the index's median per device; this gives it the same shape. */
+  function asEntry(summary: Summary): IndexEntry {
+    const median = (device: string) => {
+      const scores = summary.results.filter((r) => r.device === device).map((r) => r.scores.performance).sort((a, b) => a - b);
+      return scores.length ? scores[Math.floor((scores.length - 1) / 2)] : undefined;
+    };
+    const performance: Record<string, number> = {};
+    for (const d of ['mobile', 'desktop']) {
+      const value = median(d);
+      if (value !== undefined) performance[d] = value;
+    }
+    return { ...summary, performance };
+  }
+
+  async function renderList(run: number) {
+    // Re-propagates whatever apiGet rejected with (always an ApiError; see admin-common.ts), not a new reason.
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+    const notFoundIsFine = (e: unknown) => (e instanceof ApiError && e.kind === 'notFound' ? null : Promise.reject(e));
+    const [latest, index] = await Promise.all([api<Summary>('/lighthouse/latest').catch(notFoundIsFine), api<{ runs: IndexEntry[] }>('/lighthouse/index')]);
+    if (run !== generation) return;
+    if (!index.runs.length && !latest) {
+      show(el('p', { class: 'results-empty', text: m('lighthouse.empty') }));
+      return;
+    }
+    const nodes: Child[] = [];
+    if (latest) {
+      nodes.push(
+        el('section', { class: 'results-latest', attrs: { 'aria-labelledby': 'lighthouse-latest-heading' } },
+          el('h3', { text: m('lighthouse.latest.heading'), attrs: { id: 'lighthouse-latest-heading' } }),
+          runLink(asEntry(latest)))
+      );
+    }
+    nodes.push(
+      el('section', { attrs: { 'aria-labelledby': 'lighthouse-runs-heading' } },
+        el('h3', { text: m('lighthouse.runs.heading'), attrs: { id: 'lighthouse-runs-heading' } }),
+        el('p', { class: 'results-count', text: m('lighthouse.runs.count', { count: index.runs.length }) }),
+        el('ul', { class: 'results-runs' }, ...index.runs.map((entry) => el('li', {}, runLink(entry)))))
+    );
+    show(...nodes);
+  }
+
+  // --- One run -------------------------------------------------------------------------------------------------------
+
+  function resultsTable(summary: Summary, links: Record<string, string>) {
+    const heads = ['page', 'device', ...SCORE_IDS, ...METRIC_IDS, 'size', 'errors', 'budget', 'report'].map((key) =>
+      el('th', { text: m(`lighthouse.table.${key}`), attrs: { scope: 'col' } }));
+    const rows = summary.results.map((r) => {
+      const scoreCells = SCORE_IDS.map((id) => el('td', { class: 'num' }, el('span', { class: `lh-score ${scoreBand(r.scores[id])}`, text: String(r.scores[id]) })));
+      const metricCells = METRIC_IDS.map((id) => el('td', { class: 'num', text: formatMetric(id, r.metrics[id], locale) }));
+      const report = links[r.report];
+      return el('tr', { class: r.ok ? '' : 'has-failures' },
+        el('th', { text: r.path, attrs: { scope: 'row' } }),
+        el('td', { text: device(r.device) }),
+        ...scoreCells,
+        ...metricCells,
+        el('td', { class: 'num', text: formatKilobytes(r.bytes, locale) }),
+        el('td', { class: `num${r.errors ? ' lh-bad' : ''}`, text: String(r.errors) }),
+        el('td', {}, badge(r.ok)),
+        el('td', {}, report ? externalLink(m('lighthouse.table.openReport'), report) : '–'));
+    });
+    return el('section', { attrs: { 'aria-labelledby': 'lighthouse-table-heading' } },
+      el('h3', { text: m('lighthouse.table.heading'), attrs: { id: 'lighthouse-table-heading' } }),
+      el('div', { class: 'results-table-wrap' }, el('table', { class: 'results-table lighthouse-table' }, el('thead', {}, el('tr', {}, ...heads)), el('tbody', {}, ...rows))));
+  }
+
+  function missedList(summary: Summary) {
+    const groups = groupMisses(summary.results);
+    const where = (list: Measurement[]) =>
+      list.length === summary.results.length && list.length > 1
+        ? m('lighthouse.missed.everywhere', { count: list.length })
+        : list.map((r) => `${r.path} · ${device(r.device)}`).join(', ');
+    return el('section', { attrs: { 'aria-labelledby': 'lighthouse-missed-heading' } },
+      el('h3', { text: m('lighthouse.missed.heading'), attrs: { id: 'lighthouse-missed-heading' } }),
+      groups.length
+        ? el('ul', { class: 'results-failures' }, ...groups.map((g) => el('li', { class: 'results-failure' }, el('h4', { text: g.miss }), el('p', { class: 'results-hint', text: where(g.where) }))))
+        : el('p', { class: 'results-none', text: m('lighthouse.missed.none') }));
+  }
+
+  function filesSection(links: Record<string, string>, expiresIn: number) {
+    const items = [
+      links['index.html'] ? el('li', {}, externalLink(m('lighthouse.files.index'), links['index.html'])) : null,
+      links['summary.json'] ? el('li', {}, externalLink(m('lighthouse.files.summary'), links['summary.json'])) : null,
+    ];
+    return el('section', { attrs: { 'aria-labelledby': 'lighthouse-files-heading' } },
+      el('h3', { text: m('lighthouse.files.heading'), attrs: { id: 'lighthouse-files-heading' } }),
+      el('ul', { class: 'results-files' }, ...items),
+      el('p', { class: 'results-hint', text: m('lighthouse.files.expiry', { minutes: Math.round(expiresIn / 60) }) }));
+  }
+
+  async function renderRun(run: number, runId: string) {
+    const answer = await api<{ summary: Summary; links: Record<string, string>; linksExpireInSeconds: number }>(`/lighthouse/runs/${encodeURIComponent(runId)}`);
+    if (run !== generation) return;
+    const { summary, linksExpireInSeconds } = answer;
+    const links = Object.fromEntries(Object.entries(answer.links).filter(([, link]) => isLighthouseLink(link, apiUrl)));
+    const heading = el('h3', { class: 'results-run-heading', attrs: { tabindex: '-1' } }, `${formatDate(summary.startedAt, locale)} `, badge(summary.ok));
+    show(
+      backBar(),
+      heading,
+      el('p', { class: 'results-totals', text: totalsText(summary.totals) }),
+      dl([
+        [m('lighthouse.detail.runId'), summary.runId],
+        [m('lighthouse.detail.measured'), formatDate(summary.startedAt, locale)],
+        [m('lighthouse.detail.site'), summary.baseUrl],
+        [m('lighthouse.detail.runs'), m('lighthouse.detail.runsValue', { count: summary.runsPerPage })],
+        [m('lighthouse.detail.commit'), `${summary.commit} (${m(summary.dirty ? 'lighthouse.detail.dirty' : 'lighthouse.detail.clean')})`],
+        [m('lighthouse.detail.branch'), summary.branch],
+        [m('lighthouse.detail.source'), summary.source],
+      ]),
+      resultsTable(summary, links),
+      missedList(summary),
+      filesSection(links, linksExpireInSeconds)
+    );
+    heading.focus();
+  }
+
+  // --- Deciding what to show ------------------------------------------------------------------------------------------
+
+  let displayed: string | null = null; // which view is on screen: 'list' or 'run:<id>'
+  const keyOf = (route: LighthouseRoute) => (route.view === 'run' ? `run:${route.runId}` : 'list');
+  const wantedRoute = (): LighthouseRoute => parseLighthouseRoute(location.hash) ?? { view: 'list' };
+
+  async function render() {
+    const route = wantedRoute();
+    const run = ++generation;
+    if (!token) {
+      displayed = null;
+      return renderGate();
+    }
+    displayed = keyOf(route);
+    root.setAttribute('aria-busy', 'true');
+    show(el('p', { class: 'results-loading', text: m('loading') }));
+    try {
+      if (route.view === 'run') await renderRun(run, route.runId);
+      else await renderList(run);
+    } catch (error) {
+      if (run !== generation) return;
+      if (error instanceof ApiError && (error.kind === 'unauthorized' || error.kind === 'notConfigured')) {
+        token = '';
+        displayed = null;
+        remembered.set('');
+        renderGate(error);
+      } else {
+        show(route.view === 'run' ? backBar() : null, errorBox(error));
+      }
+    }
+  }
+
+  // Nothing is requested while the tab is hidden; showing it, or moving to another #address inside it, shows what the
+  // address asks for, unless it is already shown.
+  const sync = () => {
+    if (!panel.hidden && (token ? displayed !== keyOf(wantedRoute()) : !root.querySelector('form'))) void render();
+  };
+  // A sign-in or sign-out in another tab of the page applies here too.
+  window.addEventListener(AUTH_EVENT, () => {
+    const next = remembered.get();
+    if (next === token) return;
+    token = next;
+    displayed = null;
+    generation++;
+    sync();
+  });
+  window.addEventListener(REFRESH_EVENT, () => {
+    if (!panel.hidden && token) void render();
+  });
+  new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+  const later = () => setTimeout(sync, 0);
+  window.addEventListener('hashchange', later);
+  document.getElementById('tab-lighthouse-results')?.addEventListener('click', later);
+  later();
+}

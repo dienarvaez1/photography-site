@@ -161,6 +161,7 @@
     "actionsLabel": "Page actions",
     "tabs": {
       "testResults": "Test Results",
+      "lighthouseResults": "Lighthouse Test Results",
       "picsViewer": "Pics Viewer",
       "categoryMaintenance": "Category Maintenance"
     },
@@ -250,6 +251,72 @@
         "log": "Log"
       },
       "needsJs": "The results viewer needs JavaScript. Without it, read the reports with npm run results:list."
+    },
+    "lighthouse": {
+      "intro": "Lighthouse measurements of the live site, read from the private results store. Pick a run to see every page on a phone and a laptop, and anything over budget.",
+      "empty": "No Lighthouse runs have been published yet. Run npm run test:lighthouse:record.",
+      "needsJs": "The Lighthouse Test Results viewer needs JavaScript. Without it, read the runs with npm run lighthouse-results:list.",
+      "back": "← All runs",
+      "latest": {
+        "heading": "Latest run"
+      },
+      "runs": {
+        "heading": "All runs",
+        "count": "{count} runs",
+        "open": "Open Lighthouse run {id}"
+      },
+      "status": {
+        "pass": "Within budget",
+        "fail": "Over budget"
+      },
+      "totals": "{within} of {total} within budget",
+      "performance": "performance: phone {mobile}, laptop {desktop}",
+      "devices": {
+        "mobile": "Phone",
+        "desktop": "Laptop"
+      },
+      "detail": {
+        "runId": "Run",
+        "measured": "Measured",
+        "site": "Site",
+        "runs": "Runs per page",
+        "runsValue": "{count}, median shown",
+        "commit": "Commit",
+        "branch": "Branch",
+        "source": "Source",
+        "dirty": "uncommitted changes",
+        "clean": "clean"
+      },
+      "table": {
+        "heading": "Every page measured",
+        "page": "Page",
+        "device": "Device",
+        "performance": "Perf",
+        "accessibility": "A11y",
+        "best-practices": "Best pr.",
+        "seo": "SEO",
+        "first-contentful-paint": "FCP",
+        "largest-contentful-paint": "LCP",
+        "total-blocking-time": "TBT",
+        "cumulative-layout-shift": "CLS",
+        "size": "Size",
+        "errors": "Errors",
+        "budget": "Budget",
+        "report": "Full report",
+        "openReport": "Report"
+      },
+      "missed": {
+        "heading": "What was over budget",
+        "none": "Every page was within its budget.",
+        "everywhere": "Every page measured ({count})"
+      },
+      "files": {
+        "heading": "Run files",
+        "index": "Open the run's index page",
+        "summary": "Raw data (JSON)",
+        "newTab": "(opens in a new tab)",
+        "expiry": "Links stay valid for {minutes} minutes. Reload the run for fresh ones."
+      }
     },
     "pics": {
       "intro": "The original photos in the private originals bucket, each with a small thumbnail (the site's own web copy; the original files are never loaded). Next to each file: its camera information, when it was taken, its file size and copyright, read from the file itself.",

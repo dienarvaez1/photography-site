@@ -29,6 +29,41 @@ const utc = (date) => `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`
 const allMisses = (misses) => [...misses.scores, ...misses.metrics, ...misses.bytes, ...misses.console.map((e) => `Browser error — ${e}`)];
 
 /**
+ * The run's results as data (test-results/lighthouse/summary.json, published to R2 with the reports and read by the
+ * Admin page's Lighthouse tab): the same rows, in the same order, the index page shows. Scores are 0–100; times are
+ * milliseconds; `misses` is every way the measurement missed its budget, as sentences (empty when it passed).
+ */
+export function summarizeRun({ baseUrl, runs, generatedAt, results }) {
+  const pageOrder = [...new Set(results.map((r) => r.path))];
+  const rows = [...results]
+    .sort((a, b) => pageOrder.indexOf(a.path) - pageOrder.indexOf(b.path) || (a.device === 'mobile' ? -1 : 1) - (b.device === 'mobile' ? -1 : 1))
+    .map((r) => {
+      const { categories, audits } = r.lhr;
+      const misses = allMisses(r.misses);
+      return {
+        path: r.path,
+        device: r.device,
+        report: r.report,
+        scores: Object.fromEntries(SCORES.map(([id]) => [id, Math.round(categories[id].score * 100)])),
+        metrics: Object.fromEntries(METRICS.map(([id]) => [id, id === 'cumulative-layout-shift' ? Number(audits[id].numericValue.toFixed(3)) : Math.round(audits[id].numericValue)])),
+        bytes: Math.round(audits['total-byte-weight'].numericValue),
+        errors: r.misses.console.length,
+        ok: misses.length === 0,
+        misses,
+      };
+    });
+  const withinBudget = rows.filter((r) => r.ok).length;
+  return {
+    baseUrl,
+    measuredAt: generatedAt.toISOString(),
+    runsPerPage: runs,
+    ok: withinBudget === rows.length,
+    totals: { measurements: rows.length, withinBudget, overBudget: rows.length - withinBudget },
+    results: rows,
+  };
+}
+
+/**
  * The index page's HTML. `results`: [{ path, device ("mobile" | "desktop"), report (file name), lhr, misses (from
  * checkBudget), budget (from budgetFor) }]. Pages keep the order they were first measured in; phone before laptop.
  */

@@ -23,7 +23,7 @@ export const RESULTS_BUCKET = 'photography-site-test';
 export const RESULTS_PREFIX = 'results/';
 export const DEFAULT_RETENTION = 100;
 
-const NO_CACHE = 'no-store';
+export const NO_CACHE = 'no-store';
 const CONTENT_TYPES = { '.json': 'application/json', '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.zip': 'application/zip', '.txt': 'text/plain; charset=utf-8', '.md': 'text/markdown; charset=utf-8' };
 const SUITES = { offline: 'offline.json', browser: 'browser.json', smoke: 'smoke.json' };
 
@@ -114,7 +114,8 @@ export function gitInfo(cwd = process.cwd(), env = process.env) {
 
 // --- Files ---------------------------------------------------------------------------------------------
 
-async function filesUnder(dir) {
+/** Every file under `dir`, as sorted paths relative to it (with `/`). Shared with lighthouse-results.mjs. */
+export async function filesUnder(dir) {
   const found = [];
   const walk = async (current) => {
     for (const entry of await readdir(current, { withFileTypes: true })) {
@@ -127,9 +128,9 @@ async function filesUnder(dir) {
   return found.sort();
 }
 
-const contentType = (file) => CONTENT_TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream';
+export const contentType = (file) => CONTENT_TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream';
 
-async function putJson(storage, key, value) {
+export async function putJson(storage, key, value) {
   const dir = await mkdtemp(join(tmpdir(), 'results-'));
   try {
     const file = join(dir, 'object.json');
@@ -140,7 +141,7 @@ async function putJson(storage, key, value) {
   }
 }
 
-async function getJson(storage, key) {
+export async function getJson(storage, key) {
   const body = await storage.get(key);
   return body ? JSON.parse(body.toString('utf-8')) : null;
 }
@@ -165,7 +166,8 @@ export async function readIndex(storage) {
 export async function publishResults({ dir, storage, source = 'local', meta = gitInfo(), now = new Date(), retain = DEFAULT_RETENTION, log = () => {} }) {
   let names;
   try {
-    names = await filesUnder(dir);
+    // Not lighthouse/: a Lighthouse run is published on its own, to lighthouse-results/ (lighthouse-results.mjs).
+    names = (await filesUnder(dir)).filter((name) => !name.startsWith('lighthouse/'));
   } catch {
     names = [];
   }

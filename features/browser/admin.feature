@@ -1,7 +1,8 @@
 @browser
 Feature: The Admin page's tabs work in a real browser
   As the site owner
-  I want the Test Results, Pics Viewer and Category Maintenance tabs to sit side by side and switch properly
+  I want the Test Results, Lighthouse Test Results, Pics Viewer and Category Maintenance tabs to sit side by side
+  and switch properly
   So that the Admin page is usable with the mouse, the keyboard and on a phone
 
   Scenario Outline: The tabs sit side by side on one row, and the first one is showing
@@ -17,7 +18,10 @@ Feature: The Admin page's tabs work in a real browser
 
   Scenario: Clicking a tab shows its panel and the address remembers it
     When I open "/admin/"
-    And I click the "Pics Viewer" tab
+    And I click the "Lighthouse Test Results" tab
+    Then the "Lighthouse Test Results" tab should be selected, its panel visible and every other panel hidden
+    And the address should end with "#lighthouse-results"
+    When I click the "Pics Viewer" tab
     Then the "Pics Viewer" tab should be selected, its panel visible and every other panel hidden
     And the address should end with "#pics-viewer"
     When I click the "Category Maintenance" tab
@@ -30,6 +34,8 @@ Feature: The Admin page's tabs work in a real browser
     When I open "/admin/"
     And I focus the "Test Results" tab
     And I press the key "ArrowRight"
+    Then the "Lighthouse Test Results" tab should be selected and focused
+    When I press the key "ArrowRight"
     Then the "Pics Viewer" tab should be selected and focused
     When I press the key "ArrowRight"
     Then the "Category Maintenance" tab should be selected and focused
@@ -55,6 +61,8 @@ Feature: The Admin page's tabs work in a real browser
   Scenario: The tabs work in Spanish
     When I open "/es/admin/"
     Then the "Resultados de pruebas" tab should be selected, its panel visible and every other panel hidden
+    When I click the "Resultados de Lighthouse" tab
+    Then the "Resultados de Lighthouse" tab should be selected, its panel visible and every other panel hidden
     When I click the "Visor de fotos" tab
     Then the "Visor de fotos" tab should be selected, its panel visible and every other panel hidden
     When I click the "Mantenimiento de categorías" tab

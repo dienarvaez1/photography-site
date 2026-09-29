@@ -186,7 +186,9 @@ Then('the entries {string} and {string} should reference different photos', asyn
 });
 
 Then('the entry {string} should not contain {string}', async function (ref, fragment) {
-  const text = await readFile(await entryFile(this, ref), 'utf-8');
+  // Without the addedAt line: that is the moment the test ran (set by the tool, never read from the photo), and its
+  // digits can contain any short number by chance — "…:25.122Z" once failed a check that longitude 122 is not stored.
+  const text = (await readFile(await entryFile(this, ref), 'utf-8')).split('\n').filter((line) => !line.startsWith('addedAt:')).join('\n');
   assert.ok(!text.toLowerCase().includes(fragment.toLowerCase()), `${ref} must not contain "${fragment}"`);
 });
 

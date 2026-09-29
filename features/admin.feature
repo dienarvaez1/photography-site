@@ -1,11 +1,11 @@
 Feature: Admin page smoke test
   As the site owner
-  I want an Admin page reachable directly at /admin/, with "Test Results", "Pics Viewer" and "Category
-  Maintenance" tabs, but not advertised in the header
+  I want an Admin page reachable directly at /admin/, with "Test Results", "Lighthouse Test Results", "Pics Viewer"
+  and "Category Maintenance" tabs, but not advertised in the header
   So that there is a place to grow the site's admin tools, in both languages, without inviting visitors to it
 
   This is a basic smoke test: the page exists and works at its address, is never linked from the header, and
-  has its three tabs.
+  has its four tabs.
 
   Scenario Outline: The Admin page exists in both languages
     When I load the built page "<route>"
@@ -29,14 +29,14 @@ Feature: Admin page smoke test
       | /es/       | Sobre mí, Contacto  |
       | /es/admin/ | Sobre mí, Contacto  |
 
-  Scenario Outline: The page has exactly three tabs, side by side in a horizontal tab list, in this order
+  Scenario Outline: The page has exactly four tabs, side by side in a horizontal tab list, in this order
     When I load the built page "<route>"
     Then the page should have one tab list labelled "<list label>" holding exactly these tabs, in order: "<tabs>"
 
     Examples:
       | route      | list label                       | tabs                                                              |
-      | /admin/    | Admin sections                   | Test Results, Pics Viewer, Category Maintenance                   |
-      | /es/admin/ | Secciones de administración      | Resultados de pruebas, Visor de fotos, Mantenimiento de categorías |
+      | /admin/    | Admin sections                   | Test Results, Lighthouse Test Results, Pics Viewer, Category Maintenance                   |
+      | /es/admin/ | Secciones de administración      | Resultados de pruebas, Resultados de Lighthouse, Visor de fotos, Mantenimiento de categorías |
 
   Scenario Outline: The tabs are wired to their own panels, with only the first tab selected
     When I load the built page "<route>"

@@ -7,14 +7,25 @@
 //   GET /files/<run id>/<path>?exp&sig  one stored file, for a short time       (signature)
 //   GET /pics                           the originals in photography-site-originals (token)
 //   GET /pics/<photo id>                one original's size, camera and copyright (token)
+//   GET /lighthouse/index               lighthouse-results/index.json: the Lighthouse runs  (token)
+//   GET /lighthouse/latest              lighthouse-results/latest.json: the newest run      (token)
+//   GET /lighthouse/runs/<run id>       that run's summary + signed report links            (token)
+//   GET /lighthouse/files/<run id>/<path>?exp&sig   one stored report, for a short time     (signature)
 //
 // "token" = `Authorization: Bearer <ADMIN_TOKEN>`. Files are opened by links the run endpoint signs
 // (HMAC of the path and an expiry, keyed by the token), so a link can be opened in a new tab or an <img>
-// without ever putting the token in a URL. The API only ever reads under results/, never writes, and
-// refuses everything until ADMIN_TOKEN is set (and long enough).
+// without ever putting the token in a URL. The API only ever reads under results/ and lighthouse-results/ of the test
+// bucket, never writes, and refuses everything until ADMIN_TOKEN is set (and long enough).
 import { PHOTO_ID, describeOriginal, listOriginals } from './pics.mjs';
 
-const PREFIX = 'results/';
+/**
+ * The two run stores in the test bucket, read the same way: an index, a latest summary, runs with files. A signature is
+ * bound to its store (`sign` below), so a link to one store's file can never open the other's.
+ */
+const STORES = {
+  results: { prefix: 'results/', files: '/files', signing: '' },
+  lighthouse: { prefix: 'lighthouse-results/', files: '/lighthouse/files', signing: 'lighthouse:' },
+};
 const MIN_TOKEN_LENGTH = 16;
 const LINK_TTL_SECONDS = 900;
 const RUN_ID = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
@@ -73,32 +84,44 @@ async function authorize(request, env) {
   return given && (await safeEqual(given, secret)) ? null : fail(request, env, 401, 'unauthorized', 'Missing or wrong admin token.');
 }
 
-const fileKey = (runId, path) => `${PREFIX}runs/${runId}/${path}`;
+const fileKey = (store, runId, path) => `${store.prefix}runs/${runId}/${path}`;
+const signingMessage = (store, runId, path, exp) => `${store.signing}${runId}/${path}|${exp}`;
 
 /** A time-limited link to one stored file, signed so it can be opened without the token. */
-async function signedLink(request, secret, runId, path, now) {
-  const exp = Math.floor(now / 1000) + LINK_TTL_SECONDS;
-  const signature = await sign(secret, `${runId}/${path}|${exp}`);
-  const base = new URL(request.url).origin;
-  return `${base}/files/${runId}/${path.split('/').map(encodeURIComponent).join('/')}?exp=${exp}&sig=${signature}`;
+async function signedLink(origin, store, secret, runId, path, exp) {
+  const signature = await sign(secret, signingMessage(store, runId, path, exp));
+  return `${origin}${store.files}/${runId}/${path.split('/').map(encodeURIComponent).join('/')}?exp=${exp}&sig=${signature}`;
 }
 
-async function runRoute(request, env, runId, now) {
-  const object = await env.RESULTS.get(fileKey(runId, 'summary.json'));
+async function runRoute(request, env, store, runId, now) {
+  const object = await env.RESULTS.get(fileKey(store, runId, 'summary.json'));
   if (!object) return fail(request, env, 404, 'not-found', `No run "${runId}".`);
   const summary = await object.json();
   const links = {};
-  const prefix = `${PREFIX}runs/${runId}/`;
+  const prefix = `${store.prefix}runs/${runId}/`;
+  const exp = Math.floor(now / 1000) + LINK_TTL_SECONDS;
   for (const key of summary.files ?? []) {
     const path = key.startsWith(prefix) ? key.slice(prefix.length) : null;
     if (path && path.split('/').every((segment) => SEGMENT.test(segment))) {
-      links[path] = await signedLink(request, String(env.ADMIN_TOKEN), runId, path, now);
+      links[path] = await signedLink(new URL(request.url).origin, store, String(env.ADMIN_TOKEN), runId, path, exp);
     }
   }
   return json(request, env, 200, { summary, links, linksExpireInSeconds: LINK_TTL_SECONDS });
 }
 
-async function fileRoute(request, env, runId, segments, now) {
+/**
+ * A Lighthouse run's index page links to each report by its bare file name (mobile-home.html), which would reach this
+ * API without a signature. Served from here, those links are signed with the same expiry as the page's own link, so the
+ * page works exactly as it does on disk. Only bare file names of this run are touched; anything else is left alone.
+ */
+async function signReportLinks(html, origin, store, secret, runId, exp) {
+  const names = new Set([...html.matchAll(/href="([A-Za-z0-9][A-Za-z0-9._-]{0,120}\.html)"/g)].map((m) => m[1]));
+  let signed = html;
+  for (const name of names) signed = signed.replaceAll(`href="${name}"`, `href="${await signedLink(origin, store, secret, runId, name, exp)}"`);
+  return signed;
+}
+
+async function fileRoute(request, env, store, runId, segments, now) {
   const url = new URL(request.url);
   const exp = Number(url.searchParams.get('exp'));
   const signature = url.searchParams.get('sig') ?? '';
@@ -106,9 +129,9 @@ async function fileRoute(request, env, runId, segments, now) {
   const path = segments.join('/');
   if (secret.length < MIN_TOKEN_LENGTH) return fail(request, env, 503, 'not-configured', 'The API has no admin token yet.');
   if (!Number.isFinite(exp) || exp * 1000 < now) return fail(request, env, 403, 'expired', 'This link has expired. Reload the run to get a new one.');
-  if (!signature || !(await safeEqual(signature, await sign(secret, `${runId}/${path}|${exp}`)))) return fail(request, env, 403, 'forbidden', 'Bad link signature.');
+  if (!signature || !(await safeEqual(signature, await sign(secret, signingMessage(store, runId, path, exp))))) return fail(request, env, 403, 'forbidden', 'Bad link signature.');
 
-  const object = await env.RESULTS.get(fileKey(runId, path));
+  const object = await env.RESULTS.get(fileKey(store, runId, path));
   if (!object) return fail(request, env, 404, 'not-found', 'No such file.');
   const extension = path.split('.').pop().toLowerCase();
   const headers = { ...BASE_HEADERS, 'Content-Type': FILE_TYPES[extension] ?? 'application/octet-stream', 'Cross-Origin-Resource-Policy': 'cross-origin' };
@@ -116,7 +139,23 @@ async function fileRoute(request, env, runId, segments, now) {
   // but can't reach anything of the site or the API.
   if (extension === 'html') headers['Content-Security-Policy'] = 'sandbox allow-scripts';
   if (extension === 'zip') headers['Content-Disposition'] = `attachment; filename="${segments.at(-1)}"`;
+  if (store === STORES.lighthouse && path === 'index.html') {
+    return new Response(await signReportLinks(await object.text(), url.origin, store, secret, runId, exp), { status: 200, headers });
+  }
   return new Response(object.body, { status: 200, headers });
+}
+
+/** GET /index, /latest, /runs/<id> of one store (the caller has checked the token). */
+async function storeRoute(request, env, store, parts, now) {
+  const [route, runId, ...rest] = parts;
+  if (route === 'runs') {
+    if (!RUN_ID.test(runId ?? '') || rest.length) return fail(request, env, 400, 'bad-request', 'Bad run id.');
+    return runRoute(request, env, store, runId, now);
+  }
+  if (!['index', 'latest'].includes(route) || parts.length !== 1) return fail(request, env, 404, 'not-found', 'Not found.');
+  const object = await env.RESULTS.get(`${store.prefix}${route}.json`);
+  if (!object) return route === 'index' ? json(request, env, 200, { updatedAt: null, runs: [] }) : fail(request, env, 404, 'not-found', 'No results yet.');
+  return new Response(object.body, { status: 200, headers: { ...BASE_HEADERS, ...corsHeaders(request, env), 'Content-Type': 'application/json; charset=utf-8' } });
 }
 
 const decode = (part) => {
@@ -143,7 +182,18 @@ export async function handle(request, env, now = Date.now()) {
 
   if (route === 'files') {
     if (!RUN_ID.test(runId ?? '') || !rest.length || !rest.every((s) => SEGMENT.test(s))) return fail(request, env, 400, 'bad-request', 'Bad file path.');
-    return fileRoute(request, env, runId, rest, now);
+    return fileRoute(request, env, STORES.results, runId, rest, now);
+  }
+
+  if (route === 'lighthouse') {
+    const [, sub, id, ...more] = parts;
+    if (sub === 'files') {
+      if (!RUN_ID.test(id ?? '') || !more.length || !more.every((s) => SEGMENT.test(s))) return fail(request, env, 400, 'bad-request', 'Bad file path.');
+      return fileRoute(request, env, STORES.lighthouse, id, more, now);
+    }
+    const denied = await authorize(request, env);
+    if (denied) return denied;
+    return storeRoute(request, env, STORES.lighthouse, parts.slice(1), now);
   }
 
   if (route === 'pics') {
@@ -159,14 +209,7 @@ export async function handle(request, env, now = Date.now()) {
   if (route === 'index' || route === 'latest' || route === 'runs') {
     const denied = await authorize(request, env);
     if (denied) return denied;
-    if (route === 'runs') {
-      if (!RUN_ID.test(runId ?? '') || rest.length) return fail(request, env, 400, 'bad-request', 'Bad run id.');
-      return runRoute(request, env, runId, now);
-    }
-    if (parts.length !== 1) return fail(request, env, 404, 'not-found', 'Not found.');
-    const object = await env.RESULTS.get(`${PREFIX}${route}.json`);
-    if (!object) return route === 'index' ? json(request, env, 200, { updatedAt: null, runs: [] }) : fail(request, env, 404, 'not-found', 'No results yet.');
-    return new Response(object.body, { status: 200, headers: { ...BASE_HEADERS, ...corsHeaders(request, env), 'Content-Type': 'application/json; charset=utf-8' } });
+    return storeRoute(request, env, STORES.results, parts, now);
   }
 
   return fail(request, env, 404, 'not-found', 'Not found.');

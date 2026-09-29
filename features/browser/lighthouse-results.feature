@@ -1,0 +1,112 @@
+@browser
+Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run, behind the admin token
+  As the site owner
+  I want a tab that shows the latest Lighthouse run and every earlier one, like the Test Results tab
+  So that I can see how fast the live site is, and what was over budget, without running anything
+
+  The tab reads the runs through the real results API code, from a fake test bucket holding runs published by the
+  real Lighthouse publisher (made-up measurements).
+
+  Background:
+    Given the results API holds the admin token "browser-test-admin-token" and these published runs:
+      | time                 | commit  | offline results | browser results | smoke | artifacts |
+      | 2026-09-21T10:00:00Z | ccccccc | 3 passed        |                 |       |           |
+    And the results bucket also holds these Lighthouse runs:
+      | time                 | commit  | phone | laptop |
+      | 2026-09-28T10:00:00Z | aaaaaaa | 60    | 98     |
+      | 2026-09-29T10:00:00Z | bbbbbbb | 91    | 98     |
+
+  Scenario: The tab asks for the admin token before showing or requesting anything
+    When I open "/admin/#lighthouse-results"
+    Then the Lighthouse Test Results tab should ask for the admin token
+    And the results API should not have been asked for any Lighthouse run
+
+  Scenario: A wrong token is refused, and nothing is shown
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "not-the-token-123"
+    Then the Lighthouse Test Results tab should say "That token was not accepted."
+    And the Lighthouse Test Results tab should ask for the admin token
+
+  Scenario: Signing in shows the latest run and every run, newest first
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    Then the latest Lighthouse run should be shown as commit "bbbbbbb", "Within budget", with "3 of 3 within budget"
+    And the Lighthouse runs should be listed newest first, for the commits "bbbbbbb, aaaaaaa"
+    And the Lighthouse run for commit "aaaaaaa" should be shown as "Over budget", with "2 of 3 within budget"
+
+  Scenario: One sign-in serves every tab
+    When I open "/admin/"
+    And I sign in with the token "browser-test-admin-token"
+    And I click the "Lighthouse Test Results" tab
+    Then the latest Lighthouse run should be shown as commit "bbbbbbb", "Within budget", with "3 of 3 within budget"
+
+  Scenario: Opening a run shows every page and device, its scores and timings, and links to its reports
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I open the Lighthouse run for commit "aaaaaaa"
+    Then the address should be that Lighthouse run's own address
+    And the Lighthouse run should list, in order: "/ Phone 60 Over budget, / Laptop 98 Within budget, /about/ Phone 95 Within budget"
+    And the Lighthouse run should say what was over budget: "Performance 60 (needs 75)" on "/ · Phone"
+    And every Lighthouse report link should be a signed link to the results API that opens in a new tab
+    And the run's index page and raw data should be linked, with how long the links last
+
+  Scenario: A run with every page within budget says so
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I open the Lighthouse run for commit "bbbbbbb"
+    Then the Lighthouse run should say "Every page was within its budget."
+
+  Scenario: The way back from a run returns to the list, and so does the browser's Back button
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I open the Lighthouse run for commit "aaaaaaa"
+    And I click the Lighthouse "← All runs" link
+    Then the Lighthouse runs should be listed newest first, for the commits "bbbbbbb, aaaaaaa"
+    When I open the Lighthouse run for commit "aaaaaaa"
+    And I go back in the browser
+    Then the Lighthouse runs should be listed newest first, for the commits "bbbbbbb, aaaaaaa"
+
+  Scenario: A link to a run that doesn't exist says so
+    When I open "/admin/#lighthouse-results/run/2020-01-01T00-00-00Z-nope-local"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    Then the Lighthouse Test Results tab should say "That run was not found."
+
+  Scenario: With no Lighthouse runs published, the tab says how to publish one
+    Given the results bucket holds no Lighthouse runs
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    Then the Lighthouse Test Results tab should say "No Lighthouse runs have been published yet."
+
+  Scenario: Signing out at the top of the page signs this tab out too
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And the latest Lighthouse run should be shown as commit "bbbbbbb", "Within budget", with "3 of 3 within budget"
+    And I click "Sign out" at the top of the page
+    Then the Lighthouse Test Results tab should ask for the admin token
+
+  Scenario: The tab speaks Spanish on the Spanish page
+    When I open "/es/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    Then the latest Lighthouse run should be shown as commit "bbbbbbb", "Dentro del presupuesto", with "3 de 3 dentro del presupuesto"
+
+  Scenario Outline: The list and a run pass the automated accessibility audit, and don't scroll sideways on a phone
+    Given the visitor uses a <device>
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    Then the page should pass the automated accessibility audit
+    And the page should not scroll sideways
+    When I open the Lighthouse run for commit "aaaaaaa"
+    Then the page should pass the automated accessibility audit
+    And the page should not scroll sideways
+
+    Examples:
+      | device |
+      | laptop |
+      | phone  |
+
+  Scenario: Using the tab causes no script errors and no policy violations
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I open the Lighthouse run for commit "aaaaaaa"
+    Then no script error should have been logged
+    And no Content-Security-Policy violation should have been reported

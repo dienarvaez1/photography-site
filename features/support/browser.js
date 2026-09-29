@@ -101,6 +101,33 @@ export async function setUpResultsApi(world, token, runs) {
   Object.assign(world.b.results, { token, bucket, runIds, env: { ...world.b.results.env, ADMIN_TOKEN: token, RESULTS: asR2Binding(bucket) } });
 }
 
+/**
+ * Adds Lighthouse runs (published by the real publisher, from made-up measurements) to the same fake test bucket the
+ * results API reads, so the Lighthouse Test Results tab reads them through the real API code. `runs`: [{ time, commit,
+ * phone, laptop }] (performance scores, 0–100), oldest first. Call after setUpResultsApi.
+ */
+export async function addLighthouseRuns(world, runs) {
+  const [{ publishLighthouse }, { fakeResult, writeRunFolder }] = await Promise.all([import(join(ROOT, 'scripts/lib/lighthouse-results.mjs')), import('./lighthouse-fixtures.js')]);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const lighthouseRunIds = [];
+  for (const run of runs) {
+    const dir = mkdtempSync(join(tmpdir(), 'lh-browser-'));
+    try {
+      writeRunFolder(dir, [
+        fakeResult('/', 'mobile', { performance: run.phone / 100, lcp: 2400 }),
+        fakeResult('/', 'desktop', { performance: run.laptop / 100, lcp: 900 }),
+        fakeResult('/about/', 'mobile', { performance: 0.95, lcp: 1800 }),
+      ]);
+      const { runId } = await publishLighthouse({ dir, storage: world.b.results.bucket, now: new Date(run.time), meta: { commit: run.commit, branch: 'main', dirty: false } });
+      lighthouseRunIds.unshift(runId);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  world.b.results.lighthouseRunIds = lighthouseRunIds;
+}
+
 /** Puts these original photos ([{ id, body }]) behind the API's ORIGINALS binding; `originals.calls` records every read. */
 export function setUpOriginals(world, files, { objects } = {}) {
   const originals = fakeOriginals(files, { objects });

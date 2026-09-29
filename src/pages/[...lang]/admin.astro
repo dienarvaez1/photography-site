@@ -16,9 +16,10 @@ const locale = getLocale(Astro);
 if (!isLangParam(Astro.params.lang)) return notFound();
 const t = useTranslations(locale);
 
-// The three sections of the page, left to right. Each tab shows its panel.
+// The four sections of the page, left to right. Each tab shows its panel.
 const tabs = [
   { id: 'test-results', label: t('admin.tabs.testResults') },
+  { id: 'lighthouse-results', label: t('admin.tabs.lighthouseResults') },
   { id: 'pics-viewer', label: t('admin.tabs.picsViewer') },
   { id: 'category-maintenance', label: t('admin.tabs.categoryMaintenance') },
 ];
@@ -29,6 +30,8 @@ const resultsMessages = adminMessages.results;
 // The Pics Viewer shares the token form, errors and buttons with the Test Results tab.
 const { gate, errors, signOut, refresh, loading } = adminMessages.results;
 const picsMessages = { pics: adminMessages.pics, gate, errors, signOut, refresh, loading };
+// Lighthouse Test Results: the same token form and errors, its own texts.
+const lighthouseMessages = { lighthouse: adminMessages.lighthouse, gate, errors, signOut, refresh, loading };
 // Category Maintenance sits behind the same admin token as the other two tabs: its list and its own
 // Add/Edit/Remove controls (real content changes, even though the list itself is public once inside)
 // only show once signed in.
@@ -120,6 +123,14 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
               </div>
               <noscript><p>{t('admin.results.needsJs')}</p></noscript>
             </div>
+          ) : tab.id === 'lighthouse-results' ? (
+            <div class="results" data-lighthouse data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(lighthouseMessages)}>
+              <p class="results-intro">{t('admin.lighthouse.intro')}</p>
+              <div data-lighthouse-root aria-live="polite">
+                <p>{t('admin.results.loading')}</p>
+              </div>
+              <noscript><p>{t('admin.lighthouse.needsJs')}</p></noscript>
+            </div>
           ) : tab.id === 'pics-viewer' ? (
             <div class="results pics" data-pics data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(picsMessages)} data-photos={JSON.stringify(knownPhotos)} data-categories={JSON.stringify(formCategories)}>
               <p class="results-intro">{t('admin.pics.intro')}</p>
@@ -162,15 +173,21 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
     font-size: clamp(1.8rem, 4vw, 2.6rem);
   }
 
+  /* Four tabs don't fit a phone's width on one row: the row scrolls sideways on its own (never the page), each tab
+     keeps its label on one line, and the selected tab is scrolled into view (see the tabs script below). */
   .tablist {
     display: flex;
     flex-direction: row;
     gap: var(--space-1);
     margin-top: var(--space-3);
     border-bottom: 1px solid var(--field-border);
+    overflow-x: auto;
+    scrollbar-width: thin;
   }
 
   .tab {
+    flex-shrink: 0;
+    white-space: nowrap;
     min-height: 44px;
     padding: 0.6rem 1.1rem;
     background: none;
@@ -185,6 +202,12 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
 
   .tab:hover {
     color: var(--fg);
+  }
+
+  @media (max-width: 640px) {
+    .tab {
+      padding-inline: 0.7rem;
+    }
   }
 
   .tab[aria-selected='true'] {
@@ -230,7 +253,23 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .results-meta dt { color: var(--fg-muted); }
   .results-meta dd { margin: 0; overflow-wrap: anywhere; }
   .results-run-heading:focus { outline: none; }
-  .results-table-wrap { overflow-x: auto; }
+  /* position: relative so that the visually-hidden "(opens in a new tab)" text of a link in a wide table (absolutely
+     positioned, see global.css) is clipped by this scroll box too; otherwise it escapes it and widens the whole page. */
+  .results-table-wrap { overflow-x: auto; position: relative; }
+  /* Lighthouse Test Results: fourteen columns, so a little tighter than the test-run tables, and each score in a chip
+     coloured on Lighthouse's own scale (90–100 good, 50–89 needs work, 0–49 poor). */
+  /* A Lighthouse run's summary line (totals and performance per device) is longer than a test run's, so it takes the
+     card's full width instead of the narrow right-hand column, which would otherwise grow past a phone's screen. */
+  .lighthouse-run { grid-template-columns: minmax(0, 1fr) auto; }
+  .lighthouse-run .run-totals { grid-column: 1 / -1; }
+  .lighthouse-table { font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+  .lighthouse-table th, .lighthouse-table td { padding: 0.35rem 0.5rem; }
+  .lighthouse-table .has-failures th { color: var(--bad); }
+  .lh-score { display: inline-block; min-width: 2.2em; padding: 0.05rem 0.4rem; border-radius: 999px; text-align: center; font-weight: 600; border: 1px solid currentColor; }
+  .lh-score.good { color: var(--ok); }
+  .lh-score.average { color: #f0c36a; }
+  .lh-score.poor { color: var(--bad); }
+  .lh-bad { color: var(--bad); font-weight: 600; }
   .results-table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
   .results-table th, .results-table td { padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
   .results-table th:first-child { text-align: left; }
@@ -386,6 +425,22 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
 
     const viewer = document.querySelector<HTMLElement>('[data-results]');
     if (viewer) mountResultsViewer(viewer, viewer.closest<HTMLElement>('[role="tabpanel"]')!);
+    // The Lighthouse viewer's code is loaded the first time its tab is shown, not with the page: most visits never
+    // open it (the same reasoning as the Pics Viewer's bulk actions). It then behaves exactly as if mounted at load.
+    const lighthouse = document.querySelector<HTMLElement>('[data-lighthouse]');
+    const lighthousePanel = lighthouse?.closest<HTMLElement>('[role="tabpanel"]');
+    if (lighthouse && lighthousePanel) {
+      let loading = false;
+      const loadWhenShown = () => {
+        if (loading || lighthousePanel.hidden) return;
+        loading = true;
+        watcher.disconnect();
+        void import('../../lib/lighthouse-viewer').then(({ mountLighthouseViewer }) => mountLighthouseViewer(lighthouse, lighthousePanel));
+      };
+      const watcher = new MutationObserver(loadWhenShown);
+      watcher.observe(lighthousePanel, { attributes: true, attributeFilter: ['hidden'] });
+      setTimeout(loadWhenShown, 0); // once the tabs have applied the address (a link straight to #lighthouse-results)
+    }
     mountIdleTimeout();
     const actions = document.querySelector<HTMLElement>('[data-admin-actions]');
     if (actions) mountAdminActions(actions);
@@ -409,6 +464,8 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
           panels[i].hidden = !selected;
         });
         if (focus) tabs[index].focus();
+        // The tab row scrolls sideways on a narrow screen: keep the selected tab in sight.
+        tabs[index].scrollIntoView({ block: 'nearest', inline: 'nearest' });
         if (updateHash) history.replaceState(null, '', `#${idOf(tabs[index])}`);
       }
 

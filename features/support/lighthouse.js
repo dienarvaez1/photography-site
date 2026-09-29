@@ -8,13 +8,14 @@
 // Lab measurements vary from run to run (the network, the CDN, this machine), so each page is measured
 // LIGHTHOUSE_RUNS times (3 by default) and judged on the median run, the way Lighthouse itself recommends. A page is
 // measured once per device however many scenarios ask about it. The median run's HTML report is saved under
-// test-results/lighthouse/ (git-ignored; `npm run test:record` publishes that folder), and at the end of the run an
-// index of every page measured, test-results/lighthouse/index.html (see lighthouse-index.js).
+// test-results/lighthouse/ (git-ignored), and at the end of the run an index of every page measured
+// (test-results/lighthouse/index.html) and the same results as data (summary.json) — see lighthouse-index.js.
+// `npm run test:lighthouse:record` runs the suite and publishes that folder to R2 (scripts/lib/lighthouse-results.mjs).
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AfterAll } from '@cucumber/cucumber';
 import { ROOT } from './lib.js';
-import { renderIndex } from './lighthouse-index.js';
+import { renderIndex, summarizeRun } from './lighthouse-index.js';
 
 const { SITE } = await import(join(ROOT, 'src/config/site.ts'));
 
@@ -155,6 +156,9 @@ AfterAll(async function () {
   await chrome?.kill();
   chrome = null;
   if (results.length) {
-    writeFileSync(join(REPORT_DIR, 'index.html'), renderIndex({ baseUrl: BASE_URL, runs: RUNS, generatedAt: new Date(), results }));
+    const run = { baseUrl: BASE_URL, runs: RUNS, generatedAt: new Date(), results };
+    writeFileSync(join(REPORT_DIR, 'index.html'), renderIndex(run));
+    // The same results as data, for publishing (npm run lighthouse-results:publish) and the Admin page's Lighthouse tab.
+    writeFileSync(join(REPORT_DIR, 'summary.json'), `${JSON.stringify(summarizeRun(run), null, 2)}\n`);
   }
 });
