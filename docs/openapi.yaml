@@ -1,0 +1,1177 @@
+openapi: 3.1.0
+info:
+  title: Diego Narvaez Photography APIs
+  version: 1.0.2
+  summary: Every HTTP API of the photography site, its Admin page and its local owner tools.
+  description: |
+    The application has four APIs. Each path below names the server it lives on.
+
+    | API | Server | Who can call it |
+    | --- | --- | --- |
+    | **Results API** | `photography-site-results` Worker | The Admin page, with the admin token. Read-only. |
+    | **Site API** | The site itself | Anyone. Read-only. |
+    | **Photo service** | `astro dev` on the owner's computer | Only the Admin page, on localhost. |
+    | **Category service** | `astro dev` on the owner's computer | Only the Admin page, on localhost. |
+
+    ### Conventions
+
+    - Every JSON error has the same shape, `{ "error": "<code>", "message": "<sentence>" }`
+      (see `Error`). The `error` code is stable; the `message` is for people.
+    - Photo ids are the first 16 hex characters of the original file's SHA-256 (`b997ba44c64e5158`).
+      The same bytes always get the same id.
+    - Dates are ISO 8601. `takenAt` is the camera's own clock reading, with its UTC offset only when the
+      camera recorded one (`2023-11-27T18:42:10` or `2023-11-27T18:42:10-07:00`).
+    - The Results API sends `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff` and
+      `Referrer-Policy: no-referrer` on every answer, and CORS headers only to the site's own origins
+      (`ALLOWED_ORIGINS`: the live domain, its workers.dev address and `http://localhost:4321`).
+
+    ### What is not an API
+
+    Photos and their web sizes are plain files in the public R2 bucket
+    (`photos/<id>/{w400,thumb,cover,w1000,full}.webp`), and the site's pages are HTML. Neither is described here.
+  contact:
+    name: Diego Narvaez Photography
+    url: https://diego-narvaez-photography.org/contact/
+  license:
+    name: All rights reserved
+    identifier: LicenseRef-All-Rights-Reserved
+
+servers:
+  - url: https://photography-site-results.diego-narvaez.workers.dev
+    description: Results API (production)
+
+tags:
+  - name: Results API
+    description: |
+      Read-only API behind the Admin page's **Test Results** and **Pics Viewer** tabs (`workers/results-api/`,
+      deployed as `photography-site-results`). It reads the private test-results bucket (`photography-site-test`,
+      only under `results/`) and the private originals bucket (`photography-site-originals`), never writes, and
+      refuses everything until its `ADMIN_TOKEN` secret (16+ characters) is set.
+  - name: Test results
+    description: Recorded test runs (`npm run test:record`), newest first.
+  - name: Originals
+    description: The original photos in the private originals bucket. Never returns picture data.
+  - name: Site API
+    description: Public, read-only data served from the site's own origin.
+  - name: Photo service
+    description: |
+      The Admin page's New Photo form and bulk photo actions (`scripts/lib/photo-form.mjs`). It exists only in
+      `astro dev`, uses the owner's Cloudflare login to write to R2, answers only requests addressed to localhost,
+      and refuses a `POST` whose `Origin` is not the page's own. Requests are handled one at a time.
+  - name: Category service
+    description: |
+      The Admin page's Category Maintenance tab (`scripts/lib/category-form.mjs`). It exists only in `astro dev`
+      and edits the site's own source files (`src/config/categories.json` and the category text in
+      `src/i18n/*.json`), which still need a commit and a deploy to reach the live site. Same localhost and
+      own-page rules as the photo service.
+
+paths:
+  # ---------------------------------------------------------------------------------------------------------------
+  # Results API
+  # ---------------------------------------------------------------------------------------------------------------
+  /health:
+    get:
+      tags: [Results API]
+      operationId: getHealth
+      summary: Is the API up, and is its admin token set?
+      description: The only route that needs no token. Useful for checking a fresh deploy.
+      security: []
+      responses:
+        '200':
+          description: The API is running.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              examples:
+                ready: { value: { ok: true, configured: true } }
+                noSecret: { summary: ADMIN_TOKEN not set yet, value: { ok: true, configured: false } }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+
+  /index:
+    get:
+      tags: [Results API, Test results]
+      operationId: listRuns
+      summary: Every recorded test run, newest first
+      description: |
+        `results/index.json`: the newest 100 runs (older ones are pruned). With no runs recorded yet the answer is
+        an empty list, not an error.
+      responses:
+        '200':
+          description: The index of runs.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunIndex' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  /latest:
+    get:
+      tags: [Results API, Test results]
+      operationId: getLatestRun
+      summary: The newest run's full summary
+      description: '`results/latest.json`: the same document as that run''s `summary.json`.'
+      responses:
+        '200':
+          description: The newest run.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No run has been recorded yet (`error` is `not-found`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: not-found, message: No results yet. }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  /runs/{runId}:
+    get:
+      tags: [Results API, Test results]
+      operationId: getRun
+      summary: One run, with signed links to its files
+      description: |
+        The run's summary plus a link for each of its stored files (reports, screenshots, traces, notes). Each link
+        is signed and expires after 15 minutes, so it can be opened in a new tab or an `<img>` without the token.
+        Reload the run to get fresh links.
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: The run and its file links.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunDetail' }
+        '400':
+          description: The run id is malformed (`error` is `bad-request`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: bad-request, message: Bad run id. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such run (`error` is `not-found`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: not-found, message: No run "2026-09-28T15-20-26Z-8bb0581-local". }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  /files/{runId}/{path}:
+    get:
+      tags: [Results API, Test results]
+      operationId: getRunFile
+      summary: One stored file of a run, through a signed link
+      description: |
+        Only ever reached through a link from `GET /runs/{runId}`: it needs no token, but a valid, unexpired
+        signature (`sig` is the HMAC-SHA256 of `<runId>/<path>|<exp>`, keyed by the admin token). An HTML report is
+        served with `Content-Security-Policy: sandbox allow-scripts`, so it can run its own scripts but can't reach
+        the site or the API. A trace is served as a download.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - name: path
+          in: path
+          required: true
+          description: |
+            The file's path inside the run, e.g. `browser.html` or `artifacts/<scenario>/screenshot.png`. Each
+            segment is 1–121 characters of letters, digits, `.`, `_` and `-`, starting with a letter or digit.
+            (Written here as one parameter; it may contain `/`.)
+          schema: { type: string, example: offline.html }
+        - name: exp
+          in: query
+          required: true
+          description: When the link expires, in Unix seconds.
+          schema: { type: integer, example: 1790614200 }
+        - name: sig
+          in: query
+          required: true
+          description: The link's signature (64 hex characters).
+          schema: { type: string, pattern: '^[0-9a-f]{64}$' }
+      responses:
+        '200':
+          description: The file.
+          headers:
+            Cross-Origin-Resource-Policy: { schema: { type: string, const: cross-origin } }
+            Content-Security-Policy:
+              description: Only for HTML reports.
+              schema: { type: string, const: sandbox allow-scripts }
+            Content-Disposition:
+              description: Only for `.zip` traces.
+              schema: { type: string, example: 'attachment; filename="trace.zip"' }
+          content:
+            text/html: { schema: { type: string } }
+            application/json: { schema: { type: object } }
+            text/plain: { schema: { type: string } }
+            image/png: { schema: { type: string, format: binary } }
+            application/zip: { schema: { type: string, format: binary } }
+            application/octet-stream: { schema: { type: string, format: binary } }
+        '400':
+          description: The run id or path is malformed (`error` is `bad-request`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: bad-request, message: Bad file path. }
+        '403':
+          description: The link has expired (`expired`) or its signature is wrong (`forbidden`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                expired: { value: { error: expired, message: This link has expired. Reload the run to get a new one. } }
+                forbidden: { value: { error: forbidden, message: Bad link signature. } }
+        '404':
+          description: No such file (`error` is `not-found`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  /pics:
+    get:
+      tags: [Results API, Originals]
+      operationId: listOriginals
+      summary: Every original photo in the private bucket
+      description: |
+        Every `photos/<id>/original.<ext>` in `photography-site-originals`, ordered by id. Reads up to 20 pages of
+        1,000 objects; `complete` is false if the bucket holds more than that.
+      responses:
+        '200':
+          description: The originals.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OriginalList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '500': { $ref: '#/components/responses/Misconfigured' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  /pics/{photoId}:
+    get:
+      tags: [Results API, Originals]
+      operationId: describeOriginal
+      summary: One original's size, camera, date taken, copyright and artist
+      description: |
+        Reads only the first 128 KB of the file (its metadata blocks), never the whole photograph, and never returns
+        picture data. Unreadable metadata is treated as none. GPS position, serial numbers and every other field
+        are never returned.
+      parameters:
+        - name: photoId
+          in: path
+          required: true
+          description: The photo's id.
+          schema: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$', example: 22d56df0b2da3a99 }
+      responses:
+        '200':
+          description: What the file says about itself.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OriginalDetails' }
+        '400':
+          description: The id is malformed (`error` is `bad-request`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: bad-request, message: Bad photo id. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No original with that id (`error` is `not-found`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: not-found, message: No original "9999999999999999". }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '500': { $ref: '#/components/responses/Misconfigured' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Site API
+  # ---------------------------------------------------------------------------------------------------------------
+  /api/photos.json:
+    servers:
+      - url: https://diego-narvaez-photography.org
+        description: The live site
+      - url: http://localhost:4321
+        description: astro dev
+    get:
+      tags: [Site API]
+      operationId: listPhotos
+      summary: Every photo the site shows
+      description: |
+        Every entry of the gallery, straight from the manifest in R2 (`photos/index.json`), re-served from the
+        site's own origin so the category page's script can read it (the public bucket sends no CORS headers). An
+        entry the site cannot use is left out. Includes entries of hidden categories; the pages filter those.
+      security: []
+      responses:
+        '200':
+          description: Every entry.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ManifestEntry' }
+        '500':
+          description: The manifest is missing or unreadable. The site shows an error, never an empty gallery.
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Photo service (astro dev only)
+  # ---------------------------------------------------------------------------------------------------------------
+  /__photos/status:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    get:
+      tags: [Photo service]
+      operationId: getPhotoServiceStatus
+      summary: Is the service there, and what order comes next in each category?
+      description: The Admin page calls this first; anything but this JSON means the service is unavailable (e.g. on the deployed site).
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      responses:
+        '200':
+          description: Photo counts and orders per configured category.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [categories]
+                properties:
+                  categories:
+                    type: object
+                    description: Keyed by category slug.
+                    additionalProperties: { $ref: '#/components/schemas/CategoryOrder' }
+              example: { categories: { astro: { count: 3, max: 4, next: 5 }, pets: { count: 0, max: 0, next: 1 } } }
+        '403': { $ref: '#/components/responses/NotLocal' }
+
+  /__photos/analyze:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    post:
+      tags: [Photo service]
+      operationId: analyzePhoto
+      summary: Read what a photo knows about itself, without uploading anything
+      description: The New Photo form calls this when a file is chosen, to fill in the id, size, camera line and date taken.
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo: { type: string, format: binary, description: 'A JPEG, at most 100 MB.' }
+      responses:
+        '200':
+          description: What was read from the photo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PhotoAnalysis' }
+        '400': { $ref: '#/components/responses/PhotoRejected' }
+        '403': { $ref: '#/components/responses/NotLocal' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+
+  /__photos/add:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    post:
+      tags: [Photo service]
+      operationId: addPhoto
+      summary: Add a photo to the site
+      description: |
+        The same work as `npm run photos:add`: uploads the original (private) and its five web sizes (public),
+        checks they arrived, writes the entry (camera line and date taken from EXIF) and publishes it. The photo is
+        on the site as soon as this answers.
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo, title, category]
+              properties:
+                photo: { type: string, format: binary, description: 'A JPEG, at most 100 MB.' }
+                title: { type: string, description: The English title. }
+                titleEs: { type: string, description: The Spanish title. Optional. }
+                category: { type: string, description: A configured category slug. }
+                order:
+                  type: string
+                  description: A whole number, 0 or more. Empty means one past the category's highest.
+                camera:
+                  type: string
+                  description: The camera line. Sent (even empty) it replaces the one read from EXIF; omitted, EXIF is used.
+                featured: { type: string, enum: ['true', 'false'], description: Show it in the home page's Featured strip. }
+      responses:
+        '200':
+          description: The photo was added and its entry published.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddedPhoto' }
+        '400': { $ref: '#/components/responses/PhotoRejected' }
+        '403': { $ref: '#/components/responses/NotLocal' }
+        '409':
+          description: The photo is already in that category (`error` is `duplicate`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+        '500': { $ref: '#/components/responses/ServiceFailed' }
+
+  /__photos/remove:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    post:
+      tags: [Photo service]
+      operationId: removePhotos
+      summary: Permanently delete photos from R2
+      description: |
+        For each photo: takes its entries off the site first (every category that uses it), then deletes its
+        original and its five web sizes, and nothing else. If the entries can't be unpublished, nothing is deleted.
+        A photo whose files can't be deleted is reported on its own; the others still go.
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [photos]
+              properties:
+                photos:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [id, key]
+                    properties:
+                      id: { $ref: '#/components/schemas/PhotoId' }
+                      key:
+                        type: string
+                        description: The key of the photo's original, as `GET /pics` lists it.
+                        example: photos/22d56df0b2da3a99/original.jpg
+            example: { photos: [{ id: 22d56df0b2da3a99, key: photos/22d56df0b2da3a99/original.jpg }] }
+      responses:
+        '200':
+          description: What happened to each photo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, entries, deleted]
+                      properties:
+                        id: { $ref: '#/components/schemas/PhotoId' }
+                        entries: { type: array, items: { type: string }, description: The categories whose entries were removed. }
+                        deleted: { type: array, items: { type: string }, description: Every key deleted. }
+                        error: { type: string, description: Why this photo's files could not all be deleted. Absent on success. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/NotLocal' }
+        '500': { $ref: '#/components/responses/ServiceFailed' }
+
+  /__photos/recategorize:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    post:
+      tags: [Photo service]
+      operationId: recategorizePhotos
+      summary: Move photos to another category
+      description: |
+        Moves each named entry to `toCategory` and republishes once. Only the category changes; the photo, its files
+        and every other field are untouched. An entry already there is reported as not moved. If publishing fails,
+        every entry stays where it was.
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [photos, toCategory]
+              properties:
+                photos:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { $ref: '#/components/schemas/PhotoInCategory' }
+                toCategory: { type: string, description: A configured category slug. }
+            example: { photos: [{ id: 4b3761b8ee641a7d, category: nature }], toCategory: pets }
+      responses:
+        '200':
+          description: What happened to each photo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, from, to, moved]
+                      properties:
+                        id: { $ref: '#/components/schemas/PhotoId' }
+                        from: { type: string }
+                        to: { type: string }
+                        moved: { type: boolean, description: False when it was already in `to`. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/NotLocal' }
+        '409':
+          description: Another entry of the same photo is already in `toCategory` (`error` is `duplicate`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500': { $ref: '#/components/responses/ServiceFailed' }
+
+  /__photos/hero-background:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    post:
+      tags: [Photo service]
+      operationId: setHeroBackground
+      summary: Choose the photos the home page's hero shows
+      description: Sets or clears each named entry's `heroBackground` flag and republishes once. Nothing else about the entry changes.
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [photos, value]
+              properties:
+                photos:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { $ref: '#/components/schemas/PhotoInCategory' }
+                value: { type: boolean, description: 'True to set, false to clear.' }
+            example: { photos: [{ id: 5c580d41e64f9197, category: nature }], value: true }
+      responses:
+        '200':
+          description: What happened to each photo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, category, changed]
+                      properties:
+                        id: { $ref: '#/components/schemas/PhotoId' }
+                        category: { type: string }
+                        changed: { type: boolean, description: False when it was already set that way. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/NotLocal' }
+        '500': { $ref: '#/components/responses/ServiceFailed' }
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Category service (astro dev only)
+  # ---------------------------------------------------------------------------------------------------------------
+  /__categories/status:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    get:
+      tags: [Category service]
+      operationId: listCategories
+      summary: Every configured category, hidden or not, in both languages
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      responses:
+        '200':
+          description: The categories.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [categories]
+                properties:
+                  categories: { type: array, items: { $ref: '#/components/schemas/Category' } }
+        '403': { $ref: '#/components/responses/NotLocal' }
+
+  /__categories/add:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    post:
+      tags: [Category service]
+      operationId: addCategory
+      summary: Add a category
+      description: Writes it to `src/config/categories.json` and its name and description to each language file.
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug, label, labelEs, description, descriptionEs]
+              properties:
+                slug: { $ref: '#/components/schemas/CategorySlug' }
+                label: { type: string, maxLength: 200 }
+                labelEs: { type: string, maxLength: 200 }
+                description: { type: string, maxLength: 200 }
+                descriptionEs: { type: string, maxLength: 200 }
+                hidden: { type: boolean, default: false, description: Keep it off the navigation menu and the home page. }
+            example: { slug: night-sky, label: Night Sky, labelEs: Cielo nocturno, description: Stars., descriptionEs: Estrellas. }
+      responses:
+        '200':
+          description: The new category.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/NotLocal' }
+        '409':
+          description: A category with that slug already exists (`error` is `duplicate`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: duplicate, message: '"night-sky" already exists.' }
+
+  /__categories/edit:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    post:
+      tags: [Category service]
+      operationId: editCategory
+      summary: Rename, re-describe, hide/show, or change a category's slug
+      description: |
+        Only the fields sent change. A `newSlug` renames the category everywhere: its config entry, its text in each
+        language, and every photo filed under it (moved in R2 and republished).
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug]
+              properties:
+                slug: { $ref: '#/components/schemas/CategorySlug' }
+                newSlug: { $ref: '#/components/schemas/CategorySlug' }
+                hidden: { type: boolean }
+                label: { type: string, maxLength: 200 }
+                labelEs: { type: string, maxLength: 200 }
+                description: { type: string, maxLength: 200 }
+                descriptionEs: { type: string, maxLength: 200 }
+            example: { slug: nature, label: Wildlife }
+      responses:
+        '200':
+          description: The updated category.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/NotLocal' }
+        '404':
+          description: No such category (`error` is `not-found`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: '`newSlug` is already taken (`error` is `duplicate`).'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /__categories/remove:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    post:
+      tags: [Category service]
+      operationId: removeCategory
+      summary: Remove a category that has no photos
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug]
+              properties:
+                slug: { $ref: '#/components/schemas/CategorySlug' }
+      responses:
+        '200':
+          description: The category was removed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [slug]
+                properties:
+                  slug: { $ref: '#/components/schemas/CategorySlug' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/NotLocal' }
+        '404':
+          description: No such category (`error` is `not-found`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Photos still use it (`error` is `in-use`). Move or remove them first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: in-use, message: '2 photos still use "nature". Move or remove them first.' }
+
+security:
+  - adminToken: []
+
+components:
+  securitySchemes:
+    adminToken:
+      type: http
+      scheme: bearer
+      description: |
+        `Authorization: Bearer <ADMIN_TOKEN>`, the Results API Worker's secret (16+ characters). The Admin page keeps
+        it only for the browser tab and never puts it in an address. Compared in constant time.
+
+  parameters:
+    RunId:
+      name: runId
+      in: path
+      required: true
+      description: A run's id — when it started (UTC), its commit, `-dirty` if the tree had uncommitted changes, and where it ran.
+      schema:
+        type: string
+        pattern: '^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$'
+        example: 2026-09-28T15-20-26Z-8bb0581-local
+    Origin:
+      name: Origin
+      in: header
+      required: false
+      description: |
+        Set by the browser. A `POST` must come from the page itself (`http://localhost:4321`); a `GET` may send it
+        only with that value. Requests addressed to anything but localhost are refused.
+      schema: { type: string, example: 'http://localhost:4321' }
+
+  headers:
+    NoStore:
+      description: Every Results API answer.
+      schema: { type: string, const: 'private, no-store' }
+
+  responses:
+    Unauthorized:
+      description: The admin token is missing or wrong (`error` is `unauthorized`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: unauthorized, message: Missing or wrong admin token. }
+    NotConfigured:
+      description: The Worker has no `ADMIN_TOKEN` secret yet, or it is shorter than 16 characters (`error` is `not-configured`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: not-configured, message: 'The API has no admin token yet (set ADMIN_TOKEN, 16+ characters).' }
+    Misconfigured:
+      description: The Worker is not bound to the originals bucket (`error` is `misconfigured`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: misconfigured, message: The originals bucket is not bound to this Worker. }
+    MethodNotAllowed:
+      description: The Results API only answers `GET` (and CORS preflight `OPTIONS`); `error` is `method-not-allowed`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: method-not-allowed, message: 'Read-only API: use GET.' }
+    NotFound:
+      description: No such route (`error` is `not-found`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotLocal:
+      description: The request was not addressed to localhost, or did not come from the page itself (`error` is `not-local`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: not-local, message: The New Photo form only takes requests from its own page. }
+    BadRequest:
+      description: The request is malformed or names something that doesn't exist (`error` is `bad-request`). The message says what.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: bad-request, message: '"xyz" is not a photo id (16 hexadecimal characters).' }
+    PhotoRejected:
+      description: |
+        The upload can't be used: no photo, a missing title, an unknown category or a bad order (`bad-request`); a file
+        that isn't an image (`unreadable`); or an image that isn't a JPEG (`not-jpeg`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            notJpeg: { value: { error: not-jpeg, message: Only JPEG photos are accepted. } }
+            unreadable: { value: { error: unreadable, message: That file is not a readable image. } }
+    TooLarge:
+      description: The photo is larger than 100 MB (`error` is `too-large`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ServiceFailed:
+      description: Something went wrong talking to R2 (`error` is `failed`); the message has the reason. Retrying is safe.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: A stable code.
+          enum: [bad-request, unauthorized, forbidden, expired, not-found, method-not-allowed, not-configured, misconfigured, not-local, not-jpeg, unreadable, too-large, duplicate, in-use, failed]
+        message: { type: string, description: A sentence for people. }
+
+    Health:
+      type: object
+      required: [ok, configured]
+      properties:
+        ok: { type: boolean, const: true }
+        configured: { type: boolean, description: Whether ADMIN_TOKEN is set and long enough. }
+
+    PhotoId:
+      type: string
+      pattern: '^[0-9a-f]{16}$'
+      description: First 16 hex characters of the original file's SHA-256.
+      example: b997ba44c64e5158
+
+    CategorySlug:
+      type: string
+      maxLength: 40
+      pattern: '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
+      example: night-sky
+
+    TakenAt:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2})?$'
+      description: When the photo was taken, from EXIF — the camera's clock, with its UTC offset when recorded.
+      example: 2019-07-19T15:44:21-07:00
+
+    # --- Test results -----------------------------------------------------------------------------------------------
+    Totals:
+      type: object
+      required: [scenarios, passed, failed, skipped]
+      properties:
+        scenarios: { type: integer }
+        passed: { type: integer }
+        failed: { type: integer }
+        skipped: { type: integer }
+
+    RunIndex:
+      type: object
+      required: [updatedAt, runs]
+      properties:
+        updatedAt: { type: [string, 'null'], format: date-time, description: Null before any run is recorded. }
+        runs:
+          type: array
+          description: Newest first, at most 100.
+          items: { $ref: '#/components/schemas/RunIndexEntry' }
+
+    RunIndexEntry:
+      type: object
+      required: [runId, startedAt, source, commit, branch, dirty, ok, totals, suites, failures, files]
+      properties:
+        runId: { type: string, example: 2026-09-28T15-20-26Z-8bb0581-local }
+        startedAt: { type: string, format: date-time }
+        source: { type: string, description: 'Where it ran, e.g. `local` or `ci`.' }
+        commit: { type: string, example: 8bb0581 }
+        branch: { type: string, example: main }
+        dirty: { type: boolean }
+        ok: { type: boolean, description: True when nothing failed and nothing was skipped. }
+        totals: { $ref: '#/components/schemas/Totals' }
+        suites:
+          type: object
+          description: Keyed by suite (`offline`, `browser`, `smoke`).
+          additionalProperties:
+            type: object
+            required: [scenarios, passed, failed]
+            properties:
+              scenarios: { type: integer }
+              passed: { type: integer }
+              failed: { type: integer }
+        failures:
+          type: array
+          maxItems: 25
+          items:
+            type: object
+            required: [suite, name]
+            properties:
+              suite: { type: string }
+              name: { type: string }
+              feature: { type: string }
+        files: { type: array, items: { type: string }, description: Every R2 key stored for the run. }
+
+    RunSummary:
+      type: object
+      required: [runId, startedAt, source, commit, branch, dirty, node, ok, totals, suites, files]
+      properties:
+        runId: { type: string }
+        startedAt: { type: string, format: date-time }
+        source: { type: string }
+        commit: { type: string }
+        branch: { type: string }
+        dirty: { type: boolean }
+        node: { type: string, description: 'Node.js version, e.g. `v26.7.0`.' }
+        ok: { type: boolean }
+        totals: { $ref: '#/components/schemas/Totals' }
+        suites:
+          type: object
+          properties:
+            offline: { $ref: '#/components/schemas/CucumberSuite' }
+            browser: { $ref: '#/components/schemas/CucumberSuite' }
+            smoke: { $ref: '#/components/schemas/SmokeSuite' }
+        files: { type: array, items: { type: string } }
+
+    CucumberSuite:
+      type: object
+      required: [scenarios, passed, failed, skipped, steps, durationMs, features, failures, slowest]
+      properties:
+        scenarios: { type: integer }
+        passed: { type: integer }
+        failed: { type: integer }
+        skipped: { type: integer }
+        steps:
+          type: object
+          required: [total, passed, failed, skipped]
+          properties:
+            total: { type: integer }
+            passed: { type: integer }
+            failed: { type: integer }
+            skipped: { type: integer }
+        durationMs: { type: integer }
+        features:
+          type: array
+          items:
+            type: object
+            required: [name, scenarios, passed, failed]
+            properties:
+              name: { type: string, example: pics-viewer.feature }
+              scenarios: { type: integer }
+              passed: { type: integer }
+              failed: { type: integer }
+        failures:
+          type: array
+          items:
+            type: object
+            required: [feature, scenario, step, message]
+            properties:
+              feature: { type: string }
+              scenario: { type: string }
+              step: { type: string }
+              message: { type: string, description: The first line of the error. }
+        slowest:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            required: [feature, scenario, ms]
+            properties:
+              feature: { type: string }
+              scenario: { type: string }
+              ms: { type: integer }
+
+    SmokeSuite:
+      type: object
+      required: [baseUrl, checks, passed, failed, failures]
+      properties:
+        baseUrl: { type: string, format: uri }
+        checks: { type: integer }
+        passed: { type: integer }
+        failed: { type: integer }
+        failures:
+          type: array
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string }
+              detail: { type: string }
+
+    RunDetail:
+      type: object
+      required: [summary, links, linksExpireInSeconds]
+      properties:
+        summary: { $ref: '#/components/schemas/RunSummary' }
+        links:
+          type: object
+          description: A signed `GET /files/...` link for each stored file, keyed by its path inside the run.
+          additionalProperties: { type: string, format: uri }
+          example: { offline.html: 'https://photography-site-results.diego-narvaez.workers.dev/files/2026-09-28T15-20-26Z-8bb0581-local/offline.html?exp=1790614200&sig=9f2c4e1a7b3d5f60819a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f70' }
+        linksExpireInSeconds: { type: integer, const: 900 }
+
+    # --- Originals ----------------------------------------------------------------------------------------------------
+    OriginalList:
+      type: object
+      required: [photos, complete]
+      properties:
+        photos:
+          type: array
+          items:
+            type: object
+            required: [id, key, size, uploaded]
+            properties:
+              id: { type: string, example: 22d56df0b2da3a99 }
+              key: { type: string, example: photos/22d56df0b2da3a99/original.jpg }
+              size: { type: integer, description: Bytes. }
+              uploaded: { type: [string, 'null'], format: date-time }
+        complete: { type: boolean, description: False when the bucket holds more than could be listed. }
+
+    OriginalDetails:
+      type: object
+      required: [id, key, size, camera, cameraLine, copyright, artist, takenAt]
+      properties:
+        id: { type: string }
+        key: { type: string }
+        size: { type: integer, description: Bytes. }
+        camera:
+          oneOf:
+            - $ref: '#/components/schemas/CameraSettings'
+            - type: 'null'
+        cameraLine: { type: [string, 'null'], example: 'Nikon Z 6 · NIKKOR Z 24-70mm f/4 S · 24mm · f/4 · 25s · ISO 3200' }
+        copyright: { type: [string, 'null'], description: 'From EXIF, or the XMP `rights` field. An empty notice is null.' }
+        artist: { type: [string, 'null'] }
+        takenAt:
+          oneOf:
+            - $ref: '#/components/schemas/TakenAt'
+            - type: 'null'
+      example:
+        id: 22d56df0b2da3a99
+        key: photos/22d56df0b2da3a99/original.jpg
+        size: 3104512
+        camera: { make: NIKON CORPORATION, model: NIKON Z 6, lens: NIKKOR Z 24-70mm f/4 S, focalLength: 24, aperture: 4, shutterSpeed: '25', iso: 3200 }
+        cameraLine: 'Nikon Z 6 · NIKKOR Z 24-70mm f/4 S · 24mm · f/4 · 25s · ISO 3200'
+        copyright: Copyright 2026 Diego Narvaez
+        artist: Diego Narvaez
+        takenAt: '2023-11-27T18:42:10'
+
+    CameraSettings:
+      type: object
+      description: Only the fields the file has.
+      properties:
+        make: { type: string }
+        model: { type: string }
+        lens: { type: string }
+        focalLength: { type: number, description: Millimetres. }
+        aperture: { type: number, description: The f-number. }
+        shutterSpeed: { type: string, description: '"1/125" below a second, "2.5" from a second up.' }
+        iso: { type: integer }
+
+    # --- Photos on the site -------------------------------------------------------------------------------------------
+    ManifestEntry:
+      type: object
+      required: [category, id, data]
+      properties:
+        category: { type: string, example: nature }
+        id: { $ref: '#/components/schemas/PhotoId' }
+        data: { $ref: '#/components/schemas/PhotoData' }
+
+    PhotoData:
+      type: object
+      description: One entry's front matter (`photos/categories/<category>/<id>.md` in the public bucket).
+      required: [title, category, photo, featured, order]
+      properties:
+        title: { type: string }
+        titles:
+          type: object
+          description: 'Titles in other languages, e.g. `{ "es": "Pez roca" }`. A missing language falls back to `title`.'
+          additionalProperties: { type: string }
+        category: { type: string }
+        photo:
+          type: object
+          required: [id, width, height]
+          properties:
+            id: { $ref: '#/components/schemas/PhotoId' }
+            width: { type: integer, minimum: 1, description: As displayed (EXIF rotation applied). }
+            height: { type: integer, minimum: 1 }
+        camera: { type: string }
+        takenAt: { $ref: '#/components/schemas/TakenAt' }
+        placeholderColor: { type: string, pattern: '^#[0-9a-fA-F]{6}$', description: 'The photo''s average colour, shown until its thumbnail loads.' }
+        featured: { type: boolean }
+        heroBackground: { type: boolean, description: Chosen for the home page's hero. }
+        order: { type: number, description: Curated order within the category; lower first. }
+        addedAt: { type: string, format: date-time, description: When the entry joined the site. }
+      example:
+        title: Rockfish
+        titles: { es: Pez roca }
+        category: nature
+        photo: { id: b997ba44c64e5158, width: 8256, height: 5504 }
+        camera: 'Nikon Z 7 · NIKKOR Z 70-200mm f/2.8 VR S + TC-2.0x · 140mm · f/5.6 · 1/125s · ISO 110'
+        takenAt: '2022-03-10T11:00:00'
+        placeholderColor: '#3a4a52'
+        featured: false
+        order: 3
+        addedAt: '2024-03-01T00:00:00.000Z'
+
+    # --- Photo service ------------------------------------------------------------------------------------------------
+    CategoryOrder:
+      type: object
+      required: [count, max, next]
+      properties:
+        count: { type: integer, description: Photos in the category. }
+        max: { type: number, description: The highest order used. }
+        next: { type: number, description: The order a new photo gets by default. }
+
+    PhotoAnalysis:
+      type: object
+      required: [id, width, height, camera, takenAt, inCategories]
+      properties:
+        id: { $ref: '#/components/schemas/PhotoId' }
+        width: { type: integer }
+        height: { type: integer }
+        camera: { type: [string, 'null'], description: The camera line from EXIF. }
+        takenAt:
+          oneOf:
+            - $ref: '#/components/schemas/TakenAt'
+            - type: 'null'
+        inCategories: { type: array, items: { type: string }, description: Categories that already have this exact photo. }
+
+    AddedPhoto:
+      type: object
+      required: [path, key, entry, id, width, height, camera, order]
+      properties:
+        path: { type: string, description: 'The entry''s file in the local mirror, e.g. `astro/images/<id>.md`.' }
+        key: { type: string, description: 'The entry''s key in the public bucket, e.g. `photos/categories/astro/<id>.md`.' }
+        entry: { type: string, description: 'The entry''s full Markdown text, as published.' }
+        id: { $ref: '#/components/schemas/PhotoId' }
+        width: { type: integer }
+        height: { type: integer }
+        camera: { type: [string, 'null'] }
+        order: { type: number }
+
+    PhotoInCategory:
+      type: object
+      required: [id, category]
+      description: One entry — a photo can be filed in more than one category, so the category says which.
+      properties:
+        id: { $ref: '#/components/schemas/PhotoId' }
+        category: { type: string }
+
+    # --- Category service ---------------------------------------------------------------------------------------------
+    Category:
+      type: object
+      required: [slug, hidden, label, labelEs, description, descriptionEs, photoCount]
+      properties:
+        slug: { $ref: '#/components/schemas/CategorySlug' }
+        hidden: { type: boolean }
+        label: { type: string, description: English name. }
+        labelEs: { type: string, description: Spanish name. }
+        description: { type: string }
+        descriptionEs: { type: string }
+        photoCount: { type: integer }
