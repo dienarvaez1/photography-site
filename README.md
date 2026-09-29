@@ -736,10 +736,10 @@ placeholder Web3Forms keys (the tests never send anything; the real keys stay in
 `public/_headers` sends HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, a referrer policy, a
 permissions policy and a **Content-Security-Policy**: scripts only from the site itself and Cloudflare Web Analytics
 (no inline, no `eval`), images from the site, the R2 photo host and the results API, network calls only to the site,
-Web3Forms, the results API and Cloudflare Web Analytics' reporting endpoint, forms only to Web3Forms, no plugins, no
-framing. **Cloudflare Web Analytics** adds its script (`static.cloudflareinsights.com`) to every page Cloudflare serves,
-and it reports to `cloudflareinsights.com`; both are allowed, each only where it is needed (`deployment.feature` checks
-it). Until 29 Sep 2026 they weren't, so the browser blocked the script on every page and no visit was recorded. Astro is configured not to inline scripts
+Web3Forms and the results API, forms only to Web3Forms, no plugins, no framing. **Cloudflare Web Analytics** adds its
+script (`static.cloudflareinsights.com`) to every page Cloudflare serves; that host is allowed in `script-src` only, and
+the script reports visits to the site's own `/cdn-cgi/rum`, which `'self'` already covers (`deployment.feature` checks
+both). Until 29 Sep 2026 the script wasn't allowed, so the browser blocked it on every page and no visit was recorded. Astro is configured not to inline scripts
 (`assetsInlineLimit: 0`) so this stays strict; styles may be inline. If you change the R2 address in
 `src/config/photos.ts`, update the `img-src` host in `_headers` — a test fails if they disagree.
 

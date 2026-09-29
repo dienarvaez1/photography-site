@@ -255,9 +255,10 @@ Then('the deployment headers file should declare a Content-Security-Policy in ad
   }
 });
 
-// Cloudflare Web Analytics: Cloudflare adds its beacon script to every page it serves, and the beacon reports back to
-// Cloudflare. Allowed on purpose (it was blocked, and so recorded nothing, until 29 Sep 2026 — found by the Lighthouse
-// suite), and only where it needs to be: the script's host in script-src, the reporting endpoint in connect-src.
+// Cloudflare Web Analytics: Cloudflare adds its beacon script to every page it serves. Allowed on purpose (it was
+// blocked, and so recorded nothing, until 29 Sep 2026 — found by the Lighthouse suite), and only where it needs to be:
+// the script's host in script-src. On a site Cloudflare serves, the beacon reports to the site's own
+// /cdn-cgi/rum ('self'), so Cloudflare's separate reporting endpoint is not allowed anywhere.
 const ANALYTICS_SCRIPT = 'https://static.cloudflareinsights.com';
 const ANALYTICS_REPORTS = 'https://cloudflareinsights.com';
 
@@ -270,10 +271,10 @@ Then("the Content-Security-Policy should allow scripts only from the site itself
 Then("the Content-Security-Policy should allow Cloudflare's analytics to load and report, and nothing else", function () {
   const policy = csp();
   assert.ok(policy['script-src'].includes(ANALYTICS_SCRIPT), 'script-src must allow the analytics beacon');
-  assert.ok(policy['connect-src'].includes(ANALYTICS_REPORTS), 'connect-src must allow the analytics reports');
+  assert.ok(policy['connect-src'].includes("'self'"), "connect-src must allow the site itself, where the beacon reports (/cdn-cgi/rum)");
   for (const [directive, sources] of Object.entries(policy)) {
     if (directive !== 'script-src') assert.ok(!sources.includes(ANALYTICS_SCRIPT), `${directive} must not allow the analytics script host`);
-    if (directive !== 'connect-src') assert.ok(!sources.includes(ANALYTICS_REPORTS), `${directive} must not allow the analytics endpoint`);
+    assert.ok(!sources.includes(ANALYTICS_REPORTS), `${directive} must not allow Cloudflare's separate reporting endpoint, which this site does not use`);
   }
 });
 
