@@ -19,6 +19,7 @@ paid backend.
 | `npm run generate-types`        | Regenerate the Cloudflare binding types (`wrangler types`)          |
 | `npm test`                      | Run the offline test suite (see Testing)                            |
 | `npm run test:browser`          | Run the real-browser tests in Chromium (see Testing)                |
+| `npm run test:lighthouse`       | Measure the live site with Google Lighthouse against its budgets (see Testing) |
 | `npm run deploy`                | **Guarded deploy**: keys + tests + photo check, build, deploy, live smoke check |
 | `npm run deploy:unchecked`      | Build and deploy without the checks (emergencies only)              |
 | `npm run test:record`           | Run both suites with reporters, then store the results in R2 (see Test results) |
@@ -56,7 +57,7 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against twenty-nine areas. The
+tests bake in sample photos instead), then checks that built output against thirty areas. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
@@ -179,6 +180,10 @@ against every page in both English and Spanish**; expected text is read from
   uncommitted changes, "unknown" without git, a name given in the environment; every page's footer ends with this
   checkout's build (both languages, Admin included), with its full hash and build time, and no footer shows the
   email address.
+- **`lighthouse-index.feature`** — the Lighthouse run's index page, built from made-up measurements (no Lighthouse,
+  no network): every page and device listed in order with its scores, timings and size, links to its full report and
+  to the page; a measurement over budget marked and what it missed spelled out; a browser error counted and shown
+  as text, never markup; the page self-contained (no scripts, nothing fetched), naming the site, time and runs.
 - **`admin.feature`** — a basic smoke test of the Admin page: it exists in both languages, "Admin" is
   linked immediately to the right of "Contact" and marked active on its own page, it has exactly three
   tabs ("Test Results", "Pics Viewer", then "Category Maintenance") in a horizontal, labelled tab list
@@ -385,6 +390,34 @@ definitions in `features/step_definitions/`; shared helpers live in `features/su
 (`lib.js` for built HTML, `static-server.js`, `browser.js`, `site-worker.js` for the production site in workerd,
 `photo-helpers.js`, `memory-storage.js`).
 `test-fixtures/` holds the tiny suites the results tests run for real.
+
+### Lighthouse: measuring the live site
+
+```sh
+npm run test:lighthouse                                   # the live site, 3 runs per page (~10 minutes)
+LIGHTHOUSE_RUNS=1 npm run test:lighthouse                 # a quick look, 1 run per page
+LIGHTHOUSE_URL=http://localhost:8787 npm run test:lighthouse   # another address, e.g. `npm run preview`
+```
+
+A third suite, kept out of the other two because it takes minutes and depends on the network: it runs
+[Google Lighthouse](https://developer.chrome.com/docs/lighthouse) against the **live site** (what visitors actually
+get: real photos, Cloudflare's CDN and headers; the snapshot build's sample photos can't stand in for that). It uses
+the Chromium the browser tests already install. Each page is measured on a phone (Lighthouse's default: a mid-range
+phone, slow 4G, 4x slower CPU) and on a laptop, three times each, and judged on the median run. The median run's
+HTML report is saved in `test-results/lighthouse/` (git-ignored), e.g. `mobile-home.html`, and the run ends by writing
+**`test-results/lighthouse/index.html`**: every page and device at a glance (scores, timings, size, browser errors),
+which ones missed their budget and by how much, and a link to each full report. Open it with
+`open test-results/lighthouse/index.html`.
+
+The budgets are in one place, `BUDGETS` in `features/support/lighthouse.js`: category scores, First and Largest
+Contentful Paint, Total Blocking Time, Cumulative Layout Shift, and total download size. They sit at Google's "good"
+thresholds where the site already meets them, so a regression fails. A page that can't meet its device's budget yet
+gets an explicit exception in `PAGE_EXCEPTIONS`, with the reason: today only the All gallery on a phone, whose largest
+photo paints at about 5.8 s (every photo of the site on one page). Tighten them as the site gets faster.
+
+- **`site-performance.feature`** (`@lighthouse`) — the home page (both languages), the All and Nature galleries, About
+  and Contact, on a phone and a laptop: performance, accessibility, best practices and SEO scores; the four timing
+  metrics; the page's total download; and no errors in the browser console.
 
 ## Test results in R2
 
@@ -701,9 +734,12 @@ placeholder Web3Forms keys (the tests never send anything; the real keys stay in
 ## Security headers
 
 `public/_headers` sends HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, a referrer policy, a
-permissions policy and a **Content-Security-Policy**: scripts only from the site itself (no inline,
-no `eval`), images from the site, the R2 photo host and the results API, network calls only to the site, Web3Forms and the results API,
-forms only to Web3Forms, no plugins, no framing. Astro is configured not to inline scripts
+permissions policy and a **Content-Security-Policy**: scripts only from the site itself and Cloudflare Web Analytics
+(no inline, no `eval`), images from the site, the R2 photo host and the results API, network calls only to the site,
+Web3Forms, the results API and Cloudflare Web Analytics' reporting endpoint, forms only to Web3Forms, no plugins, no
+framing. **Cloudflare Web Analytics** adds its script (`static.cloudflareinsights.com`) to every page Cloudflare serves,
+and it reports to `cloudflareinsights.com`; both are allowed, each only where it is needed (`deployment.feature` checks
+it). Until 29 Sep 2026 they weren't, so the browser blocked the script on every page and no visit was recorded. Astro is configured not to inline scripts
 (`assetsInlineLimit: 0`) so this stays strict; styles may be inline. If you change the R2 address in
 `src/config/photos.ts`, update the `img-src` host in `_headers` — a test fails if they disagree.
 

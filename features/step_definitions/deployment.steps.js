@@ -255,10 +255,26 @@ Then('the deployment headers file should declare a Content-Security-Policy in ad
   }
 });
 
-Then('the Content-Security-Policy should allow scripts only from the site itself', function () {
+// Cloudflare Web Analytics: Cloudflare adds its beacon script to every page it serves, and the beacon reports back to
+// Cloudflare. Allowed on purpose (it was blocked, and so recorded nothing, until 29 Sep 2026 — found by the Lighthouse
+// suite), and only where it needs to be: the script's host in script-src, the reporting endpoint in connect-src.
+const ANALYTICS_SCRIPT = 'https://static.cloudflareinsights.com';
+const ANALYTICS_REPORTS = 'https://cloudflareinsights.com';
+
+Then("the Content-Security-Policy should allow scripts only from the site itself and Cloudflare's analytics", function () {
   const policy = csp();
-  assert.deepEqual(policy['script-src'], ["'self'"], "script-src must be exactly 'self' — no 'unsafe-inline', no 'unsafe-eval', no other hosts");
+  assert.deepEqual(policy['script-src'], ["'self'", ANALYTICS_SCRIPT], "script-src must be exactly 'self' and the analytics host — no 'unsafe-inline', no 'unsafe-eval', no other hosts");
   assert.deepEqual(policy['default-src'], ["'self'"]);
+});
+
+Then("the Content-Security-Policy should allow Cloudflare's analytics to load and report, and nothing else", function () {
+  const policy = csp();
+  assert.ok(policy['script-src'].includes(ANALYTICS_SCRIPT), 'script-src must allow the analytics beacon');
+  assert.ok(policy['connect-src'].includes(ANALYTICS_REPORTS), 'connect-src must allow the analytics reports');
+  for (const [directive, sources] of Object.entries(policy)) {
+    if (directive !== 'script-src') assert.ok(!sources.includes(ANALYTICS_SCRIPT), `${directive} must not allow the analytics script host`);
+    if (directive !== 'connect-src') assert.ok(!sources.includes(ANALYTICS_REPORTS), `${directive} must not allow the analytics endpoint`);
+  }
 });
 
 Then('the Content-Security-Policy should forbid plugins, framing and foreign base URLs', function () {

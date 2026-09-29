@@ -106,8 +106,13 @@ Feature: A deploy cannot silently break the site
     Then the deployment headers file should declare a Content-Security-Policy in addition to the baseline headers
 
   Scenario: The policy is strict where it matters
-    Then the Content-Security-Policy should allow scripts only from the site itself
+    Then the Content-Security-Policy should allow scripts only from the site itself and Cloudflare's analytics
     And the Content-Security-Policy should forbid plugins, framing and foreign base URLs
+
+  Scenario: Cloudflare Web Analytics is allowed to work, and only where it needs to
+    # Cloudflare adds its analytics script to every page it serves; until this was allowed, the browser blocked it on
+    # every page (logging an error) and no visit was recorded.
+    Then the Content-Security-Policy should allow Cloudflare's analytics to load and report, and nothing else
 
   Scenario: The policy allows exactly what the pages load
     Then the Content-Security-Policy should allow the photo host configured in the site

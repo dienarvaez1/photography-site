@@ -28,6 +28,14 @@ Then('every browser feature file should be described in the README', function ()
   assert.deepEqual(missing, [], 'Add these to the browser tests list in README.md');
 });
 
+Then('every Lighthouse feature file should be described in the README', function () {
+  const text = readme();
+  const files = readdirSync(join(ROOT, 'features/lighthouse')).filter((f) => f.endsWith('.feature')).sort();
+  assert.ok(files.length >= 1, 'expected the Lighthouse features');
+  const missing = files.filter((file) => !text.includes(`\`${file}\``));
+  assert.deepEqual(missing, [], 'Add these to the Lighthouse section of README.md');
+});
+
 Then('every npm script that is not an automatic hook should be documented in the README', function () {
   const scripts = Object.keys(JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8')).scripts);
   // npm runs "pre<x>" / "post<x>" automatically when <x> exists; a script that merely starts with "pre" (preview) is not one.
