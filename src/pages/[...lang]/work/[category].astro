@@ -384,8 +384,10 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
     const button = el('button', {
       type: 'button',
       className: `tile ${ratioClass(entry.data.photo.width / entry.data.photo.height)}`,
-      // No caption and no camera: matches the server-rendered tiles (Gallery's showDetails={false}, above).
-      dataset: { id: entry.data.photo.id, full: full.src, caption: title, title, camera: '', placeholder: entry.data.placeholderColor ?? '' },
+      // No caption and no camera: matches the server-rendered tiles (Gallery's showDetails={false}, above). The photo's
+      // own category, like a server-rendered tile's: the lightbox's "View <category> gallery" link reads it off the open
+      // tile, and without it kept pointing at whichever category the page was first loaded for.
+      dataset: { id: entry.data.photo.id, full: full.src, caption: title, title, category: entry.data.category, camera: '', placeholder: entry.data.placeholderColor ?? '' },
     }, img);
     button.setAttribute('aria-label', openPhotoTemplate.replace('{title}', title));
     return button;
