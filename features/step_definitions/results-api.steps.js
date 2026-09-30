@@ -355,8 +355,9 @@ Then("the Worker's configuration should allow exactly the origins listed in the 
 });
 
 Then("the Worker's configuration should contain no secret value", function () {
-  assert.deepEqual(Object.keys(workerConfig().vars), ['ALLOWED_ORIGINS']);
-  assert.doesNotMatch(workerFile('wrangler.jsonc'), /ADMIN_TOKEN["']?\s*:/);
+  // GITHUB_REPO is public (the repository's name); GITHUB_TOKEN, like ADMIN_TOKEN, is only ever a secret.
+  assert.deepEqual(Object.keys(workerConfig().vars), ['ALLOWED_ORIGINS', 'GITHUB_REPO']);
+  assert.doesNotMatch(workerFile('wrangler.jsonc'), /(ADMIN_TOKEN|GITHUB_TOKEN)["']?\s*:/);
 });
 
 Then("the Worker's code should never write or delete anything in R2, and list only the originals", function () {

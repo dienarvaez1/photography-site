@@ -16,12 +16,13 @@ const locale = getLocale(Astro);
 if (!isLangParam(Astro.params.lang)) return notFound();
 const t = useTranslations(locale);
 
-// The four sections of the page, left to right. Each tab shows its panel.
+// The five sections of the page, left to right. Each tab shows its panel.
 const tabs = [
   { id: 'test-results', label: t('admin.tabs.testResults') },
   { id: 'lighthouse-results', label: t('admin.tabs.lighthouseResults') },
   { id: 'pics-viewer', label: t('admin.tabs.picsViewer') },
   { id: 'category-maintenance', label: t('admin.tabs.categoryMaintenance') },
+  { id: 'github-issues', label: t('admin.tabs.githubIssues') },
 ];
 
 // The viewer's texts travel to the browser as data (an attribute, since the policy allows no inline scripts), in the page's language.
@@ -36,6 +37,10 @@ const lighthouseMessages = { lighthouse: adminMessages.lighthouse, gate, errors,
 // Add/Edit/Remove controls (real content changes, even though the list itself is public once inside)
 // only show once signed in.
 const categoryMessages = { categories: adminMessages.categories, gate, errors, signOut, refresh, loading };
+// GitHub Issues: the same token form and errors, and only the texts its script shows (the intro and the no-JavaScript
+// note are already on the page).
+const { intro: _issuesIntro, needsJs: _issuesNeedsJs, ...issuesTexts } = adminMessages.issues;
+const issuesMessages = { issues: issuesTexts, gate, errors, loading };
 
 // The categories the New Photo form offers (every configured one, hidden or not), in the page's language.
 const formCategories = CATEGORIES.map(({ slug }) => ({ slug, label: getLocalizedCategory(slug, locale)?.label ?? slug }));
@@ -141,6 +146,14 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
               </div>
               <noscript><p>{t('admin.pics.needsJs')}</p></noscript>
             </div>
+          ) : tab.id === 'github-issues' ? (
+            <div class="results" data-issues data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(issuesMessages)}>
+              <p class="results-intro">{t('admin.issues.intro')}</p>
+              <div data-issues-root aria-live="polite">
+                <p>{t('admin.results.loading')}</p>
+              </div>
+              <noscript><p>{t('admin.issues.needsJs')}</p></noscript>
+            </div>
           ) : (
             /* Gated by the admin token like the other two tabs (mountCategoryMaintenance): the list still
                travels down as data-categories-list, server-rendered same as before, so it's ready the
@@ -173,7 +186,7 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
     font-size: clamp(1.8rem, 4vw, 2.6rem);
   }
 
-  /* Four tabs don't fit a phone's width on one row: the row scrolls sideways on its own (never the page), each tab
+  /* Five tabs don't fit a phone's width on one row: the row scrolls sideways on its own (never the page), each tab
      keeps its label on one line, and the selected tab is scrolled into view (see the tabs script below). */
   .tablist {
     display: flex;
@@ -282,6 +295,20 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .results-features summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
   .results-features .has-failures th, .results-features .has-failures td { color: var(--bad); }
   .results-slowest { padding-left: 1.4rem; margin: 0; color: var(--fg-muted); }
+  /* GitHub Issues: one card per issue, its title linking to GitHub; labels as chips with GitHub's own colour as a dot. */
+  .issues-toolbar { margin-bottom: var(--space-2); }
+  .issues-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .issues-new { display: inline-flex; align-items: center; text-decoration: none; }
+  .issues-all { display: inline-flex; align-items: center; min-height: 44px; }
+  .issue-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.25rem; }
+  .issue { display: grid; gap: 0.3rem; padding: 0.7rem 1rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); }
+  .issue-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem var(--space-1); }
+  .issue-title { font-weight: 600; overflow-wrap: anywhere; }
+  .issue-state { color: var(--fg-muted); font-size: 0.8rem; }
+  .issue-meta { margin: 0; color: var(--fg-muted); font-size: 0.85rem; overflow-wrap: anywhere; }
+  .issue-labels { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .issue-label { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.05rem 0.55rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.8rem; }
+  .issue-label::before { content: ''; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--label, var(--fg-muted)); }
   .pics-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); margin-bottom: var(--space-1); }
   .pics-summary .results-count { margin: 0; }
   .pics-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-left: auto; }
@@ -427,20 +454,24 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
     if (viewer) mountResultsViewer(viewer, viewer.closest<HTMLElement>('[role="tabpanel"]')!);
     // The Lighthouse viewer's code is loaded the first time its tab is shown, not with the page: most visits never
     // open it (the same reasoning as the Pics Viewer's bulk actions). It then behaves exactly as if mounted at load.
-    const lighthouse = document.querySelector<HTMLElement>('[data-lighthouse]');
-    const lighthousePanel = lighthouse?.closest<HTMLElement>('[role="tabpanel"]');
-    if (lighthouse && lighthousePanel) {
+    // GitHub Issues is loaded the same way.
+    const mountWhenShown = (selector: string, load: () => Promise<(container: HTMLElement, panel: HTMLElement) => void>) => {
+      const container = document.querySelector<HTMLElement>(selector);
+      const panel = container?.closest<HTMLElement>('[role="tabpanel"]');
+      if (!container || !panel) return;
       let loading = false;
       const loadWhenShown = () => {
-        if (loading || lighthousePanel.hidden) return;
+        if (loading || panel.hidden) return;
         loading = true;
         watcher.disconnect();
-        void import('../../lib/lighthouse-viewer').then(({ mountLighthouseViewer }) => mountLighthouseViewer(lighthouse, lighthousePanel));
+        void load().then((mount) => mount(container, panel));
       };
       const watcher = new MutationObserver(loadWhenShown);
-      watcher.observe(lighthousePanel, { attributes: true, attributeFilter: ['hidden'] });
+      watcher.observe(panel, { attributes: true, attributeFilter: ['hidden'] });
       setTimeout(loadWhenShown, 0); // once the tabs have applied the address (a link straight to #lighthouse-results)
-    }
+    };
+    mountWhenShown('[data-lighthouse]', () => import('../../lib/lighthouse-viewer').then((module) => module.mountLighthouseViewer));
+    mountWhenShown('[data-issues]', () => import('../../lib/issues-viewer').then((module) => module.mountIssuesViewer));
     mountIdleTimeout();
     const actions = document.querySelector<HTMLElement>('[data-admin-actions]');
     if (actions) mountAdminActions(actions);

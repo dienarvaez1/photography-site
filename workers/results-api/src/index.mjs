@@ -11,11 +11,13 @@
 //   GET /lighthouse/latest              lighthouse-results/latest.json: the newest run      (token)
 //   GET /lighthouse/runs/<run id>       that run's summary + signed report links            (token)
 //   GET /lighthouse/files/<run id>/<path>?exp&sig   one stored report, for a short time     (signature)
+//   GET /github/issues?state=open|closed|all       the site's GitHub issues, newest-updated first (token)
 //
 // "token" = `Authorization: Bearer <ADMIN_TOKEN>`. Files are opened by links the run endpoint signs
 // (HMAC of the path and an expiry, keyed by the token), so a link can be opened in a new tab or an <img>
 // without ever putting the token in a URL. The API only ever reads under results/ and lighthouse-results/ of the test
-// bucket, never writes, and refuses everything until ADMIN_TOKEN is set (and long enough).
+// bucket, never writes, and refuses everything until ADMIN_TOKEN is set (and long enough). GitHub is only ever read too.
+import { GitHubError, ISSUE_STATES, listIssues } from './issues.mjs';
 import { PHOTO_ID, describeOriginal, listOriginals } from './pics.mjs';
 
 /**
@@ -166,8 +168,21 @@ const decode = (part) => {
   }
 };
 
-/** The whole API. `now` is injectable so tests can check link expiry. */
-export async function handle(request, env, now = Date.now()) {
+/** GET /github/issues (the caller has checked the token). */
+async function issuesRoute(request, env, fetcher) {
+  const state = new URL(request.url).searchParams.get('state') ?? 'open';
+  if (!ISSUE_STATES.includes(state)) return fail(request, env, 400, 'bad-request', `Bad state: use ${ISSUE_STATES.join(', ')}.`);
+  try {
+    return json(request, env, 200, await listIssues(env, state, fetcher));
+  } catch (error) {
+    if (!(error instanceof GitHubError)) throw error;
+    const message = { misconfigured: 'GITHUB_REPO is not set to owner/name on this Worker.', 'rate-limited': "GitHub's rate limit was reached. Try again later, or set GITHUB_TOKEN." }[error.kind];
+    return fail(request, env, error.status, error.kind, message ?? 'GitHub did not answer as expected.');
+  }
+}
+
+/** The whole API. `now` is injectable so tests can check link expiry, and `fetcher` so they can stand in for GitHub. */
+export async function handle(request, env, now = Date.now(), fetcher = fetch) {
   const url = new URL(request.url);
   if (request.method === 'OPTIONS') {
     const cors = corsHeaders(request, env);
@@ -204,6 +219,13 @@ export async function handle(request, env, now = Date.now()) {
     if (!PHOTO_ID.test(runId) || rest.length) return fail(request, env, 400, 'bad-request', 'Bad photo id.');
     const photo = await describeOriginal(env.ORIGINALS, runId);
     return photo ? json(request, env, 200, photo) : fail(request, env, 404, 'not-found', `No original "${runId}".`);
+  }
+
+  if (route === 'github') {
+    const denied = await authorize(request, env);
+    if (denied) return denied;
+    if (runId !== 'issues' || rest.length) return fail(request, env, 404, 'not-found', 'Not found.');
+    return issuesRoute(request, env, fetcher);
   }
 
   if (route === 'index' || route === 'latest' || route === 'runs') {

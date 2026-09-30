@@ -163,7 +163,8 @@
       "testResults": "Resultados de pruebas",
       "lighthouseResults": "Resultados de Lighthouse",
       "picsViewer": "Visor de fotos",
-      "categoryMaintenance": "Mantenimiento de categorías"
+      "categoryMaintenance": "Mantenimiento de categorías",
+      "githubIssues": "Incidencias de GitHub"
     },
     "results": {
       "intro": "Resultados de las pruebas automáticas, leídos del almacén privado de resultados. Elige una ejecución para ver sus detalles.",
@@ -316,6 +317,41 @@
         "summary": "Datos sin procesar (JSON)",
         "newTab": "(se abre en una pestaña nueva)",
         "expiry": "Los enlaces son válidos durante {minutes} minutos. Vuelve a cargar la ejecución para obtener otros nuevos."
+      }
+    },
+    "issues": {
+      "intro": "Las incidencias del sitio en GitHub, las actualizadas más recientemente primero. Cada una se abre en GitHub, donde se puede responder, etiquetar o cerrar.",
+      "needsJs": "El visor de incidencias de GitHub necesita JavaScript. Sin él, consulta las incidencias en GitHub o con gh issue list.",
+      "filter": {
+        "label": "Mostrar incidencias",
+        "open": "Abiertas",
+        "closed": "Cerradas",
+        "all": "Todas"
+      },
+      "count": "{count} incidencias",
+      "more": "Se muestran las {count} actualizadas más recientemente. El resto está en GitHub.",
+      "empty": {
+        "open": "No hay incidencias abiertas.",
+        "closed": "No hay incidencias cerradas.",
+        "all": "Aún no hay incidencias."
+      },
+      "new": "Nueva incidencia",
+      "onGitHub": "Todas las incidencias en GitHub",
+      "newTab": "(abre GitHub en una pestaña nueva)",
+      "status": {
+        "open": "Abierta",
+        "closed": "Cerrada",
+        "notPlanned": "No planificada"
+      },
+      "opened": "#{number} abierta el {date} por {author}",
+      "closed": "cerrada el {date}",
+      "updated": "actualizada el {date}",
+      "comments": "Comentarios: {count}",
+      "labels": "Etiquetas",
+      "errors": {
+        "rateLimited": "Se alcanzó el límite de solicitudes de GitHub. Vuelve a intentarlo en unos minutos, o configura el secreto GITHUB_TOKEN en el Worker de resultados.",
+        "upstream": "GitHub no respondió como se esperaba. Vuelve a intentarlo más tarde.",
+        "misconfigured": "El Worker de resultados no sabe qué repositorio leer. Configura GITHUB_REPO en su wrangler.jsonc."
       }
     },
     "pics": {

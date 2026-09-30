@@ -8,6 +8,7 @@ import { ROOT } from './lib.js';
 import { asR2Binding } from './r2-binding.js';
 import { publishRuns } from './results-fixtures.js';
 import { fakeOriginals } from './originals-fixtures.js';
+import { noGitHub } from './github-fixtures.js';
 
 // The category page's client-side category switcher (Phase 6) fetches /api/photos.json from the
 // site's own origin (see src/pages/api/photos.json.ts) — a real route the snapshot build already
@@ -128,6 +129,12 @@ export async function addLighthouseRuns(world, runs) {
   world.b.results.lighthouseRunIds = lighthouseRunIds;
 }
 
+/** Puts a stand-in for GitHub (see github-fixtures.js), holding this repository's issues, behind the results API. */
+export function setUpGitHub(world, github, repo) {
+  world.b.results.github = github;
+  world.b.results.env.GITHUB_REPO = repo;
+}
+
 /** Puts these original photos ([{ id, body }]) behind the API's ORIGINALS binding; `originals.calls` records every read. */
 export function setUpOriginals(world, files, { objects } = {}) {
   const originals = fakeOriginals(files, { objects });
@@ -143,7 +150,8 @@ async function serveResults(b, siteOrigin, request, route) {
   if (results.delayMs) await new Promise((resolve) => setTimeout(resolve, results.delayMs));
   // Only the site's own origin may read the answers, exactly as in production.
   const env = { ...results.env, ALLOWED_ORIGINS: siteOrigin };
-  const answer = await handleResultsRequest(new Request(request.url(), { method: request.method(), headers: request.headers() }), env);
+  // GitHub is a stand-in too (setUpGitHub); a scenario without one never reaches the real GitHub.
+  const answer = await handleResultsRequest(new Request(request.url(), { method: request.method(), headers: request.headers() }), env, Date.now(), results.github?.fetcher ?? noGitHub);
   let body = Buffer.from(await answer.arrayBuffer());
   if (results.foreignLink && url.pathname.startsWith('/runs/') && answer.status === 200) {
     // A misbehaving API: one of the run's file links points at another site.

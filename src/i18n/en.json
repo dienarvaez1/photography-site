@@ -163,7 +163,8 @@
       "testResults": "Test Results",
       "lighthouseResults": "Lighthouse Test Results",
       "picsViewer": "Pics Viewer",
-      "categoryMaintenance": "Category Maintenance"
+      "categoryMaintenance": "Category Maintenance",
+      "githubIssues": "GitHub Issues"
     },
     "results": {
       "intro": "Results of the automated tests, read from the private results store. Pick a run to see its details.",
@@ -316,6 +317,41 @@
         "summary": "Raw data (JSON)",
         "newTab": "(opens in a new tab)",
         "expiry": "Links stay valid for {minutes} minutes. Reload the run for fresh ones."
+      }
+    },
+    "issues": {
+      "intro": "The site's issues on GitHub, most recently updated first. Each one opens on GitHub, where it can be answered, labelled or closed.",
+      "needsJs": "The GitHub Issues viewer needs JavaScript. Without it, see the issues on GitHub or with gh issue list.",
+      "filter": {
+        "label": "Show issues",
+        "open": "Open",
+        "closed": "Closed",
+        "all": "All"
+      },
+      "count": "{count} issues",
+      "more": "Showing the {count} most recently updated. The rest are on GitHub.",
+      "empty": {
+        "open": "No open issues.",
+        "closed": "No closed issues.",
+        "all": "No issues yet."
+      },
+      "new": "New issue",
+      "onGitHub": "All issues on GitHub",
+      "newTab": "(opens GitHub in a new tab)",
+      "status": {
+        "open": "Open",
+        "closed": "Closed",
+        "notPlanned": "Not planned"
+      },
+      "opened": "#{number} opened {date} by {author}",
+      "closed": "closed {date}",
+      "updated": "updated {date}",
+      "comments": "Comments: {count}",
+      "labels": "Labels",
+      "errors": {
+        "rateLimited": "GitHub's rate limit was reached. Try again in a few minutes, or set the GITHUB_TOKEN secret on the results Worker.",
+        "upstream": "GitHub did not answer as expected. Try again later.",
+        "misconfigured": "The results Worker doesn't know which repository to read. Set GITHUB_REPO in its wrangler.jsonc."
       }
     },
     "pics": {
