@@ -43,10 +43,11 @@ servers:
 tags:
   - name: Results API
     description: |
-      Read-only API behind the Admin page's **Test Results** and **Pics Viewer** tabs (`workers/results-api/`,
-      deployed as `photography-site-results`). It reads the private test-results bucket (`photography-site-test`,
-      only under `results/`) and the private originals bucket (`photography-site-originals`), never writes, and
-      refuses everything until its `ADMIN_TOKEN` secret (16+ characters) is set.
+      Read-only API behind the Admin page's **Test Results**, **Pics Viewer** and **GitHub Issues** tabs
+      (`workers/results-api/`, deployed as `photography-site-results`). It reads the private test-results bucket
+      (`photography-site-test`, only under `results/`), the private originals bucket (`photography-site-originals`)
+      and the site's issues on GitHub, never writes, and refuses everything until its `ADMIN_TOKEN` secret (16+
+      characters) is set.
   - name: Test results
     description: Recorded test runs (`npm run test:record`), newest first.
   - name: Originals
@@ -56,6 +57,11 @@ tags:
       Recorded Lighthouse runs (`npm run test:lighthouse:record`), newest first, stored under `lighthouse-results/` in
       the test bucket and shown on the Admin page's **Lighthouse Test Results** tab. Same shape and protection as the
       test results; a signed link is bound to its store, so a test-results link never opens a Lighthouse file.
+  - name: GitHub issues
+    description: |
+      The site's GitHub issues (the repository in the Worker's `GITHUB_REPO` setting), read from GitHub's REST API and
+      shown on the Admin page's **GitHub Issues** tab. Read-only; pull requests and issue bodies are never passed on.
+      An optional `GITHUB_TOKEN` secret raises GitHub's rate limit.
   - name: Site API
     description: Public, read-only data served from the site's own origin.
   - name: Photo service
@@ -407,6 +413,50 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '404':
           description: No such file (`error` is `not-found`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+
+  /github/issues:
+    get:
+      tags: [Results API, GitHub issues]
+      operationId: listGitHubIssues
+      summary: The site's GitHub issues, most recently updated first
+      description: |
+        One page (100 entries) of GitHub's issue list for `GITHUB_REPO`, sorted by update time, newest first, without
+        the pull requests GitHub mixes in. `complete` is false when that page was full, so there may be more on GitHub.
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema: { type: string, enum: [open, closed, all], default: open }
+      responses:
+        '200':
+          description: The issues.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GitHubIssueList' }
+        '400':
+          description: The state is not `open`, `closed` or `all` (`error` is `bad-request`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '429':
+          description: GitHub's rate limit was reached (`error` is `rate-limited`). Try later, or set `GITHUB_TOKEN`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: '`GITHUB_REPO` is not set to `owner/name` (`error` is `misconfigured`).'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '502':
+          description: GitHub could not be reached or answered with an error (`error` is `upstream`).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1225,6 +1275,40 @@ components:
                     path: { type: string }
                     device: { type: string }
               files: { type: array, items: { type: string } }
+
+    # --- GitHub issues ------------------------------------------------------------------------------------------------
+    GitHubIssueList:
+      type: object
+      required: [repo, state, issues, complete]
+      properties:
+        repo: { type: string, example: dienarvaez1/photography-site }
+        state: { type: string, enum: [open, closed, all] }
+        complete: { type: boolean, description: "False when GitHub's page was full, so there may be more issues." }
+        issues:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [number, title, state, stateReason, url, author, labels, comments, createdAt, updatedAt, closedAt]
+            properties:
+              number: { type: integer }
+              title: { type: string }
+              state: { type: string, enum: [open, closed] }
+              stateReason: { type: [string, 'null'], description: "GitHub's `state_reason`: `completed`, `not_planned`, `reopened` or null." }
+              url: { type: string, format: uri, description: The issue on github.com. }
+              author: { type: [string, 'null'] }
+              labels:
+                type: array
+                items:
+                  type: object
+                  required: [name, color]
+                  properties:
+                    name: { type: string }
+                    color: { type: [string, 'null'], pattern: '^[0-9a-f]{6}$' }
+              comments: { type: integer }
+              createdAt: { type: [string, 'null'], format: date-time }
+              updatedAt: { type: [string, 'null'], format: date-time }
+              closedAt: { type: [string, 'null'], format: date-time }
 
     # --- Originals ----------------------------------------------------------------------------------------------------
     OriginalList:

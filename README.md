@@ -59,7 +59,7 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against thirty-two areas. The
+tests bake in sample photos instead), then checks that built output against thirty-three areas. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
@@ -198,6 +198,12 @@ against every page in both English and Spanish**; expected text is read from
   refused; reports served sandboxed and uncached; the run's index page served with its report links signed, and
   those links working; expired, tampered and test-results signatures refused, in both directions; and nothing read
   outside `lighthouse-results/`.
+- **`github-issues-api.feature`** — the results API's `/github/issues` route, called through the real handler with a
+  stand-in for GitHub's API: open, closed and all issues, newest-updated first, never the pull requests; only the
+  fields the tab shows (no bodies), with "not planned" closures told apart; GitHub asked once, for the configured
+  repository, with `GITHUB_TOKEN` only when it is set; a full page marked incomplete; the admin token required (and
+  GitHub not asked without it); bad states, unknown routes, GitHub's rate limit, GitHub down or unreachable and no
+  repository configured each answered with their own error; and the Worker configured for this site's repository.
 - **`admin.feature`** — a basic smoke test of the Admin page: it exists in both languages, "Admin" is
   linked immediately to the right of "Contact" and marked active on its own page, it has exactly three
   tabs ("Test Results", "Pics Viewer", then "Category Maintenance") in a horizontal, labelled tab list
@@ -329,7 +335,12 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   page and device, what was over budget, signed report links opening in a new tab, the run's index page and raw data,
   the way back and the Back button, an unknown run, no runs yet, Spanish, and the accessibility audit and no sideways
   scrolling on laptop and phone.
-- **`admin.feature`** (browser) — the four tabs really sit side by side on laptop and phone; clicking,
+- **`github-issues.feature`** (browser) — the GitHub Issues tab against the real results API code and a stand-in for
+  GitHub: the token gate (nothing requested before signing in, one sign-in for every tab), the open issues newest-updated
+  first with their status, comments and labels, each linking to GitHub in a new tab, the New issue link, the Open,
+  Closed and All filter, no open issues, GitHub's rate limit and GitHub unreachable (explained, still signed in),
+  Spanish, and the accessibility audit, no sideways scrolling, no script errors and no CSP violations.
+- **`admin.feature`** (browser) — the five tabs really sit side by side on laptop and phone; clicking,
   arrow keys, Home/End (with wrap-around), deep links like `/admin/#pics-viewer`, Spanish, no-JavaScript, and
   that the page works at its address although the header never links to it, with no errors or CSP violations.
 - **`results-viewer.feature`** (browser) — the Test Results tab against the real results API code and a
@@ -395,7 +406,7 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   keeps) one that still has photos; and without the local service, Edit says it only works on the owner's
   computer instead of doing anything.
 - **`admin-timeout.feature`** (browser) — with the page's clock under the test's control: still signed in at
-  4:55 and signed out at 5:00 (all four tabs, whichever is showing, header buttons gone, token forgotten,
+  4:55 and signed out at 5:00 (all five tabs, whichever is showing, header buttons gone, token forgotten,
   tooltip closed, no more requests); a mouse move, key press, scroll, click or tap restarts the 5 minutes but the
   page's own refresh does not; a tab left longer than 5 minutes and reloaded is signed out, one reloaded
   sooner stays signed in; the reminder goes away on the next sign-in and never shows after a manual sign-out;
@@ -782,19 +793,19 @@ both). Until 29 Sep 2026 the script wasn't allowed, so the browser blocked it on
 ## Admin page
 
 `/admin/` (and `/es/admin/`) works like any other page, but is **not linked from the header** — go there
-directly by typing the address. It has four tabs side by side: **Test Results**, **Lighthouse Test Results**,
-**Pics Viewer** and **Category Maintenance** (in Spanish: *Resultados de pruebas*, *Resultados de Lighthouse*, *Visor
-de fotos* and *Mantenimiento de categorías*); on a phone the row of tabs scrolls sideways. The tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the
+directly by typing the address. It has five tabs side by side: **Test Results**, **Lighthouse Test Results**,
+**Pics Viewer**, **Category Maintenance** and **GitHub Issues** (in Spanish: *Resultados de pruebas*, *Resultados de
+Lighthouse*, *Visor de fotos*, *Mantenimiento de categorías* and *Incidencias de GitHub*); on a phone the row of tabs scrolls sideways. The tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the
 selected tab is in the URL (`/admin/#pics-viewer`), and without JavaScript every panel is shown.
 
 **The Admin page signs out after 5 minutes of inactivity** (`src/config/admin.ts`): the token is forgotten,
-all four tabs return to the token form, and the form says why. Moving the pointer, pressing a key, scrolling,
+all five tabs return to the token form, and the form says why. Moving the pointer, pressing a key, scrolling,
 clicking or touching the page counts as being there and restarts the 5 minutes; requests the page makes by
 itself do not. A tab left for longer than that and then reloaded is signed out too. (While the tab is in the
 background the browser slows timers down, so the sign-out happens when you come back to it at the latest.)
 
 **Refresh and Sign out** are at the top of the page, across from the "Admin" title (they appear only while
-you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all four tabs.
+you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all five tabs.
 
 **Every page's footer names the build**, in its right corner ("Build v1.0.1"), so you can tell which code is live.
 It is stamped in when the site is built (`scripts/lib/build-info.mjs`, read by `astro.config.mjs`):
@@ -855,6 +866,29 @@ index page and raw data. The reports open through the same short-lived (15 minut
 served sandboxed by the results API (`/lighthouse/...` routes); a Lighthouse link never opens a test-results file, or
 the reverse. The results API needs no new setup: it already reads the test bucket, and `npm run results-api:deploy`
 publishes the new routes.
+
+### GitHub Issues tab
+
+It lists the site's issues on GitHub (the repository named by `GITHUB_REPO` in `workers/results-api/wrangler.jsonc`,
+`dienarvaez1/photography-site`), most recently updated first, behind the **same admin token** as the other tabs. Each
+issue shows its number, title, whether it is open, closed or closed as not planned, who opened it and when, when it
+was last updated (or closed), how many comments it has and its labels; its title opens it on GitHub in a new tab. A
+filter switches between **Open** (the default), **Closed** and **All**, and **New issue** opens GitHub's new-issue form.
+The tab only reads: answering, labelling and closing happen on GitHub. Pull requests are never listed. At most the 100
+most recently updated issues of each filter are shown, and the tab says so when there are more.
+
+The page never talks to GitHub itself: the results API asks GitHub (`GET /github/issues?state=open|closed|all`) and
+passes on only what the tab shows, so the site's Content-Security-Policy is unchanged. The repository is public, so no
+GitHub token is needed. Without one, GitHub allows 60 requests an hour per address, and Cloudflare Workers share
+their addresses. If the tab says GitHub's rate limit was reached, give the Worker a token (**needs you**: a
+fine-grained personal access token with read-only access to this repository's issues):
+
+```bash
+npx wrangler secret put GITHUB_TOKEN -c workers/results-api/wrangler.jsonc
+```
+
+Like the Lighthouse tab, its code is loaded only the first time the tab is opened. `npm run results-api:deploy`
+publishes the route and the `GITHUB_REPO` setting.
 
 ### Pics Viewer tab
 
@@ -1007,7 +1041,7 @@ page, use [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/p
 
 Lists every category configured on the site (`src/config/categories.json`), hidden or not, with its name in
 each language and how many photos are in it. It sits behind the same admin token as the other two tabs —
-checked against the results API the moment it's entered (one sign-in serves all four tabs, and Sign
+checked against the results API the moment it's entered (one sign-in serves all five tabs, and Sign
 out or the idle timeout signs all three out together), even though the tab itself asks that API for none of
 its own data: the list is public information once you're in, drawn straight from the page's own
 server-rendered data, and the token check exists only to gate the tab the same way its siblings are gated.
@@ -1056,8 +1090,9 @@ gallery photos load eagerly (the first with high priority); the rest lazily. Eve
 width and height so the page can't jump while loading; the header logos are right-sized (the small
 icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
 27 KB, styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
-page's client-side category switcher; the Admin pages, which carry four tabs of tools and are opened
-only by you, may have 48 KB of HTML and 55 KB of scripts, with the Lighthouse tab's code loaded only when it is opened). If you change `PHOTO_VARIANTS`, run
+page's client-side category switcher; the Admin pages, which carry five tabs of tools and are opened
+only by you, may have 52 KB of HTML and 56 KB of scripts, with the Lighthouse and GitHub Issues tabs' code loaded only
+when they are opened). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 
 ## Deployment to Cloudflare Pages (free)

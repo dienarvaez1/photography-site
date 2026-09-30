@@ -1,7 +1,7 @@
 @browser
 Feature: The Admin page's tabs work in a real browser
   As the site owner
-  I want the Test Results, Lighthouse Test Results, Pics Viewer and Category Maintenance tabs to sit side by side
+  I want the Test Results, Lighthouse Test Results, Pics Viewer, Category Maintenance and GitHub Issues tabs to sit side by side
   and switch properly
   So that the Admin page is usable with the mouse, the keyboard and on a phone
 
@@ -27,6 +27,9 @@ Feature: The Admin page's tabs work in a real browser
     When I click the "Category Maintenance" tab
     Then the "Category Maintenance" tab should be selected, its panel visible and every other panel hidden
     And the address should end with "#category-maintenance"
+    When I click the "GitHub Issues" tab
+    Then the "GitHub Issues" tab should be selected, its panel visible and every other panel hidden
+    And the address should end with "#github-issues"
     When I click the "Test Results" tab
     Then the "Test Results" tab should be selected, its panel visible and every other panel hidden
 
@@ -40,13 +43,15 @@ Feature: The Admin page's tabs work in a real browser
     When I press the key "ArrowRight"
     Then the "Category Maintenance" tab should be selected and focused
     When I press the key "ArrowRight"
+    Then the "GitHub Issues" tab should be selected and focused
+    When I press the key "ArrowRight"
     Then the "Test Results" tab should be selected and focused
     When I press the key "ArrowLeft"
-    Then the "Category Maintenance" tab should be selected and focused
+    Then the "GitHub Issues" tab should be selected and focused
     When I press the key "Home"
     Then the "Test Results" tab should be selected and focused
     When I press the key "End"
-    Then the "Category Maintenance" tab should be selected and focused
+    Then the "GitHub Issues" tab should be selected and focused
 
   Scenario: Only the selected tab is in the tab order; Tab moves on into its panel
     When I open "/admin/"
@@ -67,6 +72,8 @@ Feature: The Admin page's tabs work in a real browser
     Then the "Visor de fotos" tab should be selected, its panel visible and every other panel hidden
     When I click the "Mantenimiento de categorías" tab
     Then the "Mantenimiento de categorías" tab should be selected, its panel visible and every other panel hidden
+    When I click the "Incidencias de GitHub" tab
+    Then the "Incidencias de GitHub" tab should be selected, its panel visible and every other panel hidden
 
   Scenario: Without JavaScript every panel can be read
     Given JavaScript is switched off

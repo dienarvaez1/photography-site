@@ -151,7 +151,7 @@ function referencedBytes(root, pattern, attribute, extraImports = false) {
   return total;
 }
 
-Then("no page's HTML should exceed 30 KB, its scripts 27 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 48 KB and their scripts 55 KB", function () {
+Then("no page's HTML should exceed 30 KB, its scripts 27 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 52 KB and their scripts 56 KB", function () {
   const problems = [];
   for (const { route, page } of this.data.pages) {
     const isAdmin = /\/admin\/$/.test(route);
@@ -174,8 +174,10 @@ Then("no page's HTML should exceed 30 KB, its scripts 27 KB, or its styles 25 KB
     // data now carries a heroBackground flag, and the bar and badge are genuine hand-written UI, not a library.
     // The Lighthouse Test Results tab (48 KB of HTML) brought its own texts, in the page's language, as data like the
     // other tabs; its code is loaded only when the tab is opened, so the script budget did not move.
-    if (kb(html) > (isAdmin ? 48 : 30)) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
-    if (kb(js) > (isAdmin ? 55 : 27)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
+    // The GitHub Issues tab (52/56 KB) did the same: its texts travel as data (the Spanish ones are the longer), and
+    // only a few lines of the page's own script load its code when the tab is first opened.
+    if (kb(html) > (isAdmin ? 52 : 30)) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
+    if (kb(js) > (isAdmin ? 56 : 27)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
     if (kb(css) > 25) problems.push(`${route}: styles ${kb(css).toFixed(1)} KB`);
   }
   assert.deepEqual(problems, [], 'A page grew past its budget — check for an oversized script, style or inlined asset');

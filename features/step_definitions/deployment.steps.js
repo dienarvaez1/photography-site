@@ -333,9 +333,13 @@ Then('every external address the built pages and scripts load should be allowed 
   // Addresses the scripts fetch at runtime — or, for the category page's client-built <img> tags
   // (work/[category].astro), only ever assign to img.src/srcset, which img-src governs, not
   // connect-src; either directive allowing an address means the built JS won't hit a CSP wall.
+  // The one exception: the GitHub Issues viewer only ever puts github.com in a link's href (a navigation, which no
+  // directive of this policy governs); the issues themselves come through the results API.
   const dir = join(DIST_DIR, '_astro');
+  const linkOnly = (file, url) => file.startsWith('issues-viewer.') && origin(url) === 'https://github.com';
   for (const file of readdirSync(dir).filter((f) => f.endsWith('.js'))) {
     for (const url of readFileSync(join(dir, file), 'utf-8').match(/https:\/\/[a-z0-9.-]+\.[a-z]{2,}[^\s"'`)]*/gi) ?? []) {
+      if (linkOnly(file, url)) continue;
       if (!allowed('connect-src').has(origin(url)) && !allowed('img-src').has(origin(url)) && !url.includes('w3.org') && !url.includes('reactjs.org')) problems.push(`${file}: ${origin(url)}`);
     }
   }
