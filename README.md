@@ -286,6 +286,17 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   locked while open; Spanish labels; works on a phone; the deep-linkable `?photo=` address (opening
   it, reloading it, a direct shared link, the Back button, history not growing per photo); swipe
   between photos and pinch-to-zoom on a phone.
+- **`lightbox-controls.feature`** (browser) — the lightbox's control box: one box-height above the
+  screen's bottom margin, bottom right on a laptop and centered on a phone; a white border round the five
+  controls, in order; below a real-sized photo and its caption, never over them; staying put while moving
+  between photos, zooming and panning; a zoomed photo passing under it with every control still on top
+  and clickable; the Tab order. The magnifying-glass zoom icons, every icon hidden with each control
+  named by its label, a disabled control's icon dimmed, the fullscreen corners turning. A tooltip naming
+  each control, one at a time, on hover (a disabled one too) and keyboard focus, above the box and on
+  screen, in the page's language and following the category and fullscreen state, with nothing left
+  behind by a tap on a phone. Letting go of a dragged photo over the dark background keeps it open while
+  a real click there still closes it, and the gallery link leads to the photo's own category after a
+  category switch or a re-sort.
 - **`gallery-layout.feature`** — a category with only one photo doesn't stretch its tile far past its
   own shape: Gallery.astro's justified rows use flex-grow to fill a row's width, and a narrow
   (portrait-oriented) tile sharing a mostly-empty row used to be stretched several times past its own

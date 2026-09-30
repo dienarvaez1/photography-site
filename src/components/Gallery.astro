@@ -113,43 +113,6 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
 >
   <button type="button" class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label={t('gallery.previous')}>&#8249;</button>
   <figure class="lightbox-figure">
-    {/* Top-right corner of the photo itself, left of Close, in this order — not the screen's own
-        corner (a letterboxed, non-full-bleed photo would otherwise leave the toolbar floating over
-        bare scrim, away from the thing it controls). .lightbox-figure is `position: relative` for
-        exactly this. Each is icon-only (no visible label, drawn in CSS — see the longer explanation
-        by .lightbox-toolbar below); the accessible name comes entirely from aria-label, same as
-        Close/Previous/Next always have. */}
-    <div class="lightbox-toolbar">
-      <button type="button" class="lightbox-tool lightbox-zoom-in" id="lightbox-zoom-in" aria-label={t('gallery.zoomIn')}>+</button>
-      <button type="button" class="lightbox-tool lightbox-zoom-out" id="lightbox-zoom-out" aria-label={t('gallery.zoomOut')}>&minus;</button>
-      {/* Its own icon flips (a CSS transform, not a swapped element) between this and .is-fullscreen;
-          its label and aria-label are updated the same way, from the two data- attributes below,
-          by the `fullscreenchange` listener in the script — the one event that reflects whether the
-          browser actually entered fullscreen, rather than assuming the click that requested it succeeded.
-          Hidden outright wherever `document.fullscreenEnabled` is false, so no dead button ships to a
-          browser (or embedded context) that can't grant it. */}
-      <button
-        type="button"
-        class="lightbox-tool lightbox-fullscreen"
-        id="lightbox-fullscreen"
-        aria-label={t('gallery.enterFullscreen')}
-        data-enter-label={t('gallery.enterFullscreen')}
-        data-exit-label={t('gallery.exitFullscreen')}
-      ></button>
-      {/* A real link (works with no JS, like the category page's own filter pills): server-rendered
-          pointing at `defaultCategorySlug` (see the Props comment above), then kept in sync with
-          whichever photo is actually open — not necessarily the same category, since the home page's
-          Featured strip mixes several — by the script below, from `data-category-labels`/
-          `data-view-gallery-template` above. */}
-      <a
-        class="lightbox-tool lightbox-view-gallery"
-        id="lightbox-view-gallery"
-        href={defaultCategorySlug ? localizePath(`/work/${defaultCategorySlug}/`, locale) : '#'}
-        aria-label={defaultCategorySlug ? t('gallery.viewCategoryGallery', { category: defaultCategoryLabel ?? '' }) : undefined}
-        data-astro-reload="false"
-      ></a>
-      <button type="button" class="lightbox-tool lightbox-close" id="lightbox-close" aria-label={t('gallery.close')}>&times;</button>
-    </div>
     {/* draggable="false": otherwise the browser's own native image drag (a ghost thumbnail under
         the cursor, dropping the photo wherever the mouse releases) would fight the mouse-drag-to-pan
         the script below adds once zoomed in. */}
@@ -158,6 +121,54 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
       <span id="lightbox-title"></span><span id="lightbox-camera"></span>
     </figcaption>
   </figure>
+  {/* The screen's own bottom-right corner, below the photo, in a white-bordered box: always in the
+      same place whichever photo is open, so it never has to be looked for (on a phone, centered
+      along the bottom instead; see .lightbox-toolbar). Zoom in/out, fullscreen, the gallery, then
+      Close, in this order. It comes after the photo in the markup, so Tab goes Previous, the
+      toolbar, then Next. Each is icon-only: a small inline SVG, aria-hidden, drawn in currentColor.
+      The accessible name comes entirely from aria-label, same as Close/Previous/Next always have,
+      and the hover/focus tooltip shows that same aria-label (see .lightbox-tool::after below), so
+      the two can never disagree. */}
+  <div class="lightbox-toolbar">
+    {/* A magnifying glass with a plus, and one with a minus. */}
+    <button type="button" class="lightbox-tool lightbox-zoom-in" id="lightbox-zoom-in" aria-label={t('gallery.zoomIn')}>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.3 15.3 20.5 20.5M10.5 7.75v5.5M7.75 10.5h5.5" /></svg>
+    </button>
+    <button type="button" class="lightbox-tool lightbox-zoom-out" id="lightbox-zoom-out" aria-label={t('gallery.zoomOut')}>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.3 15.3 20.5 20.5M7.75 10.5h5.5" /></svg>
+    </button>
+    {/* Its own icon flips (a CSS transform, not a swapped element) between this and .is-fullscreen;
+        its label and aria-label are updated the same way, from the two data- attributes below,
+        by the `fullscreenchange` listener in the script — the one event that reflects whether the
+        browser actually entered fullscreen, rather than assuming the click that requested it succeeded.
+        Hidden outright wherever `document.fullscreenEnabled` is false, so no dead button ships to a
+        browser (or embedded context) that can't grant it. */}
+    <button
+      type="button"
+      class="lightbox-tool lightbox-fullscreen"
+      id="lightbox-fullscreen"
+      aria-label={t('gallery.enterFullscreen')}
+      data-enter-label={t('gallery.enterFullscreen')}
+      data-exit-label={t('gallery.exitFullscreen')}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.5 10V4.5H10" /><path d="M19.5 14v5.5H14" /></svg>
+    </button>
+    {/* A real link (works with no JS, like the category page's own filter pills): server-rendered
+        pointing at `defaultCategorySlug` (see the Props comment above), then kept in sync with
+        whichever photo is actually open — not necessarily the same category, since the home page's
+        Featured strip mixes several — by the script below, from `data-category-labels`/
+        `data-view-gallery-template` above. */}
+    <a
+      class="lightbox-tool lightbox-view-gallery"
+      id="lightbox-view-gallery"
+      href={defaultCategorySlug ? localizePath(`/work/${defaultCategorySlug}/`, locale) : '#'}
+      aria-label={defaultCategorySlug ? t('gallery.viewCategoryGallery', { category: defaultCategoryLabel ?? '' }) : undefined}
+      data-astro-reload="false"
+    >
+      <svg class="filled" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h5.5v5.5H5zM13.5 5H19v5.5h-5.5zM5 13.5h5.5V19H5zM13.5 13.5H19V19h-5.5z" /></svg>
+    </a>
+    <button type="button" class="lightbox-tool lightbox-close" id="lightbox-close" aria-label={t('gallery.close')}>&times;</button>
+  </div>
   <p class="lightbox-counter" id="lightbox-counter" aria-hidden="true"></p>
   <button type="button" class="lightbox-nav lightbox-next" id="lightbox-next" aria-label={t('gallery.next')}>&#8250;</button>
 </div>
@@ -305,6 +316,8 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
   }
 
   .lightbox {
+    /* One toolbar button's size (smaller on a phone, below); the toolbar's own height and position follow from it. */
+    --lightbox-tool-size: 40px;
     position: fixed;
     inset: 0;
     z-index: 100;
@@ -341,7 +354,7 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
 
   /* Only once there's somewhere to drag it to (currentScale > 1, toggled by applyTransform() in the
      script below) — otherwise the ordinary cursor, since clicking/dragging the photo itself does
-     nothing at 1x (zooming is the dedicated +/- buttons, or pinch on a phone). */
+     nothing at 1x (zooming is the dedicated zoom in/out buttons, or pinch on a phone). */
   .lightbox-figure img.is-zoomed {
     cursor: grab;
   }
@@ -400,38 +413,44 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
     opacity: 1;
   }
 
-  /* Zoom in/out, (Enter/Exit) Fullscreen, View <category> gallery, then Close — in that order, top
-     right. One row, so Close (which owned this corner alone before) just becomes its last, rightmost
-     item; the group is still positioned as a unit the same way .lightbox-close used to be by itself. */
+  /* Zoom in/out, (Enter/Exit) Fullscreen, View <category> gallery, then Close — in that order, in one white-bordered
+     box fixed to the screen's bottom-right corner, below the photo (the photo is capped at 78vh and centered, which
+     leaves this corner clear). It stays put whichever photo is open. Only a zoomed-in photo reaches it, and the box's
+     dark, see-through fill keeps the border and icons legible over that too. */
   .lightbox-toolbar {
+    /* Its own height: a button, the 0.25rem padding above and below it, and the 1px border. */
+    --lightbox-toolbar-height: calc(var(--lightbox-tool-size) + 0.5rem + 2px);
     position: absolute;
-    top: var(--space-1);
-    right: var(--space-1);
+    /* One box-height up from the screen's bottom edge (plus the usual margin): the box sits stacked on top of the spot
+       at the very bottom, clear of the page's bottom edge. */
+    bottom: calc(var(--space-2) + var(--lightbox-toolbar-height));
+    right: var(--space-2);
     /* See the identical comment on .lightbox-nav above — a zoomed photo would otherwise paint over
        this toolbar too. */
     z-index: 1;
     display: flex;
     align-items: center;
     gap: 0.125rem;
+    padding: 0.25rem;
+    border: 1px solid #fff;
+    border-radius: var(--radius);
+    background: rgba(10, 10, 11, 0.6);
   }
 
   .lightbox-tool {
+    /* The containing block of its own tooltip (::after, below). */
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: var(--lightbox-tool-size);
+    height: var(--lightbox-tool-size);
     background: none;
     border: none;
     border-radius: var(--radius);
-    /* #767676: the standard "equally accessible on either extreme" gray — ~4.5:1 contrast against
-       both white and black, so an icon stays legible whether it lands over the near-black scrim,
-       a dark part of the photo, or a light/white one (the toolbar sits *over* the photo, which can
-       reach right up under it — see the .lightbox-tool z-index comment below). Full opacity, not
-       dimmed at rest: dimming a color already chosen for a specific contrast ratio undoes the
-       reason it was chosen, so hover is a background tint instead (below), not a brightness change.
-    */
-    color: #767676;
+    /* White on the toolbar box's own dark fill (.lightbox-toolbar above), which is there whatever the
+       photo under it looks like. Full opacity at rest; hover is a background tint instead (below). */
+    color: #fff;
     font-size: 1.5rem;
     line-height: 1;
     text-decoration: none;
@@ -439,8 +458,12 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
     transition: background-color 0.2s ease;
   }
 
-  .lightbox-tool:hover {
-    background: rgba(255, 255, 255, 0.15);
+  /* Only where there's a real pointer to hover with: a phone keeps :hover on whatever was last tapped, which would leave
+     the tint stuck on a button the tap that opened the photo happened to land on. */
+  @media (hover: hover) {
+    .lightbox-tool:not(:disabled):hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
   }
 
   /* Real `disabled` (toggled by the script at the currentScale bounds it already enforces for
@@ -448,71 +471,101 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
      as unavailable, and drops out of the dialog's own Tab order the same way the script's focus
      trap already excludes anything else `:disabled`/`[hidden]`. */
   .lightbox-tool:disabled {
-    opacity: 0.3;
     cursor: default;
+  }
+
+  /* The icon only, not the whole button: its tooltip (::after) stays legible, so a disabled control still says what
+     it is. */
+  .lightbox-tool:disabled svg {
+    opacity: 0.3;
   }
 
   .lightbox-close {
     font-size: 2rem;
   }
 
-  /* Two opposite corner brackets — ⌜ top-left, ⌟ bottom-right — the same "expand to fill the
-     screen" shape used everywhere from video players to OS window controls, drawn in CSS rather
-     than as a Unicode glyph (no single character renders it reliably across fonts) or an SVG (this
-     codebase ships none — see the hamburger icon this same trick is borrowed from in Header.astro).
-     .is-fullscreen (set by the script from the real `fullscreenchange` event) rotates both 180°
-     in place, which turns the same two corners inward into a "shrink back down" shape — one pair of
-     shapes, not a second icon to keep in sync. */
-  .lightbox-fullscreen {
-    position: relative;
+  /* The toolbar's icons: small inline SVGs (see the markup), stroked in the button's own color. */
+  .lightbox-tool svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
-  .lightbox-fullscreen::before,
-  .lightbox-fullscreen::after {
-    content: '';
-    position: absolute;
-    width: 9px;
-    height: 9px;
-    border: 2px solid currentColor;
+  .lightbox-tool svg.filled {
+    fill: currentColor;
+    stroke: none;
+  }
+
+  /* Fullscreen: two opposite corner brackets, the usual "expand" shape. .is-fullscreen (set by the script from the real
+     `fullscreenchange` event) turns each bracket 180° in place, which points both corners inward: "shrink back down".
+     One pair of shapes, not a second icon to keep in sync. */
+  .lightbox-fullscreen path {
+    transform-box: fill-box;
+    transform-origin: center;
     transition: transform 0.2s ease;
   }
 
-  .lightbox-fullscreen::before {
-    top: 9px;
-    left: 9px;
-    border-right: none;
-    border-bottom: none;
-  }
-
-  .lightbox-fullscreen::after {
-    bottom: 9px;
-    right: 9px;
-    border-left: none;
-    border-top: none;
-  }
-
-  .lightbox-fullscreen.is-fullscreen::before,
-  .lightbox-fullscreen.is-fullscreen::after {
+  .lightbox-fullscreen.is-fullscreen path {
     transform: rotate(180deg);
   }
 
-  /* A 2x2 grid of squares (the standard "grid view" icon) from one pseudo-element and its own
-     box-shadow, the same one-element-no-SVG approach as the fullscreen icon above: the element
-     itself is the top-left square, and three more box-shadows (no blur, no spread beyond their
-     offset) paint the other three without adding any markup for them. */
-  .lightbox-view-gallery {
-    position: relative;
+  /* Tooltips for every control, shown at once on hover (on devices that can hover: a tap on a phone would otherwise
+     leave one stuck on) and on keyboard focus. The text is the control's own aria-label, which the script already keeps
+     current (Enter/Exit fullscreen, View <category> gallery), so the tooltip always says what a screen reader does.
+     A pseudo-element, so it adds nothing to the accessible name (aria-label takes precedence over content). Aligned
+     to the control's right edge, so a toolbar tooltip (the toolbar sits at the photo's right) never runs off it; below
+     an arrow, above a toolbar control (see below). */
+  .lightbox-tool[aria-label]::after,
+  .lightbox-nav[aria-label]::after {
+    content: attr(aria-label);
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 2;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius);
+    background: rgba(10, 10, 11, 0.92);
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
   }
 
-  .lightbox-view-gallery::before {
-    content: '';
-    position: absolute;
-    top: 13px;
-    left: 13px;
-    width: 6px;
-    height: 6px;
-    background: currentColor;
-    box-shadow: 9px 0 0 currentColor, 0 9px 0 currentColor, 9px 9px 0 currentColor;
+  /* The toolbar sits at the photo's bottom edge, so its tooltips go above it, clear of the box's own border. */
+  .lightbox-tool[aria-label]::after {
+    top: auto;
+    bottom: calc(100% + 10px);
+  }
+
+  /* The left arrow's tooltip lines up with its left edge instead, so it stays on screen. */
+  .lightbox-prev[aria-label]::after {
+    right: auto;
+    left: 0;
+  }
+
+  @media (hover: hover) {
+    .lightbox-tool:hover::after,
+    .lightbox-nav:hover::after {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+
+  .lightbox-tool:focus-visible::after,
+  .lightbox-nav:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
   }
 
   .lightbox-prev {
@@ -532,9 +585,15 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
       font-size: 2rem;
     }
 
-    .lightbox-tool {
-      width: 36px;
-      height: 36px;
+    .lightbox {
+      --lightbox-tool-size: 36px;
+    }
+
+    /* On a phone: centered along the bottom of the screen, within reach of either thumb. */
+    .lightbox-toolbar {
+      right: auto;
+      left: 50%;
+      transform: translateX(-50%);
     }
   }
 </style>
@@ -771,8 +830,16 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
       }
     }
 
+    // Only a click that both started and ended on the dark background closes the lightbox. A drag that grabs a zoomed
+    // photo and lets go over the background (easily reached: a portrait photo, or a pan that uncovers an edge) also
+    // makes the browser fire `click` on the lightbox itself (the nearest element containing both ends of the press),
+    // which used to close it mid-pan.
+    let pressStartedOnBackdrop = false;
+    lightbox.addEventListener('mousedown', (event) => {
+      pressStartedOnBackdrop = event.target === lightbox;
+    });
     lightbox.addEventListener('click', (event) => {
-      if (event.target === lightbox) close('replace');
+      if (event.target === lightbox && pressStartedOnBackdrop) close('replace');
     });
 
     const onKeydown = (event: KeyboardEvent) => {
