@@ -1,0 +1,436 @@
+<title>Photography Site Releases</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Light: warm paper, tinted toward the site's champagne accent. Dark: the site's own palette. */
+  :root {
+    --bg: #f5f3ee;
+    --surface: #ffffff;
+    --sunken: #ece8de;
+    --fg: #1b1a16;
+    --muted: #5e5a51;
+    --faint: #8a8579;
+    --rule: #ddd7c9;
+    --accent: #7a6634;
+    --accent-soft: #efe6cf;
+    --good: #2f6b3f;
+    --good-soft: #e1eee2;
+    --warn: #8a5a12;
+    --warn-soft: #f6e8cc;
+    --bad: #9b3024;
+    --bad-soft: #f5dfdb;
+    --display: 'Fraunces', Georgia, 'Times New Roman', serif;
+    --body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0a0a09;
+      --surface: #161513;
+      --sunken: #11100e;
+      --fg: #f2f1ee;
+      --muted: #a6a5a0;
+      --faint: #7c7871;
+      --rule: #29271f;
+      --accent: #d9c9a3;
+      --accent-soft: #2a2519;
+      --good: #8fc79b;
+      --good-soft: #17251a;
+      --warn: #e2b66a;
+      --warn-soft: #2b2112;
+      --bad: #eb9186;
+      --bad-soft: #2d1714;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0a0a09;
+    --surface: #161513;
+    --sunken: #11100e;
+    --fg: #f2f1ee;
+    --muted: #a6a5a0;
+    --faint: #7c7871;
+    --rule: #29271f;
+    --accent: #d9c9a3;
+    --accent-soft: #2a2519;
+    --good: #8fc79b;
+    --good-soft: #17251a;
+    --warn: #e2b66a;
+    --warn-soft: #2b2112;
+    --bad: #eb9186;
+    --bad-soft: #2d1714;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 400 16px/1.6 var(--body);
+    padding-inline: 20px;
+    padding-block: 0;
+  }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+  code, .mono { font-family: var(--mono); font-size: 0.88em; }
+  :not(pre) > code { background: var(--sunken); border: 1px solid var(--rule); border-radius: 3px; padding: 0.05em 0.35em; overflow-wrap: anywhere; }
+
+  .page {
+    max-width: 1120px;
+    margin-inline: auto;
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 56px;
+    padding-block: 56px 96px;
+  }
+  @media (max-width: 860px) {
+    .page { grid-template-columns: minmax(0, 1fr); gap: 32px; padding-block: 32px 64px; }
+    .toc { position: static !important; }
+  }
+
+  /* --- Contents ----------------------------------------------------------------------------------------------- */
+  .toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 32px); align-self: start; font-size: 0.85rem; }
+  .toc h2 { font: 600 0.72rem/1 var(--body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin: 0 0 12px; }
+  .toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; counter-reset: toc; }
+  .toc li { counter-increment: toc; }
+  .toc a { display: grid; grid-template-columns: 1.6em 1fr; padding: 4px 0; color: var(--muted); text-decoration: none; }
+  .toc a::before { content: counter(toc, decimal-leading-zero); font-family: var(--mono); font-size: 0.8em; color: var(--faint); padding-top: 0.15em; }
+  .toc a:hover { color: var(--fg); }
+
+  /* --- Document ----------------------------------------------------------------------------------------------- */
+  main { min-width: 0; max-width: 72ch; display: grid; gap: 56px; }
+  header.doc { display: grid; gap: 18px; padding-bottom: 32px; border-bottom: 1px solid var(--rule); }
+  .eyebrow { font: 600 0.75rem/1 var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin: 0; }
+  h1 { font: 400 clamp(2.2rem, 5vw, 3.3rem)/1.08 var(--display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+  h2 { font: 400 1.75rem/1.2 var(--display); margin: 0 0 16px; text-wrap: balance; }
+  h3 { font: 600 1.02rem/1.35 var(--body); margin: 28px 0 8px; }
+  p { margin: 0 0 14px; }
+  p:last-child { margin-bottom: 0; }
+  .lede { font-size: 1.14rem; color: var(--muted); margin: 0; max-width: 62ch; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 0.85rem; color: var(--muted); margin: 0; padding: 0; list-style: none; }
+  .meta b { color: var(--fg); font-weight: 500; }
+  section { scroll-margin-top: 24px; }
+  ul.plain, ol.plain { margin: 0 0 14px; padding-left: 1.2em; display: grid; gap: 6px; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; font: 500 0.75rem/1 var(--body); padding: 5px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.draft { background: var(--warn-soft); color: var(--warn); }
+  .pill.done { background: var(--good-soft); color: var(--good); }
+  .pill.todo { background: var(--sunken); color: var(--muted); border: 1px solid var(--rule); }
+  .pill.gap { background: var(--bad-soft); color: var(--bad); }
+
+  /* The recommendation, set apart once. */
+  .verdict { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 24px 26px; display: grid; gap: 14px; }
+  .verdict .eyebrow { color: var(--accent); }
+  .verdict p { font-size: 1.04rem; }
+  .verdict ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+  /* --- Anatomy of a build label -------------------------------------------------------------------------------- */
+  .anatomy { background: var(--sunken); border: 1px solid var(--rule); border-radius: 6px; padding: 26px 22px 22px; overflow-x: auto; }
+  .label-line { display: flex; gap: 0; font: 500 clamp(1.15rem, 3.4vw, 1.6rem)/1 var(--mono); width: max-content; margin-bottom: 14px; }
+  .label-line span { padding: 8px 2px 10px; border-bottom: 3px solid var(--rule); }
+  .label-line .tag { border-color: var(--accent); }
+  .label-line .dist { border-color: var(--warn); }
+  .label-line .hash { border-color: var(--good); }
+  .label-line .dirt { border-color: var(--bad); }
+  .label-line .sep { color: var(--faint); border-color: transparent; }
+  .parts { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 16px; font-size: 0.86rem; min-width: 640px; }
+  .parts dt { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .parts dt::before { content: ""; width: 12px; height: 3px; background: var(--c); }
+  .parts dd { margin: 4px 0 0; color: var(--muted); }
+
+  .shows { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; margin-top: 18px; }
+  .shows > div { display: grid; grid-template-columns: 11rem 1fr; gap: 16px; background: var(--surface); padding: 12px 16px; align-items: baseline; }
+  .shows code { font-size: 0.95rem; background: none; border: none; padding: 0; color: var(--fg); }
+  .shows span { color: var(--muted); font-size: 0.92rem; }
+  @media (max-width: 520px) { .shows > div { grid-template-columns: 1fr; gap: 2px; } }
+
+  /* --- Tables -------------------------------------------------------------------------------------------------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 0.88rem; }
+  th, td { text-align: left; vertical-align: top; padding: 11px 14px; border-bottom: 1px solid var(--rule); }
+  tr:last-child td { border-bottom: none; }
+  thead th { font: 600 0.72rem/1.2 var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); background: var(--sunken); }
+  tbody th { font-weight: 600; white-space: nowrap; }
+  td .mono { white-space: nowrap; }
+  tr.chosen { background: var(--accent-soft); }
+  .yes { color: var(--good); font-weight: 500; }
+  .no { color: var(--bad); font-weight: 500; }
+  .meh { color: var(--warn); font-weight: 500; }
+
+  /* --- Release steps: a real sequence, so they are numbered ------------------------------------------------------ */
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; display: grid; gap: 0; }
+  .steps > li { counter-increment: step; display: grid; grid-template-columns: 44px 1fr; gap: 14px; padding: 14px 0; border-top: 1px solid var(--rule); }
+  .steps > li:first-child { border-top: none; padding-top: 0; }
+  .steps > li::before { content: counter(step); font: 400 1.45rem/1.1 var(--display); color: var(--accent); }
+  .steps b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .steps p { margin: 0; color: var(--muted); font-size: 0.94rem; }
+  .steps code { color: var(--fg); }
+  .who { font: 500 0.7rem/1 var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-left: 6px; }
+
+  pre { margin: 0; background: var(--sunken); border: 1px solid var(--rule); border-radius: 6px; padding: 16px 18px; overflow-x: auto; font: 400 0.84rem/1.6 var(--mono); color: var(--fg); }
+  pre .c { color: var(--faint); }
+
+  /* --- Phases ---------------------------------------------------------------------------------------------------- */
+  .phases { display: grid; gap: 14px; }
+  .phase { display: grid; grid-template-columns: 7.5rem 1fr; gap: 18px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; }
+  .phase header { display: grid; gap: 8px; align-content: start; }
+  .phase .num { font: 400 1.2rem/1 var(--display); }
+  .phase .effort { font-size: 0.8rem; color: var(--faint); }
+  .phase h3 { margin: 0 0 6px; }
+  .phase ul { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; color: var(--muted); font-size: 0.93rem; }
+  @media (max-width: 560px) { .phase { grid-template-columns: 1fr; gap: 10px; } .phase header { grid-template-columns: auto auto 1fr; align-items: center; } }
+
+  .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .fact { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; }
+  .fact p { margin: 0; font-size: 0.92rem; color: var(--muted); }
+  .fact strong { color: var(--fg); font-weight: 600; }
+  @media (max-width: 620px) { .facts { grid-template-columns: 1fr; } }
+
+  details.q { border-top: 1px solid var(--rule); padding: 14px 0; }
+  details.q:last-of-type { border-bottom: 1px solid var(--rule); }
+  details.q summary { cursor: pointer; font-weight: 600; list-style: none; display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+  details.q summary::-webkit-details-marker { display: none; }
+  details.q summary::after { content: "+"; font: 400 1.2rem/1 var(--mono); color: var(--faint); }
+  details.q[open] summary::after { content: "–"; }
+  details.q p { margin: 10px 0 0; color: var(--muted); font-size: 0.94rem; }
+  .rec { color: var(--accent); font-weight: 600; }
+
+  footer.doc { font-size: 0.82rem; color: var(--faint); border-top: 1px solid var(--rule); padding-top: 18px; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="page">
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#summary">Summary</a></li>
+      <li><a href="#today">Where things stand</a></li>
+      <li><a href="#label">Anatomy of a build label</a></li>
+      <li><a href="#options">Options compared</a></li>
+      <li><a href="#scheme">Version numbers</a></li>
+      <li><a href="#flow">The release command</a></li>
+      <li><a href="#verify">Proving what is live</a></li>
+      <li><a href="#rollback">Rolling back</a></li>
+      <li><a href="#plan">Rollout plan</a></li>
+      <li><a href="#questions">Open questions</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="doc">
+      <p class="eyebrow">Design doc · diego-narvaez-photography.org</p>
+      <h1>Versioning and releasing the photography site</h1>
+      <p class="lede">How the site names each build, how a release gets made, and how to prove which one is live. The footer label is already in place; this doc proposes the process around it.</p>
+      <ul class="meta">
+        <li><span class="pill draft">Draft for review</span></li>
+        <li>Updated <b>28 Sep 2026</b></li>
+        <li>Current release <b class="mono">v1.0.1</b></li>
+        <li>Deployables <b>site Worker, results Worker</b></li>
+      </ul>
+    </header>
+
+    <section id="summary">
+      <div class="verdict">
+        <p class="eyebrow">Recommendation</p>
+        <p><strong>Keep git tags as the single record of a release, and make one command, <code>npm run release</code>, do everything a release needs.</strong> Tags already drive the footer label. What is missing is the routine around them: today a release is six commands run by hand, in an order you have to remember.</p>
+        <ul>
+          <li>Semantic version tags (<code>v1.2.0</code>), with a meaning for this site: major for a redesign or changed URLs, minor for a new feature, patch for a fix.</li>
+          <li>One release command: check, tag, push, deploy both Workers labelled with the tag, smoke-test, record results.</li>
+          <li>A small <code>/version.json</code> so the smoke check can prove the live site is the release just made.</li>
+          <li>Deploys stay on your laptop for now. Deploying from GitHub on a tag push is a later, optional step.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="today">
+      <h2>Where things stand</h2>
+      <p>The pieces below were in place, or found, on 28 September 2026.</p>
+      <div class="facts">
+        <div class="fact">
+          <span class="pill done">In place</span>
+          <p><strong>Every build is labelled.</strong> <code>scripts/lib/build-info.mjs</code> reads git when the site is built. The footer shows the tag for a release, the short commit hash otherwise.</p>
+        </div>
+        <div class="fact">
+          <span class="pill done">In place</span>
+          <p><strong>Two releases tagged.</strong> <code>v1.0.0</code> (taken dates, sorting, Pics Viewer) and <code>v1.0.1</code> (the scroll-reveal contrast fix), both pushed to GitHub.</p>
+        </div>
+        <div class="fact">
+          <span class="pill done">In place</span>
+          <p><strong>Deploys are checked.</strong> <code>npm run deploy</code> runs the offline tests and <code>photos:verify</code> first, and the smoke check after.</p>
+        </div>
+        <div class="fact">
+          <span class="pill todo">Not committed</span>
+          <p><strong>Footer on every page.</strong> The email removal and build label in the corner are tested but not yet released. Its natural tag is <code>v1.0.2</code>.</p>
+        </div>
+        <div class="fact">
+          <span class="pill gap">Gap</span>
+          <p><strong>A release is manual.</strong> Tests, <code>test:record</code>, commit, tag, push, two deploys, then a wait for CI. Easy to skip a step, such as the results Worker deploy.</p>
+        </div>
+        <div class="fact">
+          <span class="pill gap">Gap</span>
+          <p><strong>Nothing proves what is live.</strong> The smoke check tests the site works, not that it is the build just deployed. The <code>version</code> in <code>package.json</code> is <code>0.0.1</code> and means nothing.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="label">
+      <h2>Anatomy of a build label</h2>
+      <p>The build keeps the full <code>git describe</code> string, even though the footer shows only part of it. Each part answers a different question.</p>
+      <div class="anatomy" role="img" aria-label="v1.0.1-3-g8bb0581-dirty: tag v1.0.1, 3 commits past it, at commit 8bb0581, with uncommitted changes">
+        <div class="label-line" aria-hidden="true">
+          <span class="tag">v1.0.1</span><span class="sep">-</span><span class="dist">3</span><span class="sep">-g</span><span class="hash">8bb0581</span><span class="sep">-</span><span class="dirt">dirty</span>
+        </div>
+        <dl class="parts">
+          <div style="--c: var(--accent)"><dt>Last release</dt><dd>The newest tag this commit descends from.</dd></div>
+          <div style="--c: var(--warn)"><dt>Commits since</dt><dd>How far past that release the build is.</dd></div>
+          <div style="--c: var(--good)"><dt>Commit</dt><dd>Exactly which code, as git's short hash.</dd></div>
+          <div style="--c: var(--bad)"><dt>Uncommitted</dt><dd>Local edits: no commit holds this code.</dd></div>
+        </dl>
+      </div>
+      <div class="shows" role="list">
+        <div role="listitem"><code>v1.0.1</code><span>Footer, for a build made exactly at a tagged commit with nothing uncommitted. This is a release.</span></div>
+        <div role="listitem"><code>8bb0581</code><span>Footer, for any other commit. The page's markup keeps the full hash and build time.</span></div>
+        <div role="listitem"><code>8bb0581-dirty</code><span>Footer, for a build with local edits. Never shown as a release, so a test deploy can't pass for one.</span></div>
+      </div>
+    </section>
+
+    <section id="options">
+      <h2>Options compared</h2>
+      <p>Five ways to version a site like this one, judged on what matters for a one-person portfolio that deploys often.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th scope="col">Scheme</th><th scope="col">Example</th><th scope="col">Work per release</th><th scope="col">Tells a reader</th><th scope="col">Can drift from code</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Short hash only</th><td class="mono">8bb0581</td><td class="yes">None</td><td class="no">Only which commit</td><td class="yes">No</td></tr>
+            <tr class="chosen"><th scope="row">Git tags, semver</th><td class="mono">v1.2.0</td><td class="yes">One command</td><td class="yes">Size of the change</td><td class="yes">No</td></tr>
+            <tr><th scope="row">Calendar version</th><td class="mono">2026.09.28</td><td class="yes">One command</td><td class="meh">When, not what</td><td class="yes">No</td></tr>
+            <tr><th scope="row">Number in package.json</th><td class="mono">1.2.0</td><td class="no">Edit, commit, remember</td><td class="yes">Size of the change</td><td class="no">Yes, if not bumped</td></tr>
+            <tr><th scope="row">Automated from commits</th><td class="mono">v1.2.0</td><td class="yes">None</td><td class="yes">Size of the change</td><td class="yes">No</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Why not calendar or automated versions</h3>
+      <p>A calendar version is a fair choice for a site that deploys daily. But it can't say whether a deploy was a typo fix or a redesign, and two releases on one day need a suffix. Fully automated tools (semantic-release, Changesets) read commit messages written in a strict format, such as <code>feat:</code> and <code>fix:</code>. That is a new habit this repository doesn't have, and a lot of machinery for one author. Semver tags keep the meaning while costing one word per release: patch, minor or major.</p>
+    </section>
+
+    <section id="scheme">
+      <h2>What the version numbers mean here</h2>
+      <p>Semver was written for libraries, where "breaking" means breaking someone's code. For a website, what a visitor or search engine would notice is a better guide.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Bump</th><th scope="col">When</th><th scope="col">From this project</th></tr></thead>
+          <tbody>
+            <tr><th scope="row" class="mono">Major · 2.0.0</th><td>A redesign, or anything that changes or removes URLs people may have saved</td><td>Renaming a category slug; a new site layout</td></tr>
+            <tr><th scope="row" class="mono">Minor · 1.1.0</th><td>A new feature or page a visitor or the admin can use</td><td>"Oldest first" sorting; the Pics Viewer details column</td></tr>
+            <tr><th scope="row" class="mono">Patch · 1.0.1</th><td>A fix, copy change or internal change with no new feature</td><td>The scroll-reveal contrast fix; the footer email removal</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top: 14px">Adding or re-titling photos is not a release. Photos and their entries live in R2 and reach the site without a build, so they never change the version.</p>
+    </section>
+
+    <section id="flow">
+      <h2>The release command</h2>
+      <p>One command, <code>npm run release -- patch</code> (or <code>minor</code>, <code>major</code>), in this order. It stops at the first failure, before anything is tagged or deployed.</p>
+      <ol class="steps">
+        <li><div><b>Preflight</b><p>On <code>main</code>, nothing uncommitted, level with GitHub. Otherwise it stops and says which.</p></div></li>
+        <li><div><b>Check</b><p><code>npm run lint</code>, <code>astro check</code>, <code>npm test</code>, <code>npm run test:browser</code>. The same set you ran by hand for v1.0.0.</p></div></li>
+        <li><div><b>Tag</b><p>Works out the next version from the last tag (<code>v1.0.1</code> + patch = <code>v1.0.2</code>) and makes an annotated tag, with the commit subjects since the last tag as its message.</p></div></li>
+        <li><div><b>Record</b><p><code>npm run test:record</code>, so the results in R2 carry the release's commit.</p></div></li>
+        <li><div><b>Push</b><p>The commit and the tag to GitHub.</p></div></li>
+        <li><div><b>Deploy the site</b><span class="who">Cloudflare</span><p><code>wrangler deploy --tag v1.0.2 --message "…"</code>, so Cloudflare's own version list names the release too.</p></div></li>
+        <li><div><b>Deploy the results Worker</b><span class="who">only if changed</span><p>Skipped when nothing under <code>workers/results-api/</code> or the shared EXIF code changed since the last tag.</p></div></li>
+        <li><div><b>Prove it</b><p>The smoke check reads <code>/version.json</code> and fails unless it says <code>v1.0.2</code> (see the next section).</p></div></li>
+        <li><div><b>Publish notes</b><span class="who">GitHub</span><p><code>gh release create v1.0.2 --generate-notes</code>: a GitHub Release listing what changed.</p></div></li>
+      </ol>
+      <h3>What it replaces</h3>
+      <pre><span class="c"># today, by hand, in the right order</span>
+npm test &amp;&amp; npm run test:browser &amp;&amp; npx astro check &amp;&amp; npm run lint
+git commit … &amp;&amp; git tag -a v1.0.2 -m v1.0.2
+npm run test:record
+git push origin main &amp;&amp; git push origin v1.0.2
+npm run deploy &amp;&amp; npm run results-api:deploy
+
+<span class="c"># proposed</span>
+npm run release -- patch</pre>
+    </section>
+
+    <section id="verify">
+      <h2>Proving what is live</h2>
+      <p>The footer shows the version to people. Tools need something they can read without parsing a page. Two small additions close the gap between "the deploy command succeeded" and "the site is serving that release."</p>
+      <h3><code>/version.json</code></h3>
+      <p>A tiny endpoint answering with what the footer already knows:</p>
+      <pre>{ "label": "v1.0.2", "version": "v1.0.2", "commit": "8bb0581…", "builtAt": "2026-09-28T15:23:10Z" }</pre>
+      <p style="margin-top: 14px">It exposes nothing new: the footer and the page markup already show all of it. It must not be cached, so a stale copy can't pass the check.</p>
+      <h3>A smoke check that knows the release</h3>
+      <p><code>npm run smoke -- --expect v1.0.2</code> adds one check: the live <code>/version.json</code> label matches. The release command passes the tag it just made. The scheduled "Live smoke check" on GitHub can keep running without it.</p>
+    </section>
+
+    <section id="rollback">
+      <h2>Rolling back</h2>
+      <p>Because every deploy carries its tag into Cloudflare, going back to the previous release is one command, with no rebuild:</p>
+      <pre>npx wrangler versions list          <span class="c"># each version shows its tag, e.g. v1.0.1</span>
+npx wrangler rollback &lt;version-id&gt;  <span class="c"># serve that version again</span></pre>
+      <p style="margin-top: 14px">A rollback changes the code only. Photos and entries in R2 are untouched, which is what you want. The footer then shows the older tag, so the rollback is visible at a glance.</p>
+    </section>
+
+    <section id="plan">
+      <h2>Rollout plan</h2>
+      <div class="phases">
+        <article class="phase">
+          <header><span class="num">Phase 1</span><span class="pill done">Ready</span><span class="effort">Minutes</span></header>
+          <div>
+            <h3>Release the footer change as v1.0.2</h3>
+            <ul><li>Commit the email removal and corner label, tag <code>v1.0.2</code>, push, deploy by hand one last time.</li><li>Set <code>package.json</code> to <code>1.0.2</code>, or remove the field, so it stops saying <code>0.0.1</code>.</li></ul>
+          </div>
+        </article>
+        <article class="phase">
+          <header><span class="num">Phase 2</span><span class="pill todo">Proposed</span><span class="effort">An afternoon</span></header>
+          <div>
+            <h3>The release command</h3>
+            <ul><li><code>scripts/release.mjs</code> with the nine steps above, tested like the other scripts: fake git repositories, fake deploys.</li><li>README: a short "Making a release" section replacing the manual list.</li></ul>
+          </div>
+        </article>
+        <article class="phase">
+          <header><span class="num">Phase 3</span><span class="pill todo">Proposed</span><span class="effort">An hour</span></header>
+          <div>
+            <h3>Proof of the live release</h3>
+            <ul><li><code>/version.json</code>, uncached, and the smoke check's <code>--expect</code> option.</li><li>Tags passed to <code>wrangler deploy</code> so rollbacks can be picked by name.</li></ul>
+          </div>
+        </article>
+        <article class="phase">
+          <header><span class="num">Phase 4</span><span class="pill todo">Optional</span><span class="effort">An hour, plus a secret</span></header>
+          <div>
+            <h3>Deploy from GitHub on a tag push</h3>
+            <ul><li>A workflow that runs when a <code>v*</code> tag is pushed, deploys, and smoke-checks, so a release no longer depends on this laptop.</li><li>Needs a Cloudflare API token stored as a GitHub secret, scoped to these two Workers.</li></ul>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="questions">
+      <h2>Open questions</h2>
+      <details class="q" open>
+        <summary>Deploy from the laptop, or from GitHub?</summary>
+        <p>From the laptop keeps secrets off GitHub and matches how you work today. From GitHub means every release is built from a clean checkout of a pushed tag, so a <code>-dirty</code> build can never ship. <span class="rec">Suggested: laptop now, revisit after Phase 3.</span></p>
+      </details>
+      <details class="q">
+        <summary>Keep the "-dirty" marker in the footer?</summary>
+        <p>It only appears on local builds and on a deploy made with uncommitted changes. That second case is the one worth seeing. <span class="rec">Suggested: keep it, and have the release command refuse to run when the tree is dirty.</span></p>
+      </details>
+      <details class="q">
+        <summary>One version for both Workers, or one each?</summary>
+        <p>The results Worker changes rarely and only matters to the Admin page. <span class="rec">Suggested: one version for the repository. The release deploys the results Worker only when its code changed, labelled with the same tag.</span></p>
+      </details>
+      <details class="q">
+        <summary>Should release notes be public?</summary>
+        <p>GitHub Releases are as visible as the repository itself. <span class="rec">Suggested: yes if the repository is public, since the notes list only commit subjects. A <code>CHANGELOG.md</code> isn't needed on top.</span></p>
+      </details>
+    </section>
+
+    <footer class="doc">Written from the repository as of commit <span class="mono">8bb0581</span> (tag v1.0.1) plus the uncommitted footer change. Commands shown for Phases 2–4 are proposals; none exist yet.</footer>
+  </main>
+</div>
