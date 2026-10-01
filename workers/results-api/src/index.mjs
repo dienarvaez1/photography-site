@@ -1,6 +1,7 @@
 // Read-only API over the private test-results bucket (results/ in photography-site-test).
 //
 //   GET /health                         is the API up, and is its secret set?   (public)
+//   GET /auth                           is this the admin token? {"ok":true}; the Admin page's sign-in (token)
 //   GET /index                          results/index.json: the list of runs    (token)
 //   GET /latest                         results/latest.json: the newest run     (token)
 //   GET /runs/<run id>                  that run's summary + signed file links  (token)
@@ -12,11 +13,14 @@
 //   GET /lighthouse/runs/<run id>       that run's summary + signed report links            (token)
 //   GET /lighthouse/files/<run id>/<path>?exp&sig   one stored report, for a short time     (signature)
 //   GET /github/issues?state=open|closed|all       the site's GitHub issues, newest-updated first (token)
+//   GET /access                         the days with an access log, newest first (photography-site-access) (token)
+//   GET /access/<day>                   one day's visits and photos opened, e.g. /access/2026-10-01T00:00:00.000Z (token)
 //
 // "token" = `Authorization: Bearer <ADMIN_TOKEN>`. Files are opened by links the run endpoint signs
 // (HMAC of the path and an expiry, keyed by the token), so a link can be opened in a new tab or an <img>
 // without ever putting the token in a URL. The API only ever reads under results/ and lighthouse-results/ of the test
 // bucket, never writes, and refuses everything until ADMIN_TOKEN is set (and long enough). GitHub is only ever read too.
+import { isDay, listDays, readAccessDay } from './access.mjs';
 import { GitHubError, ISSUE_STATES, listIssues } from './issues.mjs';
 import { PHOTO_ID, describeOriginal, listOriginals } from './pics.mjs';
 
@@ -195,6 +199,12 @@ export async function handle(request, env, now = Date.now(), fetcher = fetch) {
 
   if (route === 'health' && parts.length === 1) return json(request, env, 200, { ok: true, configured: String(env.ADMIN_TOKEN ?? '').length >= MIN_TOKEN_LENGTH });
 
+  // The Admin page checks a token here before showing any of its tabs: it reads nothing.
+  if (route === 'auth' && parts.length === 1) {
+    const denied = await authorize(request, env);
+    return denied ?? json(request, env, 200, { ok: true });
+  }
+
   if (route === 'files') {
     if (!RUN_ID.test(runId ?? '') || !rest.length || !rest.every((s) => SEGMENT.test(s))) return fail(request, env, 400, 'bad-request', 'Bad file path.');
     return fileRoute(request, env, STORES.results, runId, rest, now);
@@ -219,6 +229,16 @@ export async function handle(request, env, now = Date.now(), fetcher = fetch) {
     if (!PHOTO_ID.test(runId) || rest.length) return fail(request, env, 400, 'bad-request', 'Bad photo id.');
     const photo = await describeOriginal(env.ORIGINALS, runId);
     return photo ? json(request, env, 200, photo) : fail(request, env, 404, 'not-found', `No original "${runId}".`);
+  }
+
+  if (route === 'access') {
+    const denied = await authorize(request, env);
+    if (denied) return denied;
+    if (!env.ACCESS) return fail(request, env, 500, 'misconfigured', 'The access log bucket is not bound to this Worker.');
+    if (!runId && !rest.length) return json(request, env, 200, await listDays(env.ACCESS));
+    if (!isDay(runId) || rest.length) return fail(request, env, 400, 'bad-request', 'Bad day: use its first instant in UTC, e.g. 2026-10-01T00:00:00.000Z.');
+    const day = await readAccessDay(env.ACCESS, runId);
+    return day ? json(request, env, 200, day) : fail(request, env, 404, 'not-found', `No access log for ${runId}.`);
   }
 
   if (route === 'github') {

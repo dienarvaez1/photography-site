@@ -1,6 +1,6 @@
 import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
-import { setUpOriginals } from '../support/browser.js';
+import { setUpOriginals, signInSettled } from '../support/browser.js';
 import { sampleFile } from '../support/originals-fixtures.js';
 import { PHOTOS_BASE_URL } from '../../src/config/photos.ts';
 import { readdirSync } from 'node:fs';
@@ -52,22 +52,25 @@ When('the file {string} comes back', function (key) {
 // --- Signing in --------------------------------------------------------------------------------------------------------------
 
 When('I sign in to the Pics Viewer with the token {string}', async function (token) {
-  const field = panel(this).locator('#pics-token');
+  const field = page(this).locator('#admin-token');
   await field.fill(token);
   await field.press('Enter');
+  await signInSettled(this);
 });
 
 Then('the Pics Viewer should ask for the admin token', async function () {
-  await panel(this).locator('#pics-token').waitFor({ state: 'visible', timeout: 8000 });
-  await panel(this).getByLabel('Admin token').waitFor({ state: 'visible' });
+  await page(this).locator('#admin-token').waitFor({ state: 'visible', timeout: 8000 });
+  await page(this).getByLabel('Admin token').waitFor({ state: 'visible' });
+  assert.equal(await page(this).locator('[data-tabs]').isHidden(), true, 'the tabs stay hidden until the token is accepted');
 });
 
 Then('the Pics Viewer should ask for the token in Spanish', async function () {
-  await panel(this).getByLabel('Token de administrador').waitFor({ state: 'visible', timeout: 8000 });
+  await page(this).locator('[data-admin-gate]').getByLabel('Token de administrador').waitFor({ state: 'visible', timeout: 8000 });
 });
 
 Then('the Pics Viewer should say {string}', async function (text) {
-  await panel(this).getByText(text, { exact: false }).first().waitFor({ state: 'visible', timeout: 8000 });
+  // Signed out (a refused token, the idle timeout), the tab is hidden and the page's token box says it instead.
+  await panel(this).or(page(this).locator('[data-admin-gate]')).getByText(text, { exact: false }).filter({ visible: true }).first().waitFor({ state: 'visible', timeout: 8000 });
 });
 
 Then('the browser should still remember the token', async function () {
@@ -321,9 +324,10 @@ Then('the bucket should have been asked only to list, and to read the first {int
 
 When('I show the Pics Viewer in its {string} state', async function (state) {
   if (state === 'sign-in') return;
-  const field = panel(this).locator('#pics-token');
+  const field = page(this).locator('#admin-token');
   await field.fill('browser-test-admin-token');
   await field.press('Enter');
+  await signInSettled(this);
   await panel(this).locator('.pics-list').waitFor({ state: 'visible', timeout: 8000 });
   if (state === 'details shown') await detailsOf(this, 'Orion Nebula').locator('dl').waitFor({ state: 'visible', timeout: 8000 });
 });
@@ -453,7 +457,8 @@ Then('both top buttons should be in the tab order, before the tabs, and at least
     const focusable = [...document.querySelectorAll('a[href], button:not([disabled]), input, [tabindex="0"]')].filter((e) => e.offsetParent !== null && e.tabIndex >= 0);
     const index = (e) => focusable.indexOf(e);
     const [refresh, out] = document.querySelectorAll('[data-admin-actions] button');
-    const firstTab = document.querySelector('[role="tab"]');
+    // The tabs are reached through the selected one (the only tab in the tab order, per the WAI-ARIA tabs pattern).
+    const firstTab = document.querySelector('[role="tab"][aria-selected="true"]');
     return { refresh: index(refresh), out: index(out), tab: index(firstTab), heights: [refresh, out].map((b) => b.getBoundingClientRect().height) };
   });
   assert.ok(info.refresh >= 0 && info.out === info.refresh + 1 && info.tab > info.out, JSON.stringify(info));

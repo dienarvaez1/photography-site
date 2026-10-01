@@ -769,6 +769,9 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
         viewGalleryLink.setAttribute('aria-label', viewGalleryTemplate.replace('{category}', categoryLabels[categorySlug] ?? categorySlug));
       }
       resetZoom();
+      // Every photo shown, whether opened from its tile, a link to it, or reached with next/previous.
+      // (Reported by the layout's script, src/lib/access-beacon.ts, rather than importing it here.)
+      if (tile.dataset.id && categorySlug) document.dispatchEvent(new CustomEvent('access:photo', { detail: { id: tile.dataset.id, category: categorySlug } }));
       if (history_ === 'push') history.pushState(null, '', urlWithPhoto(tile.dataset.id ?? null));
       else if (history_ === 'replace') history.replaceState(null, '', urlWithPhoto(tile.dataset.id ?? null));
     }

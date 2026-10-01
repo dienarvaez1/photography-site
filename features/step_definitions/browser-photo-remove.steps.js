@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { config, state } from '../support/photo-helpers.js';
 import { CONTENT_DIR, ROOT } from '../support/lib.js';
 import { pushEntries } from '../../scripts/lib/entry-sync.mjs';
-import { setUpOriginals } from '../support/browser.js';
+import { setUpOriginals, signInSettled } from '../support/browser.js';
 
 const { MANIFEST_KEY, entryKey } = await import(join(ROOT, 'src/config/photo-manifest.ts'));
 
@@ -203,9 +203,10 @@ Then('the photo ids {string} should be completely untouched in R2', function (li
 // --- Quality --------------------------------------------------------------------------------------------------------------------------
 
 When('I show the removal in its {string} state', async function (name) {
-  const field = panel(this).locator('#pics-token');
+  const field = page(this).locator('#admin-token');
   await field.fill('browser-test-admin-token');
   await field.press('Enter');
+  await signInSettled(this);
   await panel(this).locator('.pics-list').waitFor({ state: 'visible', timeout: 8000 });
   if (name === 'not available') {
     this.b.photoService = null;

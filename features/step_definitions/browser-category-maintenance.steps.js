@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { entryPath, writeEntry } from '../../scripts/lib/photos.mjs';
-import { startCategoryService } from '../support/browser.js';
+import { startCategoryService, signInSettled } from '../support/browser.js';
 
 const page = (world) => world.b.page;
 const panel = (world) => page(world).locator('#panel-category-maintenance');
@@ -44,14 +44,16 @@ Given('the category {string} in the browser fixture already has a photo', async 
 // --- Signing in --------------------------------------------------------------------------------------------------------------
 
 Then('Category Maintenance should ask for the admin token', async function () {
-  await panel(this).locator('#categories-token').waitFor({ state: 'visible', timeout: 8000 });
-  await panel(this).getByLabel('Admin token').waitFor({ state: 'visible' });
+  await page(this).locator('#admin-token').waitFor({ state: 'visible', timeout: 8000 });
+  await page(this).getByLabel('Admin token').waitFor({ state: 'visible' });
+  assert.equal(await page(this).locator('[data-tabs]').isHidden(), true, 'the tabs stay hidden until the token is accepted');
 });
 
 When('I sign in to Category Maintenance with the token {string}', async function (token) {
-  const field = panel(this).locator('#categories-token');
+  const field = page(this).locator('#admin-token');
   await field.fill(token);
   await field.press('Enter');
+  await signInSettled(this);
   await settle(200);
 });
 

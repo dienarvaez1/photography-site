@@ -15,7 +15,7 @@ import {
   type Route,
   type Totals,
 } from './results-view';
-import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, messageReader, parseJson, remembered, type Child, type Messages } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, messageReader, parseJson, remembered, type Child, type Messages, leaveToGate } from './admin-common';
 
 type Failure = { feature?: string; scenario?: string; step?: string; message?: string; name?: string; detail?: string };
 type Suite = { scenarios?: number; passed: number; failed: number; skipped?: number; steps?: { total: number }; durationMs?: number; features?: { name: string; scenarios: number; passed: number; failed: number }[]; failures?: Failure[]; slowest?: { feature: string; scenario: string; ms: number }[]; checks?: number; baseUrl?: string };
@@ -41,15 +41,8 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
 
   // --- Sign in -----------------------------------------------------------------------------------------------
 
-  function renderGate(problem?: unknown) {
-    const { form, input } = gateForm(m, 'results', (given) => {
-      token = given;
-      remembered.set(given);
-      void render();
-    }, problem);
-    show(form);
-    if (problem) input.focus();
-  }
+  // Signing in is the page's own token box (admin-gate.ts); without a token this tab shows nothing.
+  const renderGate = (problem?: unknown) => leaveToGate(root, problem);
 
   // Refresh and Sign out are buttons at the top of the page (admin-actions.ts); here only the way back from a run.
   // `data-astro-reload`: this is a same-page hash link, and its render() below is driven entirely

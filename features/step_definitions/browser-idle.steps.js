@@ -54,7 +54,8 @@ Then('the Test Results tab should not mention being signed out for inactivity', 
 });
 
 Then('the reminder should be a status message for screen readers', async function () {
-  const notice = page(this).locator('#panel-test-results .results-notice');
+  // Said by the page's token box (admin-gate.ts), which is all the page shows once signed out.
+  const notice = page(this).locator('[data-admin-gate] .results-notice');
   await notice.waitFor({ state: 'visible', timeout: 8000 });
   assert.equal(await notice.getAttribute('role'), 'status');
 });

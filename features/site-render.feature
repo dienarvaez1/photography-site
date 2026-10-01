@@ -190,3 +190,36 @@ Feature: The site renders its photo pages from R2 when they are requested
 
   Scenario: The pages the Worker renders pass the same checks as the static ones
     Then every page rendered on request should be valid HTML with a language, a title, a canonical link and its translations, and no inline script
+
+  # --- The access log (/api/access) ---------------------------------------------------------------------------------------
+
+  Scenario: A page's report of a visit is added to the day's access log, timed by the Worker in UTC
+    When a page at "/es/work/nature/" reports a visit from the address "203.0.113.7"
+    Then the site should answer the report with 204
+    And today's access log should be named by today's first instant in UTC
+    And today's access log should end with a "view" of "/es/work/nature/" from "203.0.113.7", timed by the Worker in UTC
+    And its place should be recorded from Cloudflare's own data, by name
+
+  Scenario: A photo opened is added with its id and category
+    When a page at "/work/nature/" reports opening the photo "ba380c579ee5e5ca" of "nature" from the address "203.0.113.8"
+    Then the site should answer the report with 204
+    And today's access log should end with a "photo" of "/work/nature/" from "203.0.113.8" for the photo "ba380c579ee5e5ca" in "nature"
+
+  Scenario Outline: A report that is not the site's own, or not what a page sends, is refused and changes nothing
+    When <report>
+    Then the site should answer the report with <status>
+    And today's access log should have as many entries as before
+
+    Examples:
+      | report                                                                        | status |
+      | another site's page "https://evil.example" reports a visit to "/"            | 403    |
+      | a page sends the report '{"page":"/","event":"view","ip":"198.51.100.1"}'      | 400    |
+      | a page sends the report '{"page":"javascript:alert(1)","event":"view"}'        | 400    |
+      | a page sends the report '{"page":"/","event":"photo","photo":{"id":"x"}}'      | 400    |
+      | a page sends the report 'not json'                                            | 400    |
+      | a page sends a report of 3000 bytes                                           | 413    |
+
+  Scenario: Visits at the same moment are all recorded
+    When 12 pages report visits at the same moment
+    Then every one of them should be answered with 204
+    And today's access log should hold all 12 of them

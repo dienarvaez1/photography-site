@@ -159,12 +159,19 @@
     "description": "Administración del sitio.",
     "tablistLabel": "Secciones de administración",
     "actionsLabel": "Acciones de la página",
+    "gate": {
+      "intro": "La página de administración es privada. Introduce el token de administración para continuar.",
+      "submit": "Entrar",
+      "needsJs": "La página de administración necesita JavaScript para comprobar el token de administración.",
+      "outdated": "El servicio de resultados aún no puede comprobar tokens: vuelve a desplegarlo con npm run results-api:deploy."
+    },
     "tabs": {
       "testResults": "Resultados de pruebas",
       "lighthouseResults": "Resultados de Lighthouse",
       "picsViewer": "Visor de fotos",
       "categoryMaintenance": "Mantenimiento de categorías",
-      "githubIssues": "Incidencias de GitHub"
+      "githubIssues": "Incidencias de GitHub",
+      "accessInfo": "Información de acceso"
     },
     "results": {
       "intro": "Resultados de las pruebas automáticas, leídos del almacén privado de resultados. Elige una ejecución para ver sus detalles.",
@@ -571,6 +578,62 @@
         "failed": "No se pudo eliminar {category}: {message}",
         "requestFailed": "No se pudieron eliminar las categorías: {message}",
         "unreachable": "no se pudo contactar al servicio local de categorías"
+      }
+    },
+    "access": {
+      "intro": "Quién abrió cada página y cada foto, día a día (UTC), según el registro de accesos privado del sitio: los totales del día, las páginas más visitadas y las fotos más abiertas, y cómo se reparten las visitas y las fotos abiertas del día (pasa el puntero o enfoca una porción para ver sus números). Cada página se registra al abrirse; no se cuentan los visitantes sin JavaScript ni la mayoría de los bots.",
+      "needsJs": "El visor de Información de acceso necesita JavaScript. Sin él, lee los archivos de cada día del bucket photography-site-access con wrangler.",
+      "day": "Día (UTC)",
+      "summary": {
+        "views": "Visitas a páginas",
+        "photos": "Fotos abiertas",
+        "visitors": "Direcciones distintas"
+      },
+      "topPages": "Páginas más visitadas",
+      "topPhotos": "Fotos más abiertas",
+      "empty": "Todavía no se ha registrado ninguna visita.",
+      "chart": {
+        "pages": "Reparto de las visitas, por página",
+        "photos": "Reparto de las fotos abiertas, por foto",
+        "visits": {
+          "one": "{count} visita · {share}",
+          "other": "{count} visitas · {share}"
+        },
+        "opens": {
+          "one": "{count} apertura · {share}",
+          "other": "{count} aperturas · {share}"
+        },
+        "other": "Otras ({count})"
+      },
+      "caption": "Las páginas más visitadas y las fotos más abiertas del día: su reparto en gráficos circulares y luego sus totales",
+      "nothing": {
+        "pages": "No hubo visitas a páginas este día.",
+        "photos": "No se abrieron fotos este día."
+      },
+      "map": {
+        "heading": "Visitas por país",
+        "title": "Mapa del mundo con las visitas del día, por país",
+        "views": {
+          "one": "{count} visita a páginas",
+          "other": "{count} visitas a páginas"
+        },
+        "photos": {
+          "one": "{count} foto abierta",
+          "other": "{count} fotos abiertas"
+        },
+        "none": "Sin visitas",
+        "legend": "Visitas por país",
+        "unplaced": {
+          "one": "{count} visita no se pudo situar en el mapa.",
+          "other": "{count} visitas no se pudieron situar en el mapa."
+        },
+        "countries": "Países",
+        "topCities": "Ciudades principales",
+        "cityCount": {
+          "one": "{count} acceso",
+          "other": "{count} accesos"
+        },
+        "noCities": "No se registró ninguna ciudad para estas visitas."
       }
     }
   }

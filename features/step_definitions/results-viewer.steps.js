@@ -45,6 +45,24 @@ Then('with the page on {string} and the query {string}, the results address shou
   assert.equal(view.resolveApiUrl('https://api.configured.test', query, host), address);
 });
 
+const headersFile = await import(join(ROOT, 'src/lib/headers-file.ts'));
+const deployedCsp = (path) => headersFile.headersFor(headersFile.parseHeadersFile(readFileSync(join(ROOT, 'public/_headers'), 'utf-8')), path)['Content-Security-Policy'];
+const directives = (csp) => Object.fromEntries(csp.split(';').map((d) => d.trim()).filter(Boolean).map((d) => [d.split(/\s+/)[0], d]));
+
+Then("the deployed site's Content-Security-Policy for {string} should not mention {string} or {string}", function (path, a, b) {
+  const csp = deployedCsp(path);
+  assert.ok(csp, `public/_headers gives ${path} a Content-Security-Policy`);
+  for (const host of [a, b]) assert.ok(!csp.includes(host), `${host} in ${csp}`);
+});
+
+Then("the dev server's adds {string} to {string} and {string} and changes nothing else", function (sources, first, second) {
+  const names = [first, second];
+  const deployed = directives(deployedCsp('/admin/'));
+  const dev = directives(headersFile.withLocalApi({ 'Content-Security-Policy': deployedCsp('/admin/') })['Content-Security-Policy']);
+  assert.deepEqual(Object.keys(dev), Object.keys(deployed));
+  for (const [name, directive] of Object.entries(deployed)) assert.equal(dev[name], names.includes(name) ? `${directive} ${sources}` : directive);
+});
+
 Then('the link {string} should be {word} for the API {string}', function (link, verdict, api) {
   assert.equal(view.isApiLink(link, api), verdict === 'followed');
 });

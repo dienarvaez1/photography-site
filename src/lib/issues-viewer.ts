@@ -2,7 +2,7 @@
 // the same admin token as the other tabs, and links each one to GitHub, where it is answered or closed: the tab only
 // reads. Built like the Lighthouse viewer (lighthouse-viewer.ts); everything from the API is put on the page as text.
 import { formatDate, resolveApiUrl } from './results-view';
-import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, messageReader, parseJson, remembered, type Child, type Messages, type Reader } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, messageReader, parseJson, remembered, type Child, type Messages, type Reader, leaveToGate } from './admin-common';
 
 export const ISSUE_STATES = ['open', 'closed', 'all'] as const;
 export type IssueState = (typeof ISSUE_STATES)[number];
@@ -44,15 +44,8 @@ export function mountIssuesViewer(container: HTMLElement, panel: HTMLElement) {
     root.removeAttribute('aria-busy');
   };
 
-  function renderGate(problem?: unknown) {
-    const { form, input } = gateForm(m, 'issues', (given) => {
-      token = given;
-      remembered.set(given);
-      void render();
-    }, problem);
-    show(form);
-    if (problem) input.focus();
-  }
+  // Signing in is the page's own token box (admin-gate.ts); without a token this tab shows nothing.
+  const renderGate = (problem?: unknown) => leaveToGate(root, problem);
 
   function externalLink(text: string, href: string, className?: string) {
     const link = el('a', { class: className, text, attrs: { href, target: '_blank', rel: 'noopener noreferrer' } });

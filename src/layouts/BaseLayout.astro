@@ -56,12 +56,17 @@ const t = useTranslations(locale);
     <script>
       import { initScrollReveal } from '../lib/scroll-reveal';
       import { trackTransitionOrigin } from '../lib/transition-referrer';
+      import { listenForAccessEvents, recordPageView } from '../lib/access-beacon';
 
       // Not a direct top-level call: this script is bundled to one stable URL shared by every
       // page, so the browser's module cache only ever evaluates it once per tab. `astro:page-load`
       // is what fires again on each later view-transition navigation (and once for the very first
       // load too, via the native `load` event) — see the fuller explanation in Header.astro's script.
       document.addEventListener('astro:page-load', () => initScrollReveal(document));
+      // Every page, once per visit to it: the access log behind the Admin page's Access Info tab. The gallery reports
+      // its photos and category switches through events (registered once, ever, like trackTransitionOrigin below).
+      document.addEventListener('astro:page-load', recordPageView);
+      listenForAccessEvents();
 
       // Registered once, ever (same reasoning) — it needs to fire on every future transition, not
       // re-run per page, so this one call is outside the astro:page-load listener above.

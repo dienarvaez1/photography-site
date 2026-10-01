@@ -1,4 +1,5 @@
 import { Given, When, Then } from '@cucumber/cucumber';
+import { signInSettled } from '../support/browser.js';
 
 const page = (world) => world.b.page;
 const panel = (world) => page(world).locator('#panel-pics-viewer');
@@ -46,9 +47,10 @@ Then('the photo {string} should not be ticked', async function (text) {
 // --- Quality --------------------------------------------------------------------------------------------------------------------
 
 When('I show the home background change in its {string} state', async function (name) {
-  const field = panel(this).locator('#pics-token');
+  const field = page(this).locator('#admin-token');
   await field.fill('browser-test-admin-token');
   await field.press('Enter');
+  await signInSettled(this);
   await panel(this).locator('.pics-list').waitFor({ state: 'visible', timeout: 8000 });
   if (name === 'not available') {
     this.b.photoService = null;

@@ -16,19 +16,19 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
   # --- Signing in ------------------------------------------------------------------------------------------------
 
   Scenario: Without a token the tab asks for one and asks the results API for nothing
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     Then the Test Results tab should ask for the admin token
     And the results API should not have been asked for anything
 
   Scenario: A wrong token is refused, and forgotten
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "definitely-the-wrong-one"
     Then the Test Results tab should say "That token was not accepted."
     And the Test Results tab should ask for the admin token
     And the browser should not remember any token
 
   Scenario: The right token shows the results, starting from latest.json and index.json
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
     And the list of all runs should show the commits "ccccccc, bbbbbbb, aaaaaaa" in that order
@@ -36,7 +36,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And the token should not appear in any address
 
   Scenario: The token is kept for the browser tab, so a reload does not ask again
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I reload the page
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
@@ -45,7 +45,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     # Nothing links to /admin/, so this is the only way back to it once view transitions are on:
     # its own mount logic can't simply run again the way it would after a real page load, since the
     # viewers it starts attach window/document listeners with no way to tear them down.
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
     When I click the header link "Contact"
@@ -53,7 +53,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
 
   Scenario: Signing out forgets the token
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I click "Sign out" at the top of the page
     Then the Test Results tab should ask for the admin token
@@ -63,13 +63,13 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
 
   Scenario: The tab explains when the results service has no admin token yet
     Given the results API has no admin token set up
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     Then the Test Results tab should say "The results service has no admin token yet. Set the ADMIN_TOKEN secret on the results Worker."
     And the Test Results tab should ask for the admin token
 
   Scenario: A token that stops being valid sends the visitor back to sign in
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And the results API's admin token is changed to "a-completely-new-admin-token"
     And I click "Refresh" at the top of the page
@@ -77,14 +77,36 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And the Test Results tab should ask for the admin token
 
   Scenario: The gate works with the keyboard alone
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I type the token "browser-test-admin-token" into the focused token field and press Enter
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
+
+  # --- A results API on this computer (?api=) -----------------------------------------------------------------------
+
+  Scenario: On the dev server, ?api= points the tab at a results API on this computer
+    # npm run dev with npm run results-api:dev, as the README describes. The dev server sends the deployed site's
+    # security headers too (src/middleware.ts), and until 1 Oct 2026 their policy blocked every request to the
+    # local API, so the tab only ever said it could not reach the results service.
+    Given the site is served with the dev server's headers
+    And the results API also runs on this computer at "http://localhost:8788"
+    When I open "/admin/?api=http://localhost:8788#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
+    And every request to the results API should have gone to "http://localhost:8788"
+    And no Content-Security-Policy violation should have been reported
+
+  Scenario: The deployed site's policy still refuses a results API on this computer
+    Given the results API also runs on this computer at "http://localhost:8788"
+    When I open "/admin/?api=http://localhost:8788#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    Then the Test Results tab should say "Could not reach the results service."
+    And the page should have been refused a connection to "http://localhost:8788" by its Content-Security-Policy
+    And the results API should not have been asked for anything
 
   # --- Opening runs ----------------------------------------------------------------------------------------------
 
   Scenario Outline: Any run in the list can be opened, and the address says which
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "<commit>" from the list
     Then the address should show that run
@@ -98,13 +120,13 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
       | aaaaaaa | Passed | 3 of 3 passed                                |
 
   Scenario: The latest run card opens the newest run too
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the latest run card
     Then the run's details should show the commit "ccccccc", Passed and "7 of 7 passed"
 
   Scenario: The browser's Back button returns from a run to the list
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "bbbbbbb" from the list
     And I go back in the browser
@@ -112,28 +134,28 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And the "Test Results" tab should be the selected one
 
   Scenario: The "All runs" link returns from a run to the list
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "aaaaaaa" from the list
     And I click the "← All runs" link
     Then the list of all runs should show the commits "ccccccc, bbbbbbb, aaaaaaa" in that order
 
   Scenario: A link to a run opens it directly, even after a reload
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "bbbbbbb" from the list
     And I reload the page
     Then the run's details should show the commit "bbbbbbb", Failed and "2 of 3 passed, 1 failed, 0 skipped"
 
   Scenario: A link to a run that is not there says so and offers the way back
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open "/admin/#test-results/run/2030-01-01T00-00-00Z-nothing-local"
     Then the Test Results tab should say "That run was not found. It may have been pruned."
     And there should be an "← All runs" link
 
   Scenario: Clicking the Test Results tab while a run is open returns to the list
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "bbbbbbb" from the list
     And I click the "Test Results" tab
@@ -141,7 +163,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And the address should end with "#test-results"
 
   Scenario: Keyboard users can open a run with Enter
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I focus the run with commit "bbbbbbb" and press Enter
     Then the run's details should show the commit "bbbbbbb", Failed and "2 of 3 passed, 1 failed, 0 skipped"
@@ -150,7 +172,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
   # --- What a run shows --------------------------------------------------------------------------------------------
 
   Scenario: A run shows its suites
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "ccccccc" from the list
     Then the suites table should show these rows:
@@ -164,7 +186,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And the run should show no missing values such as "undefined", "null" or "[object Object]"
 
   Scenario: A failing run shows what failed, as plain text
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "bbbbbbb" from the list
     Then the features of the "Offline" suite should list "site.feature" with 3 scenarios, 2 passed and 1 failed
@@ -172,7 +194,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And nothing from the results should have been treated as page markup
 
   Scenario: A run's reports open in a new tab, from the results API, showing the stored report
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "ccccccc" from the list
     Then every report link should open in a new tab without giving the new page access to this one
@@ -182,20 +204,20 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
 
   Scenario: A file link that does not lead back to the results API is never shown
     Given the results API hands out a link to another site for "offline.html"
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "ccccccc" from the list
     Then the run should show no link to another site, and no report link for that file
 
   Scenario: Failure evidence is shown: the screenshot, and the trace to download
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "bbbbbbb" from the list
     Then the evidence for "checkout-fails" should show its screenshot, loaded, with a description
     And the evidence for "checkout-fails" should offer the trace as a download and the log as a link
 
   Scenario: The stored report is reached by the run's signed link, and the link stops working after signing out
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "ccccccc" from the list
     And the results API's admin token is changed to "a-completely-new-admin-token"
@@ -206,21 +228,32 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
 
   Scenario: An empty results store says so
     Given the results API holds the admin token "browser-test-admin-token" and no published runs
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     Then the Test Results tab should say "No test results have been published yet. Run npm run test:record, then npm run results:publish."
 
-  Scenario: When the results API cannot be reached the tab says so, and Refresh recovers
+  Scenario: When the results API can't be reached, signing in says so, and works once it is back
     Given the results API cannot be reached
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
+    Then the token box should say "Could not reach the results service. Check your connection and try again."
+    And the page should offer only the admin token box and its button
+    When the results API comes back
+    And I sign in with the token "browser-test-admin-token"
+    Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
+
+  Scenario: When the results API stops answering the tab says so, and Refresh recovers
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And the results API cannot be reached
+    And I click "Refresh" at the top of the page
     Then the Test Results tab should say "Could not reach the results service. Check your connection and try again."
     When the results API comes back
     And I click "Refresh" at the top of the page
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
 
   Scenario: No test results are asked for while the other tab is showing
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open "/admin/#pics-viewer"
     And I reload the page
@@ -230,7 +263,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
 
   Scenario: A link to a run opens the Test Results tab from another tab
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I click the "Pics Viewer" tab
     And I open the address "/admin/#test-results/run/2026-09-21T10-00-00Z-ccccccc-local" in this page
@@ -239,7 +272,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
   # --- Language, layout, accessibility ------------------------------------------------------------------------------------------
 
   Scenario: The tab speaks Spanish on the Spanish page
-    When I open "/es/admin/"
+    When I open "/es/admin/#test-results"
     Then the Test Results tab should ask for the token in Spanish
     When I sign in with the token "browser-test-admin-token"
     Then the Test Results tab should show "Última ejecución", "Todas las ejecuciones" and "21 sept 2026"
@@ -247,7 +280,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Then the Test Results tab should show "Fallos", "Evidencia de los fallos" and "← Todas las ejecuciones"
 
   Scenario Outline: Each state of the tab passes the automated accessibility audit
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I show the Test Results tab in its "<state>" state
     Then the page should pass the automated accessibility audit
 
@@ -261,7 +294,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
 
   Scenario Outline: No state of the tab scrolls sideways on a phone
     Given the visitor uses a phone
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I show the Test Results tab in its "<state>" state
     Then the page should not scroll sideways
 
@@ -273,7 +306,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
       | failing run  |
 
   Scenario: Using the tab causes no script errors, no policy violations and no unexpected requests
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "bbbbbbb" from the list
     And I click the "← All runs" link

@@ -76,11 +76,17 @@ Then('the tab list should be laid out horizontally in the built styles', functio
   assert.match(rule, /flex-direction:\s*row/);
 });
 
-Then('a no-JavaScript fallback in the page head should show the hidden panel', function () {
-  const head = root(this).querySelector('head');
-  const fallback = head.querySelector('noscript');
-  assert.ok(fallback, 'a <noscript> in the <head>');
-  assert.match(fallback.text, /\.tabpanel\[hidden\]\s*\{\s*display:\s*block/);
+Then('the tabs should be hidden in the built page, with only the token box shown before them', function () {
+  const tabs = root(this).querySelector('[data-tabs]');
+  assert.ok(tabs?.hasAttribute('hidden'), 'the tabs carry `hidden` in the HTML itself (revealed by script only after the token is accepted)');
+  const gate = root(this).querySelector('[data-admin-gate]');
+  assert.ok(gate && !gate.hasAttribute('hidden'), 'the token box is there');
+  // Nothing in the page shows the panels without JavaScript any more (the old <noscript> style that did is gone).
+  assert.ok(!root(this).querySelectorAll('noscript').some((n) => /tabpanel/.test(n.text)), 'no fallback that shows the panels');
+});
+
+Then('without JavaScript the token box should say {string}', function (message) {
+  assert.equal(root(this).querySelector('[data-admin-gate] noscript')?.text.trim().replace(/<[^>]+>/g, ''), message);
 });
 
 Then('the page should ask search engines not to index it, and declare no canonical or alternate URLs', function () {

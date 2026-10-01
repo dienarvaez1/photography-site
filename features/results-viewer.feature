@@ -90,6 +90,11 @@ Feature: The Admin page's Test Results tab shows the stored test runs
       | localhost                                  | ?api=not a url                 | https://api.configured.test                              |
       | localhost                                  |                                | https://api.configured.test                              |
 
+  Scenario: Only the dev server's pages may reach a results API on this computer
+    # src/middleware.ts sends `_headers` as it is from a build, and with withLocalApi under `astro dev`.
+    Then the deployed site's Content-Security-Policy for "/admin/" should not mention "localhost" or "127.0.0.1"
+    And the dev server's adds "http://localhost:* http://127.0.0.1:*" to "connect-src" and "img-src" and changes nothing else
+
   Scenario Outline: Only links back to the results API are ever followed
     Then the link "<link>" should be <verdict> for the API "https://api.configured.test"
 

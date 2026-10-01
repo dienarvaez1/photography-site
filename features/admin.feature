@@ -1,11 +1,11 @@
 Feature: Admin page smoke test
   As the site owner
-  I want an Admin page reachable directly at /admin/, with "Test Results", "Lighthouse Test Results", "Pics Viewer",
-  "Category Maintenance" and "GitHub Issues" tabs, but not advertised in the header
+  I want an Admin page reachable directly at /admin/, with "Access Info", "Test Results", "Lighthouse Test Results",
+  "Pics Viewer", "Category Maintenance" and "GitHub Issues" tabs, but not advertised in the header
   So that there is a place to grow the site's admin tools, in both languages, without inviting visitors to it
 
   This is a basic smoke test: the page exists and works at its address, is never linked from the header, and
-  has its five tabs.
+  has its six tabs.
 
   Scenario Outline: The Admin page exists in both languages
     When I load the built page "<route>"
@@ -29,14 +29,14 @@ Feature: Admin page smoke test
       | /es/       | Sobre mí, Contacto  |
       | /es/admin/ | Sobre mí, Contacto  |
 
-  Scenario Outline: The page has exactly five tabs, side by side in a horizontal tab list, in this order
+  Scenario Outline: The page has exactly six tabs, side by side in a horizontal tab list, in this order
     When I load the built page "<route>"
     Then the page should have one tab list labelled "<list label>" holding exactly these tabs, in order: "<tabs>"
 
     Examples:
       | route      | list label                  | tabs                                                                                                   |
-      | /admin/    | Admin sections              | Test Results, Lighthouse Test Results, Pics Viewer, Category Maintenance, GitHub Issues                |
-      | /es/admin/ | Secciones de administración | Resultados de pruebas, Resultados de Lighthouse, Visor de fotos, Mantenimiento de categorías, Incidencias de GitHub |
+      | /admin/    | Admin sections              | Access Info, Test Results, Lighthouse Test Results, Pics Viewer, Category Maintenance, GitHub Issues |
+      | /es/admin/ | Secciones de administración | Información de acceso, Resultados de pruebas, Resultados de Lighthouse, Visor de fotos, Mantenimiento de categorías, Incidencias de GitHub |
 
   Scenario Outline: The tabs are wired to their own panels, with only the first tab selected
     When I load the built page "<route>"
@@ -52,9 +52,15 @@ Feature: Admin page smoke test
   Scenario: The tabs sit in a row, not a column
     Then the tab list should be laid out horizontally in the built styles
 
-  Scenario: Without JavaScript every panel is still readable
-    When I load the built page "/admin/"
-    Then a no-JavaScript fallback in the page head should show the hidden panel
+  Scenario Outline: The tabs are hidden in the page itself until the admin token is accepted, even without JavaScript
+    When I load the built page "<route>"
+    Then the tabs should be hidden in the built page, with only the token box shown before them
+    And without JavaScript the token box should say "<message>"
+
+    Examples:
+      | route      | message                                                                                   |
+      | /admin/    | The Admin page needs JavaScript to check the admin token.                                 |
+      | /es/admin/ | La página de administración necesita JavaScript para comprobar el token de administración. |
 
   Scenario Outline: The Admin page is kept out of search engines and the sitemap
     When I load the built page "<route>"

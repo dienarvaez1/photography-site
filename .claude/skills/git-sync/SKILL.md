@@ -1,6 +1,6 @@
 ---
 name: git-sync
-description: Bring the current branch (or the default branch) up to date with its remote safely — fetch, then fast-forward or rebase, setting aside and restoring uncommitted work — and report what came in. Use when the user says pull, sync, update, get latest, catch up with main, or "is my branch behind".
+description: Bring the current branch (or the default branch) up to date with its remote safely — fetch, then fast-forward or rebase, setting aside and restoring uncommitted work — and report what came in. Use when the user says sync, "sync with GitHub", catch up with main, or "is my branch behind". For an explicit pull use /git-pull; to only download and look, /git-fetch.
 argument-hint: "[--rebase|--merge] [branch]"
 ---
 

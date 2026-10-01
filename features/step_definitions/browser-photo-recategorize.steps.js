@@ -1,5 +1,6 @@
 import { When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
+import { signInSettled } from '../support/browser.js';
 
 const page = (world) => world.b.page;
 const panel = (world) => page(world).locator('#panel-pics-viewer');
@@ -74,9 +75,10 @@ Then('the photo {string} should show the category {string}', async function (tex
 // --- Quality --------------------------------------------------------------------------------------------------------------------
 
 When('I show the category change in its {string} state', async function (name) {
-  const field = panel(this).locator('#pics-token');
+  const field = page(this).locator('#admin-token');
   await field.fill('browser-test-admin-token');
   await field.press('Enter');
+  await signInSettled(this);
   await panel(this).locator('.pics-list').waitFor({ state: 'visible', timeout: 8000 });
   if (name === 'not available') {
     this.b.photoService = null;

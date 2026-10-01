@@ -485,6 +485,9 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
       const url = localizePath(`/work/${slug}/`, locale);
       if (history_ === 'push') history.pushState(null, '', url);
       else if (history_ === 'replace') history.replaceState(null, '', url);
+      // Another category's page, without a page load: the access log counts it as a visit to that page (reported by the
+      // layout's script, src/lib/access-beacon.ts).
+      document.dispatchEvent(new CustomEvent('access:view'));
     }
 
     // Reacts to the browser's own Back/Forward buttons: the URL has already changed by the time

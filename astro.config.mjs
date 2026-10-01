@@ -35,6 +35,21 @@ const localizedNotFoundPages = {
   },
 };
 
+/**
+ * The access log's endpoint, POST /api/access (src/endpoints/access.ts): only in the real build and `astro dev`. The
+ * tests' snapshot build is all static files and has no Worker to run it (its pages' reports are noted by the browser
+ * tests instead), so adding it there would turn that build into a Worker build.
+ */
+/** @type {import('astro').AstroIntegration} */
+const accessLogEndpoint = {
+  name: 'access-log-endpoint',
+  hooks: {
+    'astro:config:setup': ({ injectRoute }) => {
+      injectRoute({ pattern: '/api/access', entrypoint: './src/endpoints/access.ts', prerender: false });
+    },
+  },
+};
+
 // The tests build the whole site as static HTML from a sample library (`PHOTOS_SNAPSHOT=1`, see
 // src/lib/photo-entries.ts). The real build leaves the pages that show photos to be rendered by the Worker
 // when they are requested, from the entries in R2, so a new photo needs no build and no deploy.
@@ -77,6 +92,7 @@ export default defineConfig({
       },
     }),
     localizedNotFoundPages,
+    ...(SNAPSHOT ? [] : [accessLogEndpoint]),
     // The Admin page's New Photo form: dev server only (it needs your Cloudflare login to upload).
     photoForm({ contentDir: fileURLToPath(new URL(`./${PHOTO_ENTRIES_DIR}`, import.meta.url)) }),
     // The Admin page's Category Maintenance tab: dev server only, same reasoning (it needs the local

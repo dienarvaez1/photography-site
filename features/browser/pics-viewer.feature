@@ -20,16 +20,16 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
 
   # --- The tab and signing in ------------------------------------------------------------------------------------
 
-  Scenario: The second tab is the Pics Viewer, and it asks for the token like the Test Results tab
-    When I open "/admin/"
-    And I click the "Pics Viewer" tab
+  Scenario: Before signing in, the Pics Viewer is not shown at all, and nothing about the pictures is asked for
+    When I open "/admin/#pics-viewer"
+    Then the page should offer only the admin token box and its button
+    And the results API should not have been asked for the pictures
+    When I sign in with the token "browser-test-admin-token"
     Then the "Pics Viewer" tab should be selected, its panel visible and every other panel hidden
     And the address should end with "#pics-viewer"
-    And the Pics Viewer should ask for the admin token
-    And the results API should not have been asked for the pictures
 
   Scenario: One sign-in serves both tabs
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I click the "Pics Viewer" tab
     Then the Pics Viewer should list 4 original photos in this order: "Half Moon, Orion Nebula, Chimpanzee Portrait, ffffffffffffffff"
@@ -45,9 +45,8 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click "Sign out" at the top of the page
-    Then the Pics Viewer should ask for the admin token
-    When I click the "Test Results" tab
-    Then the Test Results tab should ask for the admin token
+    Then the page should offer only the admin token box and its button
+    And the browser should not remember any token
 
   Scenario: A wrong token is refused
     When I open "/admin/#pics-viewer"
@@ -56,7 +55,7 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And the Pics Viewer should ask for the admin token
 
   Scenario: Nothing about the pictures is requested until the Pics Viewer is shown
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I reload the page
     Then the latest run should be shown as commit "ccccccc", Passed, with "3 of 3 passed"
@@ -158,13 +157,13 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
   # --- Refresh and Sign out, at the top of the page ------------------------------------------------------------------------------
 
   Scenario: Refresh and Sign out sit across from the "Admin" title, at the right, and not inside the tabs
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     Then "Refresh" then "Sign out" should sit on the same line as the "Admin" title, at the right of the page
     And neither tab's panel should hold a "Refresh" or "Sign out" button
 
   Scenario: The buttons are only there while signed in
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     Then there should be no "Refresh" or "Sign out" button at the top of the page
     When I sign in with the token "browser-test-admin-token"
     Then "Refresh" then "Sign out" should sit on the same line as the "Admin" title, at the right of the page
@@ -172,13 +171,13 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     Then there should be no "Refresh" or "Sign out" button at the top of the page
 
   Scenario: A token that is not accepted takes the buttons away again
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "definitely-the-wrong-one"
     Then the Test Results tab should say "That token was not accepted."
     And there should be no "Refresh" or "Sign out" button at the top of the page
 
   Scenario: Refresh reloads the Test Results tab when that tab is showing, and nothing else
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I click the "Pics Viewer" tab
     And I click the "Test Results" tab
@@ -195,22 +194,20 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     Then the results API should have been asked once more for "/pics", "/pics/22d56df0b2da3a99", "/pics/4c4f46c18b70c4b5", "/pics/4b3761b8ee641a7d" and "/pics/ffffffffffffffff", and for nothing else
 
   Scenario: Signing out at the top signs out of both tabs
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I click the "Pics Viewer" tab
     And I click "Sign out" at the top of the page
-    Then the Pics Viewer should ask for the admin token
+    Then the page should offer only the admin token box and its button
     And the browser should not remember any token
-    When I click the "Test Results" tab
-    Then the Test Results tab should ask for the admin token
 
   Scenario: The buttons are reachable with the keyboard, before the tabs, and large enough to tap
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     Then both top buttons should be in the tab order, before the tabs, and at least 44 pixels tall
 
   Scenario: The buttons speak Spanish
-    When I open "/es/admin/"
+    When I open "/es/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     Then "Actualizar" then "Cerrar sesión" should sit on the same line as the "Administración" title, at the right of the page
     When I click "Cerrar sesión" at the top of the page
@@ -218,13 +215,13 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
 
   Scenario: On a phone the buttons stay on screen and the page does not scroll sideways
     Given the visitor uses a phone
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     Then the two top buttons should be entirely inside the screen
     And the page should not scroll sideways
 
   Scenario: The way back from a run stays in the tab, without the top buttons being repeated
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I open the run with commit "ccccccc" from the list
     Then there should be an "← All runs" link
@@ -345,10 +342,11 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     Then the details of "Orion Nebula" should show these facts:
       | Copyright | Copyright 2026 Diego Narvaez |
 
-  Scenario: When the results API cannot be reached the viewer says so, and Refresh recovers
-    Given the results API cannot be reached
+  Scenario: When the results API stops answering the viewer says so, and Refresh recovers
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
+    And the results API cannot be reached
+    And I click "Refresh" at the top of the page
     Then the Pics Viewer should say "Could not reach the results service. Check your connection and try again."
     When the results API comes back
     And I click "Refresh" at the top of the page
