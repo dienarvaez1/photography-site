@@ -44,6 +44,9 @@ Summarize the JSON with node rather than dumping it, for example a run's result,
 scenario and reason, or pics per category. To save a report, download its signed link to the scratchpad and say
 where it is.
 
+To see the local API through the Admin page instead, open `http://localhost:4321/admin/?api=http://localhost:8788`.
+That works only with the dev server running (SERVICES.md, "The Admin page against the local API").
+
 The runs also come from the CLIs, which read R2 directly without a token: `npm run results -- list|show|trend` and
 `npm run lighthouse-results -- list|show`. Use them when the API isn't reachable.
 

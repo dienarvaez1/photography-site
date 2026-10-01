@@ -39,6 +39,8 @@ real deployment-like session.
 ## Report
 
 Each service started (or already running): its address (`http://localhost:<port>`), pid, log location, and what
-the checks returned. Include useful next links: `http://localhost:4321/admin/`, and with the local API,
-`http://localhost:4321/admin/?api=http://localhost:8788`. If you generated a local token, give it here, because the
-Admin page asks for it. It's local-only and in a git-ignored file. Stop with `/service-stop`.
+the checks returned. Include useful next links: `http://localhost:4321/admin/`, and when both dev and the local
+API are running, `http://localhost:4321/admin/?api=http://localhost:8788`. That link works only on the dev server, not
+the preview (SERVICES.md, "The Admin page against the local API"). If you generated a local token, say it's in
+`workers/results-api/.dev.vars` (git-ignored) for them to copy into the Admin page. Don't print it. Stop with
+`/service-stop`.

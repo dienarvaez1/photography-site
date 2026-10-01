@@ -34,9 +34,24 @@ The photos themselves load from the public R2 host, so the manifest is all it ne
 
 The Worker refuses everything (`/health` says `"configured": false`) until it has an `ADMIN_TOKEN`. Locally, any
 16+ character value works. Put it in `workers/results-api/.dev.vars` (git-ignored by `.dev.vars*`):
-`ADMIN_TOKEN=<value>`. If the file doesn't exist, generate one (`openssl rand -hex 16`), and tell the user the value
-so they can paste it into the Admin page at `http://localhost:4321/admin/?api=http://localhost:8788`. Its local
+`ADMIN_TOKEN=<value>`. If the file doesn't exist, generate one straight into it
+(`echo "ADMIN_TOKEN=$(openssl rand -hex 16)" >> workers/results-api/.dev.vars`) without printing it. Tell the user
+**where** it is, not what it is: they open the file and paste the value into the Admin page at
+`http://localhost:4321/admin/?api=http://localhost:8788`. Its local
 buckets are empty unless results are published locally. Production data stays in production.
+
+### The Admin page against the local API (`?api=`)
+
+`?api=<address>` points the Admin page's tabs (Test Results, Lighthouse, Pics Viewer, GitHub Issues) at another
+results API, but only on the **dev server**:
+- The page must be on `localhost` (`resolveApiUrl` in `src/lib/results-view.ts`), and the API must allow the page's
+  origin. Its `ALLOWED_ORIGINS` lists `http://localhost:4321`, so use `localhost`, not `127.0.0.1`.
+- The page's Content-Security-Policy must allow the address. `src/middleware.ts` sends `public/_headers` everywhere,
+  and only under `astro dev` it adds `http://localhost:*` and `http://127.0.0.1:*` to `connect-src` and `img-src`
+  (`withLocalApi` in `src/lib/headers-file.ts`). The preview (8787) is a build, so its policy blocks `?api=`.
+
+`curl` ignores the policy, so it can't prove the link works. Check it in a browser: no `connect-src` violation in the
+console, and the tabs' requests going to `localhost:8788`. Category Maintenance never uses the API.
 
 ## Production (Cloudflare)
 
