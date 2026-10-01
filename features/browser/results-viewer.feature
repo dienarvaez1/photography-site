@@ -313,3 +313,202 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Then no script error should have been logged
     And no Content-Security-Policy violation should have been reported
     And nothing but the site and the results API should have been requested
+
+  # --- Remove Results: deleting runs on demand ----------------------------------------------------------------------------
+
+  Scenario: On the deployed site, Remove Results says it only works on your own computer, and deletes nothing
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Remove Results" in the Test Results tab
+    Then the Test Results tab should say "Removing test results only works on your own computer"
+    And no run should have a checkbox
+
+  Scenario: Remove Results puts a checkbox on every run, and the bar counts what is ticked
+    Given the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Remove Results" in the Test Results tab
+    Then every run in the list should have a checkbox, none ticked
+    And the removal bar should say "0 selected", with "Delete selected" unavailable
+    When I tick the runs "bbbbbbb, aaaaaaa"
+    Then the removal bar should say "2 selected", with "Delete selected" available
+    When I press "Select all" in the removal bar
+    Then every run in the list should be ticked
+    And the removal bar should say "3 selected", with "Delete selected" available
+    When I press "Cancel" in the removal bar
+    Then no run should have a checkbox
+    And the local results service should not have been asked to remove anything
+
+  Scenario: The confirmation names every run before anything is deleted, and "Keep them" or Escape backs out
+    Given the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Remove Results" in the Test Results tab
+    And I tick the runs "bbbbbbb, aaaaaaa"
+    And I press "Delete selected" in the removal bar
+    Then the removal bar should ask "Permanently delete these 2 test runs and all their reports? This cannot be undone."
+    And the confirmation should name the runs "bbbbbbb, aaaaaaa"
+    And "Keep them" should have the keyboard focus
+    When I press "Keep them" in the removal bar
+    Then the removal bar should say "2 selected", with "Delete selected" available
+    When I press "Delete selected" in the removal bar
+    And I press the key "Escape"
+    Then the removal bar should say "2 selected", with "Delete selected" available
+    And the local results service should not have been asked to remove anything
+
+  Scenario: Deleting the ticked runs removes them from the store and the list, and says so
+    Given the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Remove Results" in the Test Results tab
+    And I tick the runs "bbbbbbb, aaaaaaa"
+    And I press "Delete selected" in the removal bar
+    And I press "Delete 2 runs" in the removal bar
+    Then the Test Results tab should say "Deleted 2 test runs."
+    And the list of all runs should show the commits "ccccccc" in that order
+    And the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
+    And no file of the runs "bbbbbbb, aaaaaaa" should be left in the results bucket
+    And no run should have a checkbox
+
+  Scenario: Deleting the newest run makes the next one the latest
+    Given the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Remove Results" in the Test Results tab
+    And I tick the runs "ccccccc"
+    And I press "Delete selected" in the removal bar
+    And I press "Delete 1 run" in the removal bar
+    Then the Test Results tab should say "Deleted 1 test run."
+    And the latest run should be shown as commit "bbbbbbb", Failed, with "2 of 3 passed, 1 failed, 0 skipped"
+    And the list of all runs should show the commits "bbbbbbb, aaaaaaa" in that order
+
+  Scenario: A run whose files can't all be deleted is said to be off the list, and safe to remove again
+    Given the local results service is running
+    And deleting files of "bbbbbbb" fails in the results bucket
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Remove Results" in the Test Results tab
+    And I tick the runs "bbbbbbb"
+    And I press "Delete selected" in the removal bar
+    And I press "Delete 1 run" in the removal bar
+    Then the Test Results tab should say "was taken off the list, but not all its files could be deleted"
+    And the list of all runs should show the commits "ccccccc, aaaaaaa" in that order
+
+  Scenario Outline: The removal bar and its confirmation pass the automated accessibility audit, on laptop and phone
+    Given the visitor uses a <device>
+    And the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Remove Results" in the Test Results tab
+    And I tick the runs "bbbbbbb"
+    Then the page should pass the automated accessibility audit
+    And the page should not scroll sideways
+    When I press "Delete selected" in the removal bar
+    Then the page should pass the automated accessibility audit
+
+    Examples:
+      | device |
+      | laptop |
+      | phone  |
+
+  Scenario: Remove Results speaks Spanish
+    Given the local results service is running
+    When I open "/es/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Eliminar resultados" in the Test Results tab
+    Then the removal bar should say "0 seleccionadas", with "Eliminar las seleccionadas" unavailable
+
+  # --- Run in CI -------------------------------------------------------------------------------------------------------------
+
+  Scenario: Remove Results comes first above the list, then Run in CI
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    Then the Test Results tab's buttons above the list should be "Remove Results, Run in CI"
+
+  Scenario: On the deployed site, Run in CI says it only works on your own computer
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    Then the Test Results tab should say "Starting a CI run only works on your own computer"
+    And "Run in CI" should be available in the Test Results tab
+    And the CI workflow should have been started 0 times
+
+  Scenario: Run in CI starts every Cucumber test in CI, follows the run, then reads the list again
+    Given the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    Then the Test Results tab should say "Running every Cucumber test in CI on main."
+    And the Test Results tab should link to the CI run
+    And "CI run in progress…" should be unavailable in the Test Results tab
+    And the Test Results tab should come to say "The CI run is done: every test passed."
+    And "Run in CI" should be available again in the Test Results tab
+    And the results API should come to have been asked for "/index" 2 times
+    And the CI workflow should have been started 1 time
+
+  Scenario: A CI run that fails says so, with a link to it on GitHub
+    Given the local results service is running
+    And the CI run fails
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    Then the Test Results tab should come to say "The CI run ended: failure."
+    And the Test Results tab should link to the CI run
+
+  Scenario: Pressing Run in CI while a run from here is going follows it instead of starting another
+    Given the local results service is running
+    And the CI run is never done
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    And I reload the page
+    And I press "Run in CI" in the Test Results tab
+    Then the Test Results tab should say "Running every Cucumber test in CI on main."
+    And "CI run in progress…" should be unavailable in the Test Results tab
+    And the CI workflow should have been started 1 time
+
+  Scenario: Run in CI says why GitHub refused to start the run
+    Given the local results service is running
+    And starting a CI run fails with "HTTP 422: Workflow does not have 'workflow_dispatch' trigger"
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    Then the Test Results tab should say "The CI run could not be started: HTTP 422: Workflow does not have 'workflow_dispatch' trigger"
+    And "Run in CI" should be available in the Test Results tab
+
+  Scenario: Run in CI is there even before the first test run, and passes the accessibility audit
+    Given the results API holds the admin token "browser-test-admin-token" and no published runs
+    And the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    Then the Test Results tab's buttons above the list should be "Run in CI"
+    And the page should pass the automated accessibility audit
+    When I press "Run in CI" in the Test Results tab
+    Then the Test Results tab should say "Running every Cucumber test in CI on main."
+    And the page should pass the automated accessibility audit
+
+  Scenario: Run in CI speaks Spanish
+    Given the local results service is running
+    When I open "/es/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Ejecutar en CI" in the Test Results tab
+    Then the Test Results tab should say "Ejecutando todas las pruebas de Cucumber en CI sobre main."
+
+  Scenario: A few unanswered checks (the dev server restarting) don't stop the tab following the CI run
+    Given the local results service is running
+    And the local results service misses the next 2 checks on the CI run
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    Then the Test Results tab should come to say "The CI run is done: every test passed."
+
+  Scenario: A dev server restart that forgets the CI run says so, and links to the run on GitHub
+    Given the local results service is running
+    And the CI run is never done
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    And the dev server restarts while the CI run is going
+    Then the Test Results tab should come to say "The dev server restarted and lost track of the CI run; it may still be going on GitHub."
+    And the Test Results tab should link to the CI run
+    And "Run in CI" should be available again in the Test Results tab

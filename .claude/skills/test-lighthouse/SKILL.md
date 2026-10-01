@@ -1,7 +1,7 @@
 ---
 name: test-lighthouse
 description: Run this project's Lighthouse suite, which measures performance, accessibility, best-practices and SEO against per-page budgets, and optionally publish the run to R2 for the Admin page's Lighthouse tab. Use whenever the user asks to run Lighthouse, check page speed or scores, measure the live site or a preview, or report or publish Lighthouse results.
-argument-hint: "[--publish] [url]"
+argument-hint: "[--publish] [--ci] [url]"
 ---
 
 # Run the Lighthouse suite
@@ -11,6 +11,11 @@ A URL measures that site instead of production.
 
 The suite is the `@lighthouse` Cucumber profile. By default it measures the live production site. It runs every
 page `LIGHTHOUSE_RUNS` times (3 by default) and judges the median run against that page's budget.
+
+**In CI instead:** `--ci` (or the user asking to run it in CI or on GitHub) starts `.github/workflows/lighthouse.yml`
+with `gh workflow run lighthouse.yml --ref main`. It measures production and stores the run in R2. Then follow it as
+/test-ci does with `--workflow Lighthouse` (about 10 minutes) and report as below. The workflow must be on `main` for GitHub to start it. (The Lighthouse tab's Run in Production button
+is the same as running this skill with `--publish` against production, from the dev server.)
 
 ## Steps
 

@@ -1,11 +1,11 @@
 import { After, Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import yaml from 'js-yaml';
-import { ROOT } from '../support/lib.js';
+import { DIST_DIR, ROOT } from '../support/lib.js';
 import { createMemoryBucket } from '../support/memory-storage.js';
 
 const lib = await import(join(ROOT, 'scripts/lib/results.mjs'));
@@ -432,4 +432,183 @@ Then(/^the failure's reason should be "([^"]+)"$/, function (reason) {
 
 Then(/^the failure's reason should mention "([^"]+)"$/, function (fragment) {
   assert.ok(this.data.wranglerFailure.detail.includes(fragment), this.data.wranglerFailure.detail);
+});
+
+// --- Removing runs on demand ------------------------------------------------------------------------------------------
+
+const resultsForm = await import(join(ROOT, 'scripts/lib/results-form.mjs'));
+
+When('I remove the runs {string}', async function (ids) {
+  state(this).removal = await lib.removeRuns({ storage: state(this).bucket, runIds: ids.split(', ') });
+});
+
+When('deleting {string} fails in the bucket', function (fragment) {
+  state(this).bucket.faults.failDeleteMatching = fragment;
+});
+
+const list = (text) => (text ? text.split(', ') : []);
+
+Then('the removal should report removed {string} and nothing missing or failed', function (ids) {
+  const { removal } = state(this);
+  // Reported in the index's order (newest first); which runs is what matters here.
+  assert.deepEqual({ ...removal, removed: [...removal.removed].sort() }, { removed: list(ids).sort(), missing: [], failed: [] });
+});
+
+Then('the removal should report removed {string} and missing {string}', function (removed, missing) {
+  const { removal } = state(this);
+  assert.deepEqual([removal.removed, removal.missing], [list(removed), list(missing)]);
+});
+
+Then('the removal should report the run {string} as failed', function (id) {
+  const { removal } = state(this);
+  assert.deepEqual(removal.removed, []);
+  assert.deepEqual(removal.failed.map((f) => f.runId), [id]);
+  assert.match(removal.failed[0].error, /simulated delete failure/);
+});
+
+Then('latest.json should name the run {string}', function (id) {
+  assert.equal(json(this, 'results/latest.json').runId, id);
+});
+
+Then("latest.json should be that run's own summary", function () {
+  const latest = json(this, 'results/latest.json');
+  assert.deepEqual(latest, json(this, `results/runs/${latest.runId}/summary.json`));
+});
+
+Then('the index should list no runs', function () {
+  assert.deepEqual(json(this, 'results/index.json').runs, []);
+});
+
+Then('the bucket should hold nothing but the empty index', function () {
+  assert.deepEqual([...objects(this).keys()], ['results/index.json']);
+});
+
+When(/^the local results service gets (GET|POST) (\S+) on (\S+)(?: from (its own page|another site))?(?:, removing (.+))?$/, async function (method, path, host, from, removing) {
+  const base = `http://${host}:4321`;
+  let runs;
+  if (removing === 'nothing') runs = [];
+  else if (/^\d+ runs$/.test(removing ?? '')) runs = Array.from({ length: Number(removing.split(' ')[0]) }, (_, i) => `2026-09-23T09-00-${String(i % 60).padStart(2, '0')}Z-r${i}-local`);
+  else if (removing) runs = [...removing.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+  const headers = { ...(from ? { Origin: from === 'its own page' ? base : 'https://evil.example' } : {}), ...(runs ? { 'Content-Type': 'application/json' } : {}) };
+  const handle = resultsForm.createResultsFormHandler({ storage: state(this).bucket });
+  const response = await handle(new Request(`${base}${path}`, { method, headers, ...(runs ? { body: JSON.stringify({ runs }) } : {}) }));
+  state(this).answer = { status: response.status, body: await response.json(), runs };
+});
+
+Then(/^it should answer (\d+) with (.+)$/, function (status, answer) {
+  const { answer: got } = state(this);
+  assert.equal(got.status, Number(status), JSON.stringify(got.body));
+  if (answer.startsWith('{')) assert.deepEqual(got.body, JSON.parse(answer));
+  else if (answer.startsWith('the error')) assert.equal(got.body.error, /"([^"]+)"/.exec(answer)[1]);
+  else {
+    assert.deepEqual(got.body.removed, got.runs);
+    assert.ok(!json(this, 'results/index.json').runs.some((r) => got.runs.includes(r.runId)), 'and off the index');
+  }
+});
+
+Then("the dev server's integrations should include the results service", function () {
+  const config = readFileSync(join(ROOT, 'astro.config.mjs'), 'utf-8');
+  assert.match(config, /import \{ resultsForm \} from '\.\/scripts\/lib\/results-form-server\.mjs'/);
+  assert.match(config, /^\s+resultsForm\(\),/m);
+  // Its hook is the dev server's own: a build never runs it.
+  assert.match(readFileSync(join(ROOT, 'scripts/lib/results-form-server.mjs'), 'utf-8'), /'astro:server:setup'/);
+});
+
+Then('the built site should hold nothing under {string}', function (prefix) {
+  assert.equal(existsSync(join(DIST_DIR, prefix)), false);
+});
+
+// --- Run in CI ------------------------------------------------------------------------------------------------------
+
+/** The scenario's service, with a stand-in for GitHub: each start names the run the scenario says; status as set. */
+function ciService(world) {
+  const s = state(world);
+  if (!s.ciService) {
+    s.ci = { started: 0, nextId: null, failure: null, status: { status: 'queued', conclusion: '' } };
+    const ci = {
+      start: async () => {
+        if (s.ci.failure) throw new Error(s.ci.failure);
+        s.ci.started++;
+        return { id: s.ci.nextId, url: `https://github.com/o/r/actions/runs/${s.ci.nextId}` };
+      },
+      status: async (id) => ({ ...s.ci.status, url: `https://github.com/o/r/actions/runs/${id}` }),
+    };
+    s.ciService = resultsForm.createResultsFormHandler({ storage: s.bucket, ci, ciPollMs: 10 });
+  }
+  return s.ciService;
+}
+
+async function askCi(world, method, origin = 'http://localhost:4321') {
+  const handle = ciService(world);
+  const response = await handle(new Request('http://localhost:4321/__results/tests/run', { method, headers: { Origin: origin, 'Content-Type': 'application/json' }, ...(method === 'POST' ? { body: '{}' } : {}) }));
+  state(world).answer = { status: response.status, body: await response.json() };
+}
+
+When('the local results service is asked to run every test in CI, and GitHub names the run {int}', async function (id) {
+  ciService(this);
+  state(this).ci.nextId = String(id);
+  await askCi(this, 'POST');
+});
+
+When('the local results service is asked to run every test in CI, and gh fails with {string}', async function (message) {
+  ciService(this);
+  state(this).ci.failure = message;
+  await askCi(this, 'POST');
+});
+
+When('another site asks the local results service to run every test in CI', async function () {
+  await askCi(this, 'POST', 'https://evil.example');
+});
+
+When('GitHub says the CI run is {string}', function (status) {
+  state(this).ci.status = { status, conclusion: '' };
+});
+
+When('GitHub says the CI run is {string} with {string}', function (status, conclusion) {
+  state(this).ci.status = { status, conclusion };
+});
+
+When('the service is asked how the CI run is going', async function () {
+  await askCi(this, 'GET');
+});
+
+Then('the service should answer 202 with the CI run {int} on {string}, queued', function (id, ref) {
+  const { status, body } = state(this).answer;
+  assert.equal(status, 202);
+  assert.equal(body.pollMs, 10);
+  assert.deepEqual([body.run.id, body.run.ref, body.run.status, body.run.finishedAt, body.run.url], [String(id), ref, 'queued', null, `https://github.com/o/r/actions/runs/${id}`]);
+});
+
+Then('the service should say the CI run is {string}, not finished', function (status) {
+  const { run } = state(this).answer.body;
+  assert.equal(run.status, status);
+  assert.equal(run.finishedAt, null);
+});
+
+Then('the service should say the CI run finished with {string}', function (conclusion) {
+  const { run } = state(this).answer.body;
+  assert.equal(run.status, 'completed');
+  assert.equal(run.conclusion, conclusion);
+  assert.ok(run.finishedAt);
+});
+
+Then('the service should answer {int} with the error {string} and the CI run {int}', function (status, code, id) {
+  const { answer } = state(this);
+  assert.deepEqual([answer.status, answer.body.error, answer.body.run.id], [status, code, String(id)]);
+});
+
+Then('the CI workflow should have been started once', function () {
+  assert.equal(state(this).ci.started, 1);
+});
+
+Then('the CI workflow should not have been started', function () {
+  assert.equal(state(this).ci?.started ?? 0, 0);
+});
+
+Then('the local results service should start CI with {string} and follow it with {string}', function (start, follow) {
+  const [, , , workflow, , ref] = start.split(' ');
+  assert.deepEqual([resultsForm.CI_WORKFLOW, resultsForm.CI_REF], [workflow, ref]);
+  const source = readFileSync(join(ROOT, 'scripts/lib/results-form.mjs'), 'utf-8');
+  assert.ok(source.includes("gh(['workflow', 'run', CI_WORKFLOW, '--ref', CI_REF])"));
+  assert.ok(source.includes(`gh(['${follow.split(' ').slice(1).join("', '")}', id,`));
 });

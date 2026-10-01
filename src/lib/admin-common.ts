@@ -165,6 +165,15 @@ export function parseJson<T>(text: string): T {
 
 export type Reader = ReturnType<typeof messageReader>;
 
+/** What a tab says after an action (Remove Results, Run in Production): a line of text, maybe a link, and whether it's a problem. */
+export type Notice = { text: string; alert: boolean; href?: string; linkText?: string };
+
+/** A notice as a paragraph: its text, then its link (opening in a new tab) when it has one. */
+export function noticeNode(notice: Notice) {
+  const link = notice.href ? el('a', { text: notice.linkText ?? notice.href, attrs: { href: notice.href, target: '_blank', rel: 'noopener noreferrer' } }) : null;
+  return el('p', { class: notice.alert ? 'results-error' : 'results-notice', attrs: { role: notice.alert ? 'alert' : 'status' } }, notice.text, link ? ' ' : null, link);
+}
+
 export const errorMessage = (m: Reader, error: unknown) => m(`errors.${error instanceof ApiError ? error.kind : 'generic'}`, { status: error instanceof ApiError ? error.status : 0 });
 
 /** The token form. `prefix` keeps element ids unique when several viewers each have one on the page. */

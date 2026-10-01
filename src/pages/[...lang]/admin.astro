@@ -32,8 +32,8 @@ const resultsMessages = adminMessages.results;
 // The Pics Viewer shares the token form, errors and buttons with the Test Results tab.
 const { gate, errors, signOut, refresh, loading } = adminMessages.results;
 const picsMessages = { pics: adminMessages.pics, gate, errors, signOut, refresh, loading };
-// Lighthouse Test Results: the same token form and errors, its own texts.
-const lighthouseMessages = { lighthouse: adminMessages.lighthouse, gate, errors, signOut, refresh, loading };
+// Lighthouse Test Results: the same token form, errors and Remove Results texts, its own texts.
+const lighthouseMessages = { lighthouse: adminMessages.lighthouse, removal: adminMessages.results.removal, gate, errors, signOut, refresh, loading };
 // Category Maintenance sits behind the same admin token as the other two tabs: its list and its own
 // Add/Edit/Remove controls (real content changes, even though the list itself is public once inside)
 // only show once signed in.
@@ -498,6 +498,10 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .pics-list.selecting .pic { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; column-gap: 0.25rem; }
   .pic-select { display: grid; place-items: center; width: 44px; min-height: 44px; cursor: pointer; }
   .pic-check { width: 1.4rem; height: 1.4rem; accent-color: var(--bad); cursor: pointer; }
+  /* Remove Results (Test Results tab): the same bar as Remove Photos, and a checkbox beside each run while choosing. */
+  .results-remove-toolbar { justify-content: flex-start; }
+  .results-runs.choosing li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-1); }
+  .run-check { width: 1.4rem; height: 1.4rem; accent-color: var(--bad); cursor: pointer; }
   .pic.selected .pic-link { border-color: var(--bad); }
   /* Editing a category or the home background is not destructive: their checkboxes and selected-row
      border use the ordinary accent color instead of the Remove Photos bar's warning red. */

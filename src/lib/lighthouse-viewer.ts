@@ -17,7 +17,7 @@ import {
   type LighthouseRoute,
   type Measurement,
 } from './lighthouse-view';
-import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, messageReader, parseJson, remembered, type Child, type Messages, leaveToGate } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, messageReader, parseJson, remembered, type Child, type Messages, type Notice, leaveToGate, noticeNode } from './admin-common';
 
 type Totals = { measurements: number; withinBudget: number; overBudget: number };
 type Summary = { runId: string; startedAt: string; source: string; commit: string; branch: string; dirty: boolean; baseUrl: string; runsPerPage: number; ok: boolean; totals: Totals; results: Measurement[] };
@@ -92,17 +92,96 @@ export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement
     return { ...summary, performance };
   }
 
+  // Remove Results and Run in Production (results-remove.ts, loaded when either button is first pressed; Remove
+  // Results is the same as the Test Results tab's). The list is kept, so ticking a checkbox draws it again without
+  // asking the API; `notice` is what the last removal or measurement said.
+  let removal: import('./results-remove').RunRemoval | null = null;
+  let notice: Notice | null = null;
+  let listed: { latest: Summary | null; runs: IndexEntry[] } | null = null;
+  let measuring = false; // a Run in Production measurement is under way: its button waits
+  const removalModule = () => import('./results-remove');
+
+  async function startRemoving() {
+    const { startRunRemoval } = await removalModule();
+    const started = await startRunRemoval({
+      m,
+      store: 'lighthouse',
+      root,
+      redraw: drawList,
+      done: (said) => {
+        notice = said;
+        removal = null;
+        displayed = null;
+        void render();
+      },
+    });
+    if ('text' in started) notice = started;
+    else [removal, notice] = [started, null];
+    drawList();
+    root.querySelector<HTMLButtonElement>('[data-remove-bar] button:not(:disabled)')?.focus();
+  }
+
+  /** Run in Production: measure the live site on this computer, follow it, then show the new run. */
+  async function runInProduction() {
+    measuring = true;
+    drawList();
+    const { startProductionRun, productionRunNow, measurementNotice, MEASURE_POLL_MS } = await removalModule();
+    const started = await startProductionRun(m);
+    if ('text' in started) {
+      [notice, measuring] = [started, false];
+      drawList();
+      root.querySelector<HTMLButtonElement>('[data-action="run-lighthouse-production"]')?.focus();
+      return;
+    }
+    notice = measurementNotice(m, started);
+    drawList();
+    let now: import('./results-remove').Measurement | null = started;
+    while (now && !now.finishedAt) {
+      await new Promise((resolve) => setTimeout(resolve, MEASURE_POLL_MS));
+      now = await productionRunNow();
+    }
+    measuring = false;
+    notice = now ? measurementNotice(m, now) : { text: m('lighthouse.production.lost'), alert: true };
+    displayed = null; // the new run is in the store now: read the list again
+    if (!panel.hidden) void render();
+  }
+
+  /** The buttons above the list: Remove Results (only when there is something to remove), then Run in Production. */
+  function toolbar(hasRuns: boolean) {
+    const run = el('button', { class: 'results-button', text: m(measuring ? 'lighthouse.production.running' : 'lighthouse.production.button'), attrs: { type: 'button', 'data-action': 'run-lighthouse-production' } });
+    run.disabled = measuring;
+    run.addEventListener('click', () => void runInProduction());
+    const remove = hasRuns ? el('button', { class: 'results-button', text: m('removal.button'), attrs: { type: 'button', 'data-action': 'remove-results' } }) : null;
+    remove?.addEventListener('click', () => void startRemoving());
+    return el('div', { class: 'results-toolbar results-remove-toolbar' }, remove, run);
+  }
+
   async function renderList(run: number) {
     // Re-propagates whatever apiGet rejected with (always an ApiError; see admin-common.ts), not a new reason.
     // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
     const notFoundIsFine = (e: unknown) => (e instanceof ApiError && e.kind === 'notFound' ? null : Promise.reject(e));
     const [latest, index] = await Promise.all([api<Summary>('/lighthouse/latest').catch(notFoundIsFine), api<{ runs: IndexEntry[] }>('/lighthouse/index')]);
     if (run !== generation) return;
-    if (!index.runs.length && !latest) {
-      show(el('p', { class: 'results-empty', text: m('lighthouse.empty') }));
+    listed = { latest, runs: index.runs };
+    drawList();
+  }
+
+  /** Draws the list from the last answer: the buttons (or Remove Results' bar and checkboxes), the latest run, all runs. */
+  function drawList() {
+    if (!listed) return;
+    const { latest, runs } = listed;
+    const choosing = removal?.active ? removal : null;
+    const nodes: Child[] = [];
+    if (notice) nodes.push(noticeNode(notice));
+    if (!runs.length && !latest) {
+      show(...nodes, toolbar(false), el('p', { class: 'results-empty', text: m('lighthouse.empty') }));
       return;
     }
-    const nodes: Child[] = [];
+    if (choosing) {
+      nodes.push(choosing.bar(runs.map((entry) => ({ runId: entry.runId, label: `${formatDate(entry.startedAt, locale)} · ${entry.commit} · ${totalsText(entry.totals)} (${entry.runId})` }))));
+    } else {
+      nodes.push(toolbar(runs.length > 0));
+    }
     if (latest) {
       nodes.push(
         el('section', { class: 'results-latest', attrs: { 'aria-labelledby': 'lighthouse-latest-heading' } },
@@ -113,8 +192,8 @@ export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement
     nodes.push(
       el('section', { attrs: { 'aria-labelledby': 'lighthouse-runs-heading' } },
         el('h3', { text: m('lighthouse.runs.heading'), attrs: { id: 'lighthouse-runs-heading' } }),
-        el('p', { class: 'results-count', text: m('lighthouse.runs.count', { count: index.runs.length }) }),
-        el('ul', { class: 'results-runs' }, ...index.runs.map((entry) => el('li', {}, runLink(entry)))))
+        el('p', { class: 'results-count', text: m('lighthouse.runs.count', { count: runs.length }) }),
+        el('ul', { class: `results-runs${choosing ? ' choosing' : ''}` }, ...runs.map((entry) => el('li', {}, choosing?.check(entry.runId), runLink(entry)))))
     );
     show(...nodes);
   }

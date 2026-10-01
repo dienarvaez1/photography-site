@@ -15,7 +15,7 @@ import {
   type Route,
   type Totals,
 } from './results-view';
-import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, messageReader, parseJson, remembered, type Child, type Messages, leaveToGate } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, messageReader, parseJson, remembered, type Child, type Messages, type Notice, leaveToGate, noticeNode } from './admin-common';
 
 type Failure = { feature?: string; scenario?: string; step?: string; message?: string; name?: string; detail?: string };
 type Suite = { scenarios?: number; passed: number; failed: number; skipped?: number; steps?: { total: number }; durationMs?: number; features?: { name: string; scenarios: number; passed: number; failed: number }[]; failures?: Failure[]; slowest?: { feature: string; scenario: string; ms: number }[]; checks?: number; baseUrl?: string };
@@ -75,17 +75,80 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
     return link;
   }
 
-  async function renderList(run: number) {
-    // Re-propagates whatever apiGet rejected with (always an ApiError; see admin-common.ts), not a new reason.
-    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-    const notFoundIsFine = (e: unknown) => (e instanceof ApiError && e.kind === 'notFound' ? null : Promise.reject(e));
-    const [latest, index] = await Promise.all([api<Summary>('/latest').catch(notFoundIsFine), api<{ runs: IndexEntry[] }>('/index')]);
-    if (run !== generation) return;
-    if (!index.runs.length && !latest) {
-      show(el('p', { class: 'results-empty', text: m('empty') }));
+  // Remove Results and Run in CI (results-remove.ts, loaded when either button is first pressed). The list is kept, so
+  // ticking a checkbox draws it again without asking the API; `notice` is what the last removal or CI run said.
+  let removal: import('./results-remove').RunRemoval | null = null;
+  let notice: Notice | null = null;
+  let listed: { latest: Summary | null; runs: IndexEntry[] } | null = null;
+  let ciRunning = false; // a Run in CI run is being followed: its button waits
+  const removalModule = () => import('./results-remove');
+
+  async function startRemoving() {
+    const { startRunRemoval } = await removalModule();
+    const started = await startRunRemoval({
+      m,
+      store: 'tests',
+      root,
+      redraw: drawList,
+      done: (said) => {
+        notice = said;
+        removal = null;
+        displayed = null;
+        void render();
+      },
+    });
+    if ('text' in started) notice = started;
+    else [removal, notice] = [started, null];
+    drawList();
+    root.querySelector<HTMLButtonElement>('[data-remove-bar] button:not(:disabled)')?.focus();
+  }
+
+  /** Run in CI: start the CI workflow on GitHub, follow it until GitHub says it is done, then read the list again. */
+  async function runInCi() {
+    ciRunning = true;
+    drawList();
+    const { runCiAndFollow } = await removalModule();
+    const ended = await runCiAndFollow(m, (said) => {
+      notice = said;
+      if (!panel.hidden) drawList();
+    });
+    ciRunning = false;
+    notice = ended.notice;
+    if (!ended.started) {
+      drawList();
+      root.querySelector<HTMLButtonElement>('[data-action="run-tests-ci"]')?.focus();
       return;
     }
+    displayed = null; // CI stored the run's results: read the list again
+    if (!panel.hidden) void render();
+  }
+
+  /** The buttons above the list: Remove Results (only when there is something to remove), then Run in CI. */
+  function toolbar(hasRuns: boolean) {
+    const remove = hasRuns ? el('button', { class: 'results-button', text: m('removal.button'), attrs: { type: 'button', 'data-action': 'remove-results' } }) : null;
+    remove?.addEventListener('click', () => void startRemoving());
+    const run = el('button', { class: 'results-button', text: m(ciRunning ? 'ci.waiting' : 'ci.button'), attrs: { type: 'button', 'data-action': 'run-tests-ci' } });
+    run.disabled = ciRunning;
+    run.addEventListener('click', () => void runInCi());
+    return el('div', { class: 'results-toolbar results-remove-toolbar' }, remove, run);
+  }
+
+  /** Draws the list from the last answer: the Remove Results button (or its bar and checkboxes), the latest run, all runs. */
+  function drawList() {
+    if (!listed) return;
+    const { latest, runs } = listed;
+    const choosing = removal?.active ? removal : null;
     const nodes: Child[] = [];
+    if (notice) nodes.push(noticeNode(notice));
+    if (!runs.length && !latest) {
+      show(...nodes, toolbar(false), el('p', { class: 'results-empty', text: m('empty') }));
+      return;
+    }
+    if (choosing) {
+      nodes.push(choosing.bar(runs.map((entry) => ({ runId: entry.runId, label: `${formatDate(entry.startedAt, locale)} · ${entry.commit} · ${totalsText(entry.totals)} (${entry.runId})` }))));
+    } else {
+      nodes.push(toolbar(runs.length > 0));
+    }
     if (latest) {
       nodes.push(
         el('section', { class: 'results-latest', attrs: { 'aria-labelledby': 'results-latest-heading' } },
@@ -96,10 +159,20 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
     nodes.push(
       el('section', { attrs: { 'aria-labelledby': 'results-runs-heading' } },
         el('h3', { text: m('runs.heading'), attrs: { id: 'results-runs-heading' } }),
-        el('p', { class: 'results-count', text: m('runs.count', { count: index.runs.length }) }),
-        el('ul', { class: 'results-runs' }, ...index.runs.map((entry) => el('li', {}, runLink(entry)))))
+        el('p', { class: 'results-count', text: m('runs.count', { count: runs.length }) }),
+        el('ul', { class: `results-runs${choosing ? ' choosing' : ''}` }, ...runs.map((entry) => el('li', {}, choosing?.check(entry.runId), runLink(entry)))))
     );
     show(...nodes);
+  }
+
+  async function renderList(run: number) {
+    // Re-propagates whatever apiGet rejected with (always an ApiError; see admin-common.ts), not a new reason.
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+    const notFoundIsFine = (e: unknown) => (e instanceof ApiError && e.kind === 'notFound' ? null : Promise.reject(e));
+    const [latest, index] = await Promise.all([api<Summary>('/latest').catch(notFoundIsFine), api<{ runs: IndexEntry[] }>('/index')]);
+    if (run !== generation) return;
+    listed = { latest, runs: index.runs };
+    drawList();
   }
 
   // --- One run -----------------------------------------------------------------------------------------------------------

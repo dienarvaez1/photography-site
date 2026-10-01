@@ -193,13 +193,13 @@ Then('the browser should not remember any token', async function () {
   assert.doesNotMatch(stored, /wrong|browser-test-admin-token|admin-token/);
 });
 
-Then('the latest run should be shown as commit {string}, Passed, with {string}', async function (commit, totals) {
+Then(/^the latest run should be shown as commit "([^"]+)", (Passed|Failed), with "([^"]+)"$/, async function (commit, status, totals) {
   const card = panel(this).locator('.results-latest');
   await card.waitFor({ state: 'visible', timeout: 8000 });
   await eventually(async () => {
     const text = await card.innerText();
-    return text.includes(commit) && text.includes('Passed') && text.includes(totals);
-  }, `the latest card should show ${commit}, Passed, ${totals}`);
+    return text.includes(commit) && text.includes(status) && text.includes(totals);
+  }, `the latest card should show ${commit}, ${status}, ${totals}`);
 });
 
 Then('the list of all runs should show the commits {string} in that order', async function (commits) {

@@ -69,9 +69,9 @@ Then('the photo tooling should be the only code that contacts R2', function () {
     .map((f) => f.path);
   assert.deepEqual(offenders, [], 'Only src/config/photos.ts may name the R2 host');
   const fetchers = listSourceFiles()
-    .filter(({ text, path }) => /\bfetch\s*\(/.test(text) && !/GeoRedirect|geo\.ts|contact\.astro|results-viewer\.ts|admin-common\.ts|photo-service\.ts|category-service\.ts|photo-entries\.ts|middleware\.ts|cloudflare\.d\.ts|work\/\[category\]\.astro|access-beacon\.ts/.test(path))
+    .filter(({ text, path }) => /\bfetch\s*\(/.test(text) && !/GeoRedirect|geo\.ts|contact\.astro|results-viewer\.ts|admin-common\.ts|photo-service\.ts|category-service\.ts|results-remove\.ts|photo-entries\.ts|middleware\.ts|cloudflare\.d\.ts|work\/\[category\]\.astro|access-beacon\.ts/.test(path))
     .map((f) => f.path);
-  assert.deepEqual(fetchers, [], 'Unexpected network calls in site source (only location detection, the contact form, the Admin viewers (through admin-common.ts), the local photo service (photo-service.ts, used by the New Photo form and the removal bar), the local Category Maintenance service (category-service.ts), the category page\'s client-side category switcher (work/[category].astro, fetching the site\'s own /api/photos.json, same-origin), the Worker reading the manifest and the 404 page (photo-entries.ts, middleware.ts), and every page reporting its visit to the site\'s own /api/access (access-beacon.ts, same-origin) may fetch, at runtime)');
+  assert.deepEqual(fetchers, [], 'Unexpected network calls in site source (only location detection, the contact form, the Admin viewers (through admin-common.ts), the local photo service (photo-service.ts, used by the New Photo form and the removal bar), the local Category Maintenance service (category-service.ts), the local results service (results-remove.ts, behind Remove Results on the Test Results and Lighthouse tabs and Run in Production), the category page\'s client-side category switcher (work/[category].astro, fetching the site\'s own /api/photos.json, same-origin), the Worker reading the manifest and the 404 page (photo-entries.ts, middleware.ts), and every page reporting its visit to the site\'s own /api/access (access-beacon.ts, same-origin) may fetch, at runtime)');
 });
 
 Then('each entry should only use the allowed frontmatter fields', function () {
