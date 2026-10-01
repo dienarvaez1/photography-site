@@ -1,10 +1,10 @@
 ---
 name: git-merge
-description: Combine work between git branches — merge or rebase a branch onto another, bring main into a feature branch, cherry-pick specific commits, and resolve conflicts file by file (or abort cleanly). Use when the user says merge, rebase, "update my branch with main", cherry-pick, "take that commit onto this branch", or has merge conflicts.
-argument-hint: "merge|rebase|pick <branch|sha> | conflicts | abort"
+description: Combine work between git branches — merge or rebase a branch onto another, bring main into a feature branch, and resolve conflicts file by file (or abort cleanly). Use when the user says merge, rebase, "update my branch with main", or has merge conflicts. For copying individual commits use /git-cherry-pick.
+argument-hint: "merge|rebase <branch> | conflicts | abort"
 ---
 
-# Merge, rebase, cherry-pick
+# Merge and rebase
 
 Arguments: `$ARGUMENTS`.
 
@@ -18,7 +18,7 @@ so it's easy to undo.
 | Bring main into my feature branch, keep history as-is | `git merge origin/main` |
 | Replay my unpushed branch on top of the latest main (linear history) | `git rebase origin/main` |
 | Land a branch into main locally | Prefer a PR (/git-pr). Otherwise `git switch main && git merge --no-ff <branch>` (or `--ff-only`) |
-| Take one or a few commits from elsewhere | `git cherry-pick <sha>…` (`-x` records where it came from) |
+| Take one or a few commits from elsewhere | Not a merge — use /git-cherry-pick |
 
 Don't rebase commits other people already have (pushed to a shared branch) — merge instead. Rebasing your own
 pushed feature branch is fine but needs `--force-with-lease` afterwards.
