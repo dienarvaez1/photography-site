@@ -78,8 +78,10 @@ Before({ tags: '@browser' }, function () {
     // What the results API is doing: 'ok' (answers), 'unreachable', or 'slow'; `env` is its Worker environment (no
     // admin token until a scenario sets one up), `requests` is everything the page asked it. `localOrigin`: it also
     // answers there, as `npm run results-api:dev` does on this computer (the Admin page's `?api=` override).
-    // The access log starts empty, as a new day's would: the Admin page opens on Access Info, which reads it.
-    results: { mode: 'ok', env: { ACCESS: fakeAccessBucket([]) }, delayMs: 0, requests: [], localOrigin: null },
+    // The results API has every bucket production has, empty until a scenario fills one: the access log (the Admin
+    // page opens on Access Info, which reads it) and the originals (a quick visit to the Pics Viewer asks for them;
+    // without the bucket the API answers 500, which a scenario about errors would catch, depending on timing).
+    results: { mode: 'ok', env: { ACCESS: fakeAccessBucket([]), ORIGINALS: fakeOriginals([]).binding }, delayMs: 0, requests: [], localOrigin: null },
     // true: pages come with the headers the dev server sends (src/middleware.ts under `astro dev`), not the deployed site's.
     devHeaders: false,
     // The New Photo form's local service: null (as on the deployed site, which has none) or { middleware, requests }.
