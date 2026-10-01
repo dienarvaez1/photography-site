@@ -29,6 +29,7 @@ If a local target isn't running, say so and offer `/service-start`. Everything h
 | 404s | `curl -s -o /dev/null -w '%{http_code}' <base>/no-such-page/` and `/es/no-such-page/` must be 404. On preview and prod each gets its language's page (`lang="en"`/`"es"`). Dev answers a plain-text "Not found", which is expected. |
 | Location default | Dev only: `<base>/?geo=MX` simulates Cloudflare's country (README, "Location-based default language"). |
 | Smoke check | `npm run smoke -- <base>` (add `--wait` right after a deploy). It checks every sitemap page, both contact forms and their keys, every R2 photo URL, the 404s, robots.txt and the headers. Failures on prod get filed per `.claude/skills/REPORTING.md`. |
+| Visits and photos opened | Every page reports itself to `POST <base>/api/access` (the access log). To see what was recorded, use `/service-results-api access`. To check a page reports, open it in a browser and look for its `POST /api/access` answered 204. `curl` can't, because only a page runs the script. |
 | Speed and scores | /test-lighthouse. |
 
 ## Logs

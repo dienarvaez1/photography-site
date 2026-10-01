@@ -8,7 +8,7 @@ Shared by the `service-*` skills: what runs where, how to tell whether it's runn
 |---|---|---|---|
 | **dev** | 4321 | `npx astro dev --background` | The site in development, plus the Admin page's local-only services: the photo service (`/__photos/*`) and the category service (`/__categories/*`). Reads the **production** R2 buckets (it uses your Cloudflare login). |
 | **preview** | 8787 | `npm run preview` (builds, then `wrangler dev`) | The production build in the real Workers runtime (workerd). Its R2 is a **local** copy, empty until seeded (see below). |
-| **results-api** | 8788 | `npm run results-api:dev` | The Admin page's read-only API Worker (`workers/results-api/`), over **local** R2 copies of the test and originals buckets. |
+| **results-api** | 8788 | `npm run results-api:dev` | The Admin page's read-only API Worker (`workers/results-api/`), over **local** R2 copies of the test, originals and access log buckets. It shares the dev server's local copy (`--persist-to .wrangler/state`), so it sees the visits dev recorded. |
 
 - `astro dev` has its own background mode (`astro dev status`, `astro dev logs`, `astro dev stop`, per `CLAUDE.md`). It
   also runs a workerd child of its own; that's normal.
@@ -68,6 +68,12 @@ console, and the tabs' requests going to `localhost:8788`. Category Maintenance 
 - Version history: `npx wrangler deployments list --name photography-site --json` (newest last), or
   `-c workers/results-api/wrangler.jsonc` for the API.
 - The results API's health needs no token: `curl -s https://photography-site-results.diego-narvaez.workers.dev/health`.
+- **The access log** (Admin page, Access Info tab): every page reports itself to the site's `POST /api/access`,
+  which appends to the private bucket `photography-site-access`, one file per UTC day
+  (`logs/2026-10-01T00:00:00.000Z.json`). Under `astro dev` it goes to the local copy, never the real bucket. Read it
+  through the results API (`/access`, `/access/<day>`), or a day directly with
+  `npx wrangler r2 object get photography-site-access/logs/<day>.json --remote --file <scratchpad>/day.json`. It
+  holds visitors' IP addresses: summarize, don't paste whole files into the chat.
 
 ## Is it running?
 

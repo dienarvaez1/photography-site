@@ -1,7 +1,7 @@
 ---
 name: service-results-api
-description: Query the results API Worker behind the Admin page — locally on port 8788 or in production — for its health, the recorded test runs and Lighthouse runs, a run's failures and signed report links, the original photos' metadata (Pics Viewer), and the site's GitHub issues, using the admin token without exposing it; and tail its logs. Use when the user asks about the results API, port 8788, the Admin page's data, "what does /latest say", recorded runs from the API, original photo metadata, or the API's logs.
-argument-hint: "[local|prod] [health|runs|latest|run <id>|lighthouse [run <id>]|pics [id]|issues|logs]"
+description: Query the results API Worker behind the Admin page — locally on port 8788 or in production — for its health, the recorded test runs and Lighthouse runs, a run's failures and signed report links, the original photos' metadata (Pics Viewer), the site's GitHub issues, and the access log (who opened which page and photo, per UTC day), using the admin token without exposing it; and tail its logs. Use when the user asks about the results API, port 8788, the Admin page's data, "what does /latest say", recorded runs from the API, original photo metadata, or the API's logs.
+argument-hint: "[local|prod] [health|runs|latest|run <id>|lighthouse [run <id>]|pics [id]|issues|access [day]|logs]"
 ---
 
 # The results API
@@ -39,9 +39,12 @@ Never echo the token or put it in a URL. If the token file is missing, ask the u
 | Lighthouse runs | `GET /lighthouse/index`, `/lighthouse/latest`, `/lighthouse/runs/<runId>` |
 | Originals in the private bucket | `GET /pics`, and `GET /pics/<photoId>` for size, camera, date taken and copyright |
 | The site's GitHub issues | `GET /github/issues` |
+| Days with an access log, newest first | `GET /access` |
+| One day's visits and photos opened | `GET /access/<day>`, the day as its first instant: `/access/2026-10-01T00:00:00.000Z` |
 
 Summarize the JSON with node rather than dumping it, for example a run's result, counts per suite, each failure's
-scenario and reason, or pics per category. To save a report, download its signed link to the scratchpad and say
+scenario and reason, pics per category, or a day's visits by page and photo. The access log holds visitors' IP
+addresses: count them, and quote one only when asked. To save a report, download its signed link to the scratchpad and say
 where it is.
 
 To see the local API through the Admin page instead, open `http://localhost:4321/admin/?api=http://localhost:8788`.

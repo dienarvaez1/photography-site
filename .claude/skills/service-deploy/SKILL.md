@@ -11,6 +11,11 @@ Arguments: `$ARGUMENTS` (default `site`). Read `.claude/skills/SERVICES.md` firs
 **Every deploy and rollback changes production, so it needs the user's yes, every time.** Show what will go live
 first.
 
+**"Deploy to localhost" or "deploy locally"** isn't a deploy: nothing goes to Cloudflare. Its local equivalent is the
+preview, the same build run in the Workers runtime on `http://localhost:8787`. Do what `/service-start preview`
+(or `/service-restart preview` if it's running) does, with no confirmation needed. Then report the footer label and
+the page checks, and say that production didn't change.
+
 ## status
 
 What's live, read-only:
@@ -29,6 +34,9 @@ Compare the label with `origin/main`.
    - `git log --oneline <live hash>..HEAD`, where the live hash comes from the footer label (resolve a tag with
      `git rev-list -n1 <tag>`)
 2. **Warn when it applies:**
+   - A bucket in `wrangler.jsonc` that doesn't exist yet (check with `npx wrangler r2 bucket list`): the deploy fails,
+     and so does Cloudflare's Git build of `main`. Create it first, with the user's yes:
+     `npx wrangler r2 bucket create <name>`. The same applies to `workers/results-api/wrangler.jsonc`.
    - Not on `main`: Cloudflare's Git build redeploys `main` on the next push, replacing this.
    - Uncommitted changes: no commit holds exactly this code.
    - Behind `origin/main`: this would put older code live.
