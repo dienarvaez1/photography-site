@@ -22,6 +22,27 @@ export function parseHeadersFile(text: string): HeaderRule[] {
   return rules;
 }
 
+/**
+ * Any port on this computer: where the Admin page's `?api=` override may point (`resolveApiUrl` in results-view.ts),
+ * e.g. `npm run results-api:dev` on localhost:8788.
+ */
+export const LOCAL_API_SOURCES = ['http://localhost:*', 'http://127.0.0.1:*'];
+
+/**
+ * The same headers, with the Content-Security-Policy also letting the page reach a results API on this computer and
+ * show its images (`connect-src`, `img-src`). The dev server's only: the deployed site's policy never allows it.
+ */
+export function withLocalApi(headers: Record<string, string>): Record<string, string> {
+  const csp = headers['Content-Security-Policy'];
+  if (!csp) return headers;
+  const directives = csp
+    .split(';')
+    .map((directive) => directive.trim())
+    .filter(Boolean)
+    .map((directive) => (/^(connect-src|img-src)\s/.test(directive) ? `${directive} ${LOCAL_API_SOURCES.join(' ')}` : directive));
+  return { ...headers, 'Content-Security-Policy': directives.join('; ') };
+}
+
 /** The headers `_headers` gives a path (later rules win, as on Cloudflare). */
 export function headersFor(rules: HeaderRule[], pathname: string): Record<string, string> {
   const headers: Record<string, string> = {};

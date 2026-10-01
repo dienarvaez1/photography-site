@@ -220,7 +220,8 @@ against every page in both English and Spanish**; expected text is read from
   bound to the right bucket, read-only, with origins matching the site's config. One scenario runs the same
   code in the real Workers runtime (workerd, via `wrangler dev`) over a real local R2 bucket.
 - **`results-viewer.feature`** — the viewer's pure logic (which address shows the list or a run, durations,
-  dates in both languages, totals wording, which API address is used and when `?api=` may override it,
+  dates in both languages, totals wording, which API address is used and when `?api=` may override it, and
+  that only the dev server's security policy lets a page reach a results API on this computer,
   which links are ever followed, sorting a run's files) and what is built: the viewer in both languages
   pointed at the configured API, no token or bucket address in any page or script, the viewer only ever
   writes text (never HTML), and the token lives only in `sessionStorage`.
@@ -356,7 +357,8 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   that the page works at its address although the header never links to it, with no errors or CSP violations.
 - **`results-viewer.feature`** (browser) — the Test Results tab against the real results API code and a
   fake bucket: the token gate (wrong, forgotten on sign-out, expired, no token on the server, keyboard
-  only), `latest.json` and `index.json` as the only requests to start, opening every run (list, latest
+  only), `latest.json` and `index.json` as the only requests to start, `?api=` reaching a results API on this
+  computer with the dev server's headers but refused by the deployed site's policy, opening every run (list, latest
   card, Back button, reload, direct links, unknown run, keyboard), suites, failures shown as plain text
   (a failure message containing HTML stays text), reports opening in new tabs from the API, screenshot
   and trace evidence, empty store, unreachable API and recovery, no requests while another tab is

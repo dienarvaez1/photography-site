@@ -9,10 +9,14 @@
 //     as an empty gallery or as a "page not found" (Astro's own error page would fit `[...lang]` and say 404)
 import { defineMiddleware } from 'astro:middleware';
 import headersText from '../public/_headers?raw';
-import { headersFor, parseHeadersFile } from './lib/headers-file';
+import { headersFor, parseHeadersFile, withLocalApi } from './lib/headers-file';
 import { NOT_FOUND_HEADER } from './lib/not-found';
 
 const rules = parseHeadersFile(headersText);
+
+// Under `astro dev` the Admin page may be pointed at a results API on this computer (`?api=http://localhost:8788`),
+// so the dev server's pages allow that too. A build never does, so the deployed site's policy stays as `_headers` says.
+const securityHeaders = (pathname: string) => (import.meta.env.DEV ? withLocalApi(headersFor(rules, pathname)) : headersFor(rules, pathname));
 
 interface Assets {
   fetch(request: Request): Promise<Response>;
@@ -24,7 +28,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const url = new URL(context.request.url);
   const readsPage = context.request.method === 'GET' || context.request.method === 'HEAD';
   if (readsPage && !url.pathname.endsWith('/') && !url.pathname.split('/').pop()!.includes('.')) {
-    return new Response(null, { status: 308, headers: { Location: `${url.pathname}/${url.search}`, ...headersFor(rules, url.pathname) } });
+    return new Response(null, { status: 308, headers: { Location: `${url.pathname}/${url.search}`, ...securityHeaders(url.pathname) } });
   }
 
   let response: Response;
@@ -46,7 +50,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   const merged = new Response(response.body, response);
-  for (const [name, value] of Object.entries(headersFor(rules, url.pathname))) merged.headers.set(name, value);
+  for (const [name, value] of Object.entries(securityHeaders(url.pathname))) merged.headers.set(name, value);
   // Pages change when photos are added: never let a browser or a shared cache keep one.
   if (merged.headers.get('content-type')?.includes('text/html')) merged.headers.set('Cache-Control', 'no-cache');
   return merged;

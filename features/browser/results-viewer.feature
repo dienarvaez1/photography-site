@@ -81,6 +81,28 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And I type the token "browser-test-admin-token" into the focused token field and press Enter
     Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
 
+  # --- A results API on this computer (?api=) -----------------------------------------------------------------------
+
+  Scenario: On the dev server, ?api= points the tab at a results API on this computer
+    # npm run dev with npm run results-api:dev, as the README describes. The dev server sends the deployed site's
+    # security headers too (src/middleware.ts), and until 1 Oct 2026 their policy blocked every request to the
+    # local API, so the tab only ever said it could not reach the results service.
+    Given the site is served with the dev server's headers
+    And the results API also runs on this computer at "http://localhost:8788"
+    When I open "/admin/?api=http://localhost:8788"
+    And I sign in with the token "browser-test-admin-token"
+    Then the latest run should be shown as commit "ccccccc", Passed, with "7 of 7 passed"
+    And every request to the results API should have gone to "http://localhost:8788"
+    And no Content-Security-Policy violation should have been reported
+
+  Scenario: The deployed site's policy still refuses a results API on this computer
+    Given the results API also runs on this computer at "http://localhost:8788"
+    When I open "/admin/?api=http://localhost:8788"
+    And I sign in with the token "browser-test-admin-token"
+    Then the Test Results tab should say "Could not reach the results service."
+    And the page should have been refused a connection to "http://localhost:8788" by its Content-Security-Policy
+    And the results API should not have been asked for anything
+
   # --- Opening runs ----------------------------------------------------------------------------------------------
 
   Scenario Outline: Any run in the list can be opened, and the address says which

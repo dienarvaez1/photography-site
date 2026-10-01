@@ -20,6 +20,8 @@ import { noGitHub } from './github-fixtures.js';
 const { handle: handleResultsRequest } = await import(join(ROOT, 'workers/results-api/src/index.mjs'));
 const { RESULTS_API_URL } = await import(join(ROOT, 'src/config/results.ts'));
 const RESULTS_ORIGIN = new URL(RESULTS_API_URL).origin;
+// What the dev server's middleware does to every page's headers (src/middleware.ts), for scenarios about `astro dev`.
+const { withLocalApi } = await import(join(ROOT, 'src/lib/headers-file.ts'));
 // The New Photo form's service is the real dev-server middleware too, over a temporary content folder and a fake R2.
 const { photoFormMiddleware } = await import(join(ROOT, 'scripts/lib/photo-form-server.mjs'));
 // Category Maintenance's service, the same way — see startCategoryService below.
@@ -73,8 +75,11 @@ Before({ tags: '@browser' }, function () {
     viewportOverride: null,
     apiRequests: [],
     // What the results API is doing: 'ok' (answers), 'unreachable', or 'slow'; `env` is its Worker environment (no
-    // admin token until a scenario sets one up), `requests` is everything the page asked it.
-    results: { mode: 'ok', env: {}, delayMs: 0, requests: [] },
+    // admin token until a scenario sets one up), `requests` is everything the page asked it. `localOrigin`: it also
+    // answers there, as `npm run results-api:dev` does on this computer (the Admin page's `?api=` override).
+    results: { mode: 'ok', env: {}, delayMs: 0, requests: [], localOrigin: null },
+    // true: pages come with the headers the dev server sends (src/middleware.ts under `astro dev`), not the deployed site's.
+    devHeaders: false,
     // The New Photo form's local service: null (as on the deployed site, which has none) or { middleware, requests }.
     photoService: null,
     // Category Maintenance's local service — same shape, same reasoning.
@@ -236,8 +241,15 @@ export async function open(world) {
       // The category switcher's own manifest fetch (same-origin: see src/pages/api/photos.json.ts) —
       // no mocking needed, just noting it happened; route.continue() below serves the real built file.
       if (url.pathname === '/api/photos.json') b.manifestRequests.push(request.url());
+      if (b.devHeaders && request.isNavigationRequest()) {
+        const response = await route.fetch();
+        const headers = response.headers();
+        const csp = withLocalApi({ 'Content-Security-Policy': headers['content-security-policy'] ?? '' })['Content-Security-Policy'];
+        return route.fulfill({ response, headers: { ...headers, 'content-security-policy': csp } });
+      }
       return route.continue();
     }
+    if (b.results.localOrigin && url.origin === b.results.localOrigin) return serveResults(b, site.url, request, route);
     if (/\.r2\.dev$/.test(url.hostname)) {
       b.photoRequests.push(request.url());
       if (b.imageDelayMs) await new Promise((r) => setTimeout(r, b.imageDelayMs));

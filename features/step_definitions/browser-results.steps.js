@@ -52,6 +52,14 @@ Given('the results API hands out a link to another site for {string}', function 
   this.b.results.foreignLink = file;
 });
 
+Given('the results API also runs on this computer at {string}', function (origin) {
+  this.b.results.localOrigin = origin;
+});
+
+Given("the site is served with the dev server's headers", function () {
+  this.b.devHeaders = true;
+});
+
 When('the results API comes back', function () {
   this.b.results.mode = 'ok';
 });
@@ -201,6 +209,15 @@ Then('the results API should have been asked only for {string} and {string}, eac
   const asked = this.b.results.requests.filter((r) => r.method === 'GET');
   assert.deepEqual(asked.map((r) => r.path).sort(), [a, b].sort());
   for (const r of asked) assert.equal(r.authorization, `Bearer ${this.b.results.token}`);
+});
+
+Then('every request to the results API should have gone to {string}', function (origin) {
+  assert.ok(this.b.results.requests.length > 0, 'the results API was asked for something');
+  for (const r of this.b.results.requests) assert.equal(new URL(r.url).origin, origin, r.url);
+});
+
+Then('the page should have been refused a connection to {string} by its Content-Security-Policy', async function (origin) {
+  await eventually(() => this.b.csp.some((violation) => violation.startsWith('connect-src') && violation.includes(origin)), `a connect-src violation for ${origin}`);
 });
 
 Then('the token should not appear in any address', async function () {
