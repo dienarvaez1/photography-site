@@ -4,7 +4,7 @@
 // row of the list starts with a small thumbnail, the site's
 // own public web copy of the photo; the private originals are never fetched or shown: the API only ever
 // returns numbers and text. Everything from the API is put on the page as text.
-import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, parseJson, remembered, type Child, type Messages } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, icon, messageReader, parseJson, remembered, type Child, type Messages, leaveToGate } from './admin-common';
 import type { FormCategory } from './photo-form';
 import type { HeroBackgroundBar, HeroBackgroundResult } from './photo-hero';
 import type { RemovalBar, RemoveResult } from './photo-remove';
@@ -66,15 +66,8 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
 
   // --- Sign in ------------------------------------------------------------------------------------------------
 
-  function renderGate(problem?: unknown) {
-    const { form, input } = gateForm(m, 'pics', (given) => {
-      token = given;
-      remembered.set(given);
-      void render();
-    }, problem);
-    show(form);
-    if (problem) input.focus();
-  }
+  // Signing in is the page's own token box (admin-gate.ts); without a token this tab shows nothing.
+  const renderGate = (problem?: unknown) => leaveToGate(root, problem);
 
   // --- Each file's details, at the right of its row --------------------------------------------------------------------
 

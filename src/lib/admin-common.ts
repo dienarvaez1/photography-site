@@ -78,6 +78,19 @@ export const remembered = {
   timedOut: () => session.timedOut,
 };
 
+/** Fired when a tab has found the token refused, with the reason in `detail`: the page's token box says why. */
+export const GATE_PROBLEM_EVENT = 'admin-gate-problem';
+
+/**
+ * What a tab shows with no accepted token: nothing. The page's own token box (admin-gate.ts) is the only sign-in, and
+ * the tabs are hidden until it accepts a token. A refusal the tab ran into (`problem`) is passed on for the box to say.
+ */
+export function leaveToGate(root: HTMLElement, problem?: unknown) {
+  root.replaceChildren();
+  root.removeAttribute('aria-busy');
+  if (problem) window.dispatchEvent(new CustomEvent(GATE_PROBLEM_EVENT, { detail: problem }));
+}
+
 /** GETs `path` from the API with the token in the Authorization header (and nowhere else). */
 export async function apiGet<T>(apiUrl: string, token: string, path: string): Promise<T> {
   let response: Response;

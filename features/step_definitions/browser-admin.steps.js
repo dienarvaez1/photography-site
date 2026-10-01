@@ -1,5 +1,6 @@
-import { When, Then } from '@cucumber/cucumber';
+import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
+import { setUpResultsApi } from '../support/browser.js';
 
 const page = (world) => world.b.page;
 const tab = (world, name) => page(world).getByRole('tab', { name, exact: true });
@@ -68,4 +69,49 @@ Then('the header should offer no {string} link', async function (name) {
 When('I click the header link {string}', async function (name) {
   await page(this).locator('#primary-nav > a', { hasText: name }).first().click();
   await page(this).waitForLoadState('load');
+});
+
+Then('the page should offer only the admin token box and its button', async function () {
+  await page(this).locator('#admin-token').waitFor({ state: 'visible', timeout: 8000 });
+  // Everything in the page's main part that can be seen or used: the heading, the gate's text, the box and the button.
+  const usable = await page(this).locator('main').locator('input, button, select, textarea, a[href], [tabindex="0"], [role="tab"], [role="tabpanel"]').evaluateAll((els) => els
+    .filter((e) => e.offsetParent)
+    .map((e) => `${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}`));
+  assert.deepEqual(usable, ['input#admin-token', 'button'], 'only the token box and its button');
+  assert.equal(await page(this).locator('[data-tabs]').isHidden(), true, 'no tabs');
+  assert.equal(await page(this).locator('main h2, main .results-intro').evaluateAll((els) => els.filter((e) => e.offsetParent).length), 0, 'no tab titles or descriptions');
+});
+
+Then('no local service or API should have been asked for anything', async function () {
+  const asked = await page(this).evaluate(() => performance.getEntriesByType('resource').map((e) => new URL(e.name)).filter((u) => u.pathname.startsWith('/__') || u.pathname.startsWith('/api/photos')).map((u) => u.pathname));
+  assert.deepEqual(asked, []);
+});
+
+Then('the token box should say {string}', async function (text) {
+  // The rendered text (innerText), which includes a <noscript> message when JavaScript is off: Playwright's own text
+  // search never looks inside <noscript>.
+  const box = page(this).locator('[data-admin-gate]');
+  const end = Date.now() + 8000;
+  while (!(await box.innerText()).replace(/\s+/g, ' ').includes(text)) {
+    if (Date.now() > end) assert.fail(`the token box says "${(await box.innerText()).trim()}", not "${text}"`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+});
+
+// Signed in as the token box leaves it: an accepted token kept for the browser tab (admin-common.ts `remembered`),
+// with the results API knowing it. For scenarios about what the tabs do, not about signing in (admin-gate.feature).
+Given('I am signed in to the Admin page', async function () {
+  if (!this.b.results.env.ADMIN_TOKEN) await setUpResultsApi(this, 'browser-test-admin-token', []);
+  const token = this.b.results.env.ADMIN_TOKEN;
+  this.b.results.token = token;
+  this.b.initScripts.push(`try { sessionStorage.setItem('admin-token', ${JSON.stringify(token)}); sessionStorage.setItem('admin-token-seen', String(Date.now())); } catch {}`);
+});
+
+Then('no tab, tab title or tab description should be shown', async function () {
+  assert.equal(await page(this).locator('[data-tabs]').isHidden(), true);
+  assert.equal(await page(this).locator('main').locator('[role="tab"], [role="tabpanel"], h2, .results-intro').evaluateAll((els) => els.filter((e) => e.offsetParent).length), 0);
+});
+
+Given('the results API has no sign-in route yet', function () {
+  this.b.results.noAuthRoute = true;
 });

@@ -2,7 +2,7 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { entryFile, sourcePath, state } from '../support/photo-helpers.js';
-import { startPhotoService } from '../support/browser.js';
+import { startPhotoService, signInSettled } from '../support/browser.js';
 
 const page = (world) => world.b.page;
 const panel = (world) => page(world).locator('#panel-pics-viewer');
@@ -202,9 +202,10 @@ Then('the results API should have asked for the list again', async function () {
 When('I show the New Photo form in its {string} state', async function (name) {
   if (name === 'not available') this.b.photoService = null;
   if (name === 'refused') await writeFile(sourcePath(this, 'notes.jpg'), 'this is not a picture');
-  const field = panel(this).locator('#pics-token');
+  const field = page(this).locator('#admin-token');
   await field.fill('browser-test-admin-token');
   await field.press('Enter');
+  await signInSettled(this);
   await panel(this).locator('.pics-list').waitFor({ state: 'visible', timeout: 8000 });
   await panel(this).getByRole('button', { name: 'Upload Photos', exact: true }).click();
   if (name === 'not available') return form(this).locator('.results-error').waitFor({ state: 'visible', timeout: 8000 });

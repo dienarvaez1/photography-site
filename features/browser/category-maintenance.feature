@@ -28,7 +28,7 @@ Feature: The Admin page's Category Maintenance tab adds, edits and removes categ
     Then Category Maintenance should ask for the admin token
 
   Scenario: Signing in on another tab opens Category Maintenance already signed in
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I click the "Category Maintenance" tab
     Then the Category Maintenance list should show a row for "Nature"

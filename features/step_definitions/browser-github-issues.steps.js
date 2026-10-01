@@ -1,6 +1,6 @@
 import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
-import { setUpGitHub } from '../support/browser.js';
+import { setUpGitHub, signInSettled } from '../support/browser.js';
 import { fakeGitHub } from '../support/github-fixtures.js';
 
 const page = (world) => world.b.page;
@@ -42,12 +42,13 @@ Given(/^GitHub is (rate-limited|unreachable) for the Admin page$/, function (mod
 
 // --- Doing things ----------------------------------------------------------------------------------------------------
 
-const gateField = (world) => panel(world).locator('#issues-token');
+const gateField = (world) => page(world).locator('#admin-token');
 
 When('I sign in to the GitHub Issues tab with the token {string}', async function (token) {
   await gateField(this).waitFor({ state: 'visible', timeout: 8000 });
   await gateField(this).fill(token);
   await gateField(this).press('Enter');
+  await signInSettled(this);
 });
 
 When('I show the {string} issues', async function (name) {
@@ -60,7 +61,8 @@ When('I show the {string} issues', async function (name) {
 
 Then('the GitHub Issues tab should ask for the admin token', async function () {
   await gateField(this).waitFor({ state: 'visible', timeout: 8000 });
-  await panel(this).getByLabel('Admin token').waitFor({ state: 'visible' });
+  await page(this).getByLabel('Admin token').waitFor({ state: 'visible' });
+  assert.equal(await page(this).locator('[data-tabs]').isHidden(), true, 'the tabs stay hidden until the token is accepted');
 });
 
 Then('the results API should not have been asked for the issues', async function () {
@@ -80,7 +82,8 @@ Then('the GitHub Issues tab should list {string}', async function (list) {
 });
 
 Then('the GitHub Issues tab should say {string}', async function (text) {
-  await panel(this).getByText(text, { exact: false }).first().waitFor({ state: 'visible', timeout: 8000 });
+  // Signed out (a refused token, the idle timeout), the tab is hidden and the page's token box says it instead.
+  await panel(this).or(page(this).locator('[data-admin-gate]')).getByText(text, { exact: false }).filter({ visible: true }).first().waitFor({ state: 'visible', timeout: 8000 });
 });
 
 const cardOf = (world, number) => issueCards(world).filter({ hasText: `#${number} ` }).first();

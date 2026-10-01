@@ -43,7 +43,7 @@ Feature: The Admin page's GitHub Issues tab lists the site's issues, behind the 
     Then the GitHub Issues tab should list "#2 Add a Birds category, #1 Hero photo loads slowly, #3 Footer email typo, #4 Dark mode for lightbox"
 
   Scenario: One sign-in serves every tab
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I click the "GitHub Issues" tab
     Then the GitHub Issues tab should list "#2 Add a Birds category, #1 Hero photo loads slowly"

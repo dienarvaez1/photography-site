@@ -19,7 +19,7 @@ Feature: The Admin page signs out after 5 minutes of inactivity
   # --- The timeout ------------------------------------------------------------------------------------------------
 
   Scenario: Still signed in just before 5 minutes, signed out at 5 minutes
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And 4 minutes and 55 seconds pass with nobody touching the page
     Then the latest run should be shown as commit "ccccccc", Passed, with "3 of 3 passed"
@@ -30,26 +30,18 @@ Feature: The Admin page signs out after 5 minutes of inactivity
     And there should be no "Refresh" or "Sign out" button at the top of the page
     And the browser should not remember any token
 
-  Scenario: All five tabs are signed out together, whichever tab is showing
+  Scenario: All six tabs are signed out together, whichever tab is showing
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And the details of "Orion Nebula" should show these facts:
       | Artist | Diego Narvaez |
     And 5 minutes pass with nobody touching the page
-    Then the Pics Viewer should ask for the admin token
-    And the Pics Viewer should say "You were signed out after 5 minutes of inactivity. Enter the token to continue."
+    Then the token box should say "You were signed out after 5 minutes of inactivity. Enter the token to continue."
+    And the page should offer only the admin token box and its button
     And no file's details should be showing
-    When I click the "Test Results" tab
-    Then the Test Results tab should ask for the admin token
-    When I click the "Lighthouse Test Results" tab
-    Then the Lighthouse Test Results tab should ask for the admin token
-    When I click the "Category Maintenance" tab
-    Then Category Maintenance should ask for the admin token
-    When I click the "GitHub Issues" tab
-    Then the GitHub Issues tab should ask for the admin token
 
   Scenario: Nothing is requested from the API after the timeout
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And 5 minutes pass with nobody touching the page
     Then the Test Results tab should ask for the admin token
@@ -60,7 +52,7 @@ Feature: The Admin page signs out after 5 minutes of inactivity
   # --- Being there restarts the clock ------------------------------------------------------------------------------------
 
   Scenario Outline: <activity> restarts the 5 minutes
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And 4 minutes pass with nobody touching the page
     And the person <activity>
@@ -78,7 +70,7 @@ Feature: The Admin page signs out after 5 minutes of inactivity
 
   Scenario: Touching a phone screen restarts the 5 minutes
     Given the visitor uses a phone
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And 4 minutes pass with nobody touching the page
     And the person taps the page heading
@@ -86,7 +78,7 @@ Feature: The Admin page signs out after 5 minutes of inactivity
     Then the latest run should be shown as commit "ccccccc", Passed, with "3 of 3 passed"
 
   Scenario: Only the person counts, not the page's own requests
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And 4 minutes pass with nobody touching the page
     And the page reloads its results by itself
@@ -96,7 +88,7 @@ Feature: The Admin page signs out after 5 minutes of inactivity
   # --- Coming back --------------------------------------------------------------------------------------------------------------
 
   Scenario: A tab left for longer than 5 minutes and then reloaded is signed out
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And the browser had been away from the page for 6 minutes
     And I reload the page
@@ -104,14 +96,14 @@ Feature: The Admin page signs out after 5 minutes of inactivity
     And the Test Results tab should say "You were signed out after 5 minutes of inactivity. Enter the token to continue."
 
   Scenario: A reload within 5 minutes keeps the sign-in
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And 2 minutes pass with nobody touching the page
     And I reload the page
     Then the latest run should be shown as commit "ccccccc", Passed, with "3 of 3 passed"
 
   Scenario: The reminder goes away when the person signs in again, and a manual sign-out never shows it
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And 5 minutes pass with nobody touching the page
     Then the Test Results tab should say "You were signed out after 5 minutes of inactivity. Enter the token to continue."
@@ -123,28 +115,28 @@ Feature: The Admin page signs out after 5 minutes of inactivity
 
   Scenario: The timeout still works when the browser will not keep the sign-in
     Given the browser blocks session storage
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     Then the latest run should be shown as commit "ccccccc", Passed, with "3 of 3 passed"
     When 5 minutes pass with nobody touching the page
     Then the Test Results tab should ask for the admin token
 
   Scenario: The timeout is announced in Spanish on the Spanish page
-    When I open "/es/admin/"
+    When I open "/es/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And 5 minutes pass with nobody touching the page
     Then the Test Results tab should ask for the token in Spanish
     And the Test Results tab should say "Se cerró tu sesión tras 5 minutos de inactividad. Introduce el token para continuar."
 
   Scenario: The reminder is announced to screen readers and the page stays accessible
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And 5 minutes pass with nobody touching the page
     Then the reminder should be a status message for screen readers
     And the page should pass the automated accessibility audit
 
   Scenario: Timing out causes no script errors, no policy violations and no unexpected requests
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And 5 minutes pass with nobody touching the page
     Then no script error should have been logged

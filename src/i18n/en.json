@@ -159,12 +159,19 @@
     "description": "Site administration.",
     "tablistLabel": "Admin sections",
     "actionsLabel": "Page actions",
+    "gate": {
+      "intro": "The Admin page is private. Enter the admin token to continue.",
+      "submit": "Sign in",
+      "needsJs": "The Admin page needs JavaScript to check the admin token.",
+      "outdated": "The results service can't check tokens yet: deploy it again with npm run results-api:deploy."
+    },
     "tabs": {
       "testResults": "Test Results",
       "lighthouseResults": "Lighthouse Test Results",
       "picsViewer": "Pics Viewer",
       "categoryMaintenance": "Category Maintenance",
-      "githubIssues": "GitHub Issues"
+      "githubIssues": "GitHub Issues",
+      "accessInfo": "Access Info"
     },
     "results": {
       "intro": "Results of the automated tests, read from the private results store. Pick a run to see its details.",
@@ -571,6 +578,62 @@
         "failed": "Could not remove {category}: {message}",
         "requestFailed": "The categories could not be removed: {message}",
         "unreachable": "the local category service could not be reached"
+      }
+    },
+    "access": {
+      "intro": "Who opened which page, and which photo, one day at a time (UTC), from the site's private access log: the day's totals, the most visited pages and most opened photos, and how the day's visits and photos opened are shared out (hover over or focus a slice for its numbers). Every page reports itself when it opens; visitors without JavaScript, and most bots, are not counted.",
+      "needsJs": "The Access Info viewer needs JavaScript. Without it, read the day files in the photography-site-access bucket with wrangler.",
+      "day": "Day (UTC)",
+      "summary": {
+        "views": "Page visits",
+        "photos": "Photos opened",
+        "visitors": "Different addresses"
+      },
+      "topPages": "Most visited pages",
+      "topPhotos": "Most opened photos",
+      "empty": "No visits have been recorded yet.",
+      "chart": {
+        "pages": "Share of page visits, by page",
+        "photos": "Share of photos opened, by photo",
+        "visits": {
+          "one": "{count} visit · {share}",
+          "other": "{count} visits · {share}"
+        },
+        "opens": {
+          "one": "{count} open · {share}",
+          "other": "{count} opens · {share}"
+        },
+        "other": "Other ({count})"
+      },
+      "caption": "The day's most visited pages and most opened photos: their shares as pie charts, then their counts",
+      "nothing": {
+        "pages": "No page visits on this day.",
+        "photos": "No photos were opened on this day."
+      },
+      "map": {
+        "heading": "Visits by country",
+        "title": "World map of the day's visits, by country",
+        "views": {
+          "one": "{count} page visit",
+          "other": "{count} page visits"
+        },
+        "photos": {
+          "one": "{count} photo opened",
+          "other": "{count} photos opened"
+        },
+        "none": "No visits",
+        "legend": "Visits per country",
+        "unplaced": {
+          "one": "{count} visit could not be placed on the map.",
+          "other": "{count} visits could not be placed on the map."
+        },
+        "countries": "Countries",
+        "topCities": "Top cities",
+        "cityCount": {
+          "one": "{count} access",
+          "other": "{count} accesses"
+        },
+        "noCities": "No city was recorded for these visits."
       }
     }
   }

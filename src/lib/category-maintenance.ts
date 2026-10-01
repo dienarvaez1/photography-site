@@ -8,7 +8,7 @@
 // (src/config/categories.json and each locale's `categories.<slug>` in src/i18n/*.json) directly — real
 // source, so a change still needs a commit and a deploy to reach the live site, but no hand-editing of the
 // files. Every answer from either service is put on the page as text.
-import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, icon, messageReader, parseJson, remembered, type Messages } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, icon, messageReader, parseJson, remembered, type Messages, leaveToGate } from './admin-common';
 import { ServiceError, call, serviceAvailable } from './category-service';
 import { resolveApiUrl } from './results-view';
 
@@ -69,15 +69,8 @@ export function mountCategoryMaintenance(container: HTMLElement, panel: HTMLElem
 
   // --- Sign in -------------------------------------------------------------------------------------------------
 
-  function renderGate(problem?: unknown) {
-    const { form, input } = gateForm(m, 'categories', (given) => {
-      token = given;
-      remembered.set(given);
-      void render();
-    }, problem);
-    show(form);
-    if (problem) input.focus();
-  }
+  // Signing in is the page's own token box (admin-gate.ts); without a token this tab shows nothing.
+  const renderGate = (problem?: unknown) => leaveToGate(root, problem);
 
   /** Shows the sign-in gate, or checks a not-yet-verified token against the results API (the same one Pics
    *  Viewer and Test Results use — this tab needs none of its data, only its yes/no on the token) before

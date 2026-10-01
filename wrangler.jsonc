@@ -15,7 +15,12 @@
 	},
 	// The public web bucket, read by the Worker to render the pages that show photos: `photos/index.json` lists
 	// every entry (see src/config/photo-manifest.ts). Read only in practice: the tools write it with `wrangler`.
-	"r2_buckets": [{ "binding": "WEB", "bucket_name": "photography-site-web" }],
+	"r2_buckets": [
+		{ "binding": "WEB", "bucket_name": "photography-site-web" },
+		// The private access log (src/config/access-log.ts): /api/access adds one entry per page visit and photo opened,
+		// one file per UTC day under logs/. Shown on the Admin page's Access Info tab through the results API.
+		{ "binding": "ACCESS", "bucket_name": "photography-site-access" }
+	],
 	"observability": {
 		"enabled": true
 	}

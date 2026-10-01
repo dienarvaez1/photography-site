@@ -14,6 +14,7 @@ const { CATEGORIES } = await import(join(ROOT, 'src/config/categories.ts'));
 const { SITE } = await import(join(ROOT, 'src/config/site.ts'));
 const { headersFor, parseHeadersFile } = await import(join(ROOT, 'src/lib/headers-file.ts'));
 const PROD = join(ROOT, 'dist-prod/client');
+const ACCESS = await import(join(ROOT, 'src/config/access-log.ts'));
 
 // One site (one workerd) for the whole run: each scenario puts the entries it needs into the bucket.
 let site = null;
@@ -233,4 +234,98 @@ Then('every page rendered on request should be valid HTML with a language, a tit
     }
     assert.deepEqual(doc.querySelectorAll('script').filter((s) => !s.getAttribute('src') && !/^\s*$/.test(s.text) && s.getAttribute('type') !== 'application/ld+json').map((s) => s.text.slice(0, 40)), [], `${path} has an inline script`);
   }
+});
+
+// --- The access log (/api/access) ----------------------------------------------------------------------------------------
+
+/** Today's access log as the site wrote it (empty when there is none yet). */
+async function todaysLog() {
+  const day = ACCESS.dayOf(new Date().toISOString());
+  const text = await site.read(ACCESS.ACCESS_BUCKET, ACCESS.dayKey(day));
+  return { key: ACCESS.dayKey(day), day, log: text ? JSON.parse(text) : { day, entries: [] } };
+}
+
+/** Sends a report the way a page does (same origin unless `origin` says otherwise), noting the log's size first. */
+async function report(world, body, { origin, ip } = {}) {
+  world.accessBefore = (await todaysLog()).log.entries.length;
+  world.accessSentAt = new Date();
+  const response = await fetch(`${site.base}/api/access`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: origin ?? site.base, ...(ip ? { 'CF-Connecting-IP': ip } : {}) },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  });
+  world.accessStatus = response.status;
+}
+
+When('a page at {string} reports a visit from the address {string}', async function (page, ip) {
+  await report(this, { page, event: 'view' }, { ip });
+});
+
+When('a page at {string} reports opening the photo {string} of {string} from the address {string}', async function (page, id, category, ip) {
+  await report(this, { page, event: 'photo', photo: { id, category } }, { ip });
+});
+
+When("another site's page {string} reports a visit to {string}", async function (origin, page) {
+  await report(this, { page, event: 'view' }, { origin });
+});
+
+When('a page sends the report {string}', async function (body) {
+  await report(this, body);
+});
+
+When('a page sends a report of {int} bytes', async function (bytes) {
+  await report(this, JSON.stringify({ page: `/${'a'.repeat(bytes)}`, event: 'view' }));
+});
+
+When('{int} pages report visits at the same moment', async function (count) {
+  this.accessBefore = (await todaysLog()).log.entries.length;
+  this.accessPages = Array.from({ length: count }, (_, i) => `/race/${i}/`);
+  const responses = await Promise.all(this.accessPages.map((page) =>
+    fetch(`${site.base}/api/access`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: site.base }, body: JSON.stringify({ page, event: 'view' }) })));
+  this.accessStatuses = responses.map((r) => r.status);
+});
+
+Then('the site should answer the report with {int}', function (status) {
+  assert.equal(this.accessStatus, status);
+});
+
+Then('every one of them should be answered with {int}', function (status) {
+  assert.deepEqual(this.accessStatuses, this.accessStatuses.map(() => status));
+});
+
+Then("today's access log should be named by today's first instant in UTC", async function () {
+  const { key, log } = await todaysLog();
+  assert.match(key, /^logs\/\d{4}-\d{2}-\d{2}T00:00:00\.000Z\.json$/);
+  assert.equal(key, `logs/${new Date().toISOString().slice(0, 10)}T00:00:00.000Z.json`);
+  assert.equal(log.day, key.slice('logs/'.length, -'.json'.length));
+});
+
+Then(/^today's access log should end with a "(view|photo)" of "([^"]+)" from "([^"]+)"(?:, timed by the Worker in UTC| for the photo "([^"]+)" in "([^"]+)")$/, async function (event, page, ip, id, category) {
+  const { log } = await todaysLog();
+  const last = log.entries.at(-1);
+  assert.equal(log.entries.length, this.accessBefore + 1);
+  assert.deepEqual({ ...last, time: undefined, geo: undefined }, { time: undefined, geo: undefined, ip, page, event, ...(id ? { photo: { id, category } } : {}) });
+  assert.match(last.time, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  const time = Date.parse(last.time);
+  assert.ok(time >= this.accessSentAt.getTime() - 1000 && time <= Date.now() + 1000, `${last.time} is when it was sent`);
+});
+
+Then("today's access log should have as many entries as before", async function () {
+  assert.equal((await todaysLog()).log.entries.length, this.accessBefore);
+});
+
+Then("today's access log should hold all {int} of them", async function (count) {
+  const { log } = await todaysLog();
+  assert.equal(log.entries.length, this.accessBefore + count);
+  assert.deepEqual(log.entries.map((e) => e.page).filter((p) => p.startsWith('/race/')).sort(), [...this.accessPages].sort());
+});
+
+Then("its place should be recorded from Cloudflare's own data, by name", async function () {
+  // wrangler dev gives the Worker a request.cf like Cloudflare's (this computer's place, or its stand-in offline).
+  const { geo } = (await todaysLog()).log.entries.at(-1);
+  assert.ok(geo && typeof geo === 'object', 'the entry has a geo');
+  assert.deepEqual(Object.keys(geo).filter((key) => !['city', 'country', 'continent', 'timezone'].includes(key)), []);
+  for (const value of Object.values(geo)) assert.equal(typeof value, 'string');
+  assert.ok(geo.country && !/^[A-Z]{2}$/.test(geo.country), `the country by name, not code: ${geo.country}`);
+  if (geo.continent) assert.ok(['Africa', 'Antarctica', 'Asia', 'Europe', 'North America', 'Oceania', 'South America'].includes(geo.continent), geo.continent);
 });

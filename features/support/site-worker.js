@@ -1,5 +1,5 @@
 import { execSync, spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,8 +29,9 @@ export function buildProduction() {
 /**
  * Runs the real, production-built site (`npm run build`, no snapshot: home, category and Admin pages are rendered
  * when requested) in the real Workers runtime (workerd, via `wrangler dev`), over a local copy of the web bucket
- * holding `objects` (a Map of key -> string or Buffer). Returns { base, put(key, body), remove(key), stop }.
- * `put` and `remove` change the bucket while the site is running, the way the photo tools do in production.
+ * holding `objects` (a Map of key -> string or Buffer). Returns { base, put(key, body), remove(key), read(bucket, key), stop }.
+ * `put` and `remove` change the bucket while the site is running, the way the photo tools do in production; `read`
+ * returns what the site wrote to one of its buckets (e.g. the access log), or null.
  */
 export async function startSite({ objects = new Map(), cacheSeconds = 0 } = {}) {
   buildProduction();
@@ -64,9 +65,19 @@ export async function startSite({ objects = new Map(), cacheSeconds = 0 } = {}) 
     await wrangler('r2', 'object', 'put', `photography-site-web/${key}`, '--file', file);
   };
   const remove = (key) => wrangler('r2', 'object', 'delete', `photography-site-web/${key}`);
+  const read = async (bucket, key) => {
+    const file = join(dir, 'download');
+    rmSync(file, { force: true });
+    try {
+      await wrangler('r2', 'object', 'get', `${bucket}/${key}`, '--file', file);
+    } catch {
+      return null;
+    }
+    return readFileSync(file, 'utf-8');
+  };
   for (let i = 0; i < 240; i++) {
     if (await fetch(`${base}/about/`).then((r) => r.ok, () => false)) {
-      return { base, put, remove, stop };
+      return { base, put, remove, read, stop };
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }

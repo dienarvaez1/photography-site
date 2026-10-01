@@ -17,7 +17,7 @@ import {
   type LighthouseRoute,
   type Measurement,
 } from './lighthouse-view';
-import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, gateForm, messageReader, parseJson, remembered, type Child, type Messages } from './admin-common';
+import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, messageReader, parseJson, remembered, type Child, type Messages, leaveToGate } from './admin-common';
 
 type Totals = { measurements: number; withinBudget: number; overBudget: number };
 type Summary = { runId: string; startedAt: string; source: string; commit: string; branch: string; dirty: boolean; baseUrl: string; runsPerPage: number; ok: boolean; totals: Totals; results: Measurement[] };
@@ -40,15 +40,8 @@ export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement
   };
   const errorBox = (error: unknown) => el('p', { class: 'results-error', text: errorMessage(m, error), attrs: { role: 'alert' } });
 
-  function renderGate(problem?: unknown) {
-    const { form, input } = gateForm(m, 'lighthouse', (given) => {
-      token = given;
-      remembered.set(given);
-      void render();
-    }, problem);
-    show(form);
-    if (problem) input.focus();
-  }
+  // Signing in is the page's own token box (admin-gate.ts); without a token this tab shows nothing.
+  const renderGate = (problem?: unknown) => leaveToGate(root, problem);
 
   // `data-astro-reload`: a same-page hash link driven by `hashchange` (see the same note in results-viewer.ts).
   const backBar = () => el('div', { class: 'results-toolbar' }, el('a', { class: 'results-back', text: m('lighthouse.back'), attrs: { href: LIGHTHOUSE_LIST_HASH, 'data-astro-reload': '' } }));

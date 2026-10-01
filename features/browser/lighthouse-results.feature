@@ -35,7 +35,7 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     And the Lighthouse run for commit "aaaaaaa" should be shown as "Over budget", with "2 of 3 within budget"
 
   Scenario: One sign-in serves every tab
-    When I open "/admin/"
+    When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I click the "Lighthouse Test Results" tab
     Then the latest Lighthouse run should be shown as commit "bbbbbbb", "Within budget", with "3 of 3 within budget"

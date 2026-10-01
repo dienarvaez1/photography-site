@@ -1,6 +1,6 @@
 {
 	// A tiny read-only API over two private buckets, for the Admin page: the test results (Test Results tab) and the
-	// Lighthouse runs (Lighthouse Test Results tab), both in the test bucket, the original photos' metadata (Pics Viewer tab), and the site's GitHub issues (GitHub Issues tab).
+	// Lighthouse runs (Lighthouse Test Results tab), both in the test bucket, the original photos' metadata (Pics Viewer tab), the site's GitHub issues (GitHub Issues tab), and its access log (Access Info tab).
 	// Deploy with `npm run results-api:deploy`; set its secret once with
 	//   npx wrangler secret put ADMIN_TOKEN -c workers/results-api/wrangler.jsonc
 	// (at least 16 characters; the Admin page asks for it). Until the secret exists the API refuses everything.
@@ -16,7 +16,9 @@
 		// results/ (test runs) and lighthouse-results/ (Lighthouse runs); read only.
 		{ "binding": "RESULTS", "bucket_name": "photography-site-test" },
 		// The private originals, for the Pics Viewer (read only: sizes and metadata, never the photo itself).
-		{ "binding": "ORIGINALS", "bucket_name": "photography-site-originals" }
+		{ "binding": "ORIGINALS", "bucket_name": "photography-site-originals" },
+		// The site's access log, for the Access Info tab (read only: the site's own Worker writes it).
+		{ "binding": "ACCESS", "bucket_name": "photography-site-access" }
 	],
 	"vars": {
 		"ALLOWED_ORIGINS": "https://photography-site.diego-narvaez.workers.dev,https://diego-narvaez-photography.org,http://localhost:4321",

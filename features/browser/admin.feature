@@ -1,15 +1,19 @@
 @browser
 Feature: The Admin page's tabs work in a real browser
   As the site owner
-  I want the Test Results, Lighthouse Test Results, Pics Viewer, Category Maintenance and GitHub Issues tabs to sit side by side
+  I want the Access Info, Test Results, Lighthouse Test Results, Pics Viewer, Category Maintenance and GitHub Issues tabs to
+  sit side by side
   and switch properly
   So that the Admin page is usable with the mouse, the keyboard and on a phone
+
+  Background:
+    Given I am signed in to the Admin page
 
   Scenario Outline: The tabs sit side by side on one row, and the first one is showing
     Given the visitor uses a <device>
     When I open "/admin/"
     Then the tabs should sit side by side on one row, left to right
-    And the "Test Results" tab should be selected, its panel visible and every other panel hidden
+    And the "Access Info" tab should be selected, its panel visible and every other panel hidden
 
     Examples:
       | device |
@@ -18,7 +22,10 @@ Feature: The Admin page's tabs work in a real browser
 
   Scenario: Clicking a tab shows its panel and the address remembers it
     When I open "/admin/"
-    And I click the "Lighthouse Test Results" tab
+    And I click the "Test Results" tab
+    Then the "Test Results" tab should be selected, its panel visible and every other panel hidden
+    And the address should end with "#test-results"
+    When I click the "Lighthouse Test Results" tab
     Then the "Lighthouse Test Results" tab should be selected, its panel visible and every other panel hidden
     And the address should end with "#lighthouse-results"
     When I click the "Pics Viewer" tab
@@ -30,13 +37,16 @@ Feature: The Admin page's tabs work in a real browser
     When I click the "GitHub Issues" tab
     Then the "GitHub Issues" tab should be selected, its panel visible and every other panel hidden
     And the address should end with "#github-issues"
-    When I click the "Test Results" tab
-    Then the "Test Results" tab should be selected, its panel visible and every other panel hidden
+    When I click the "Access Info" tab
+    Then the "Access Info" tab should be selected, its panel visible and every other panel hidden
+    And the address should end with "#access-info"
 
   Scenario: Arrow keys, Home and End move between tabs and wrap around
     When I open "/admin/"
-    And I focus the "Test Results" tab
+    And I focus the "Access Info" tab
     And I press the key "ArrowRight"
+    Then the "Test Results" tab should be selected and focused
+    When I press the key "ArrowRight"
     Then the "Lighthouse Test Results" tab should be selected and focused
     When I press the key "ArrowRight"
     Then the "Pics Viewer" tab should be selected and focused
@@ -45,19 +55,19 @@ Feature: The Admin page's tabs work in a real browser
     When I press the key "ArrowRight"
     Then the "GitHub Issues" tab should be selected and focused
     When I press the key "ArrowRight"
-    Then the "Test Results" tab should be selected and focused
+    Then the "Access Info" tab should be selected and focused
     When I press the key "ArrowLeft"
     Then the "GitHub Issues" tab should be selected and focused
     When I press the key "Home"
-    Then the "Test Results" tab should be selected and focused
+    Then the "Access Info" tab should be selected and focused
     When I press the key "End"
     Then the "GitHub Issues" tab should be selected and focused
 
   Scenario: Only the selected tab is in the tab order; Tab moves on into its panel
     When I open "/admin/"
-    And I focus the "Test Results" tab
+    And I focus the "Access Info" tab
     And I press the key "Tab"
-    Then keyboard focus should be on the "Test Results" panel
+    Then keyboard focus should be on the "Access Info" panel
 
   Scenario: A link to #category-maintenance opens that tab
     When I open "/admin/#category-maintenance"
@@ -65,7 +75,7 @@ Feature: The Admin page's tabs work in a real browser
 
   Scenario: The tabs work in Spanish
     When I open "/es/admin/"
-    Then the "Resultados de pruebas" tab should be selected, its panel visible and every other panel hidden
+    Then the "Información de acceso" tab should be selected, its panel visible and every other panel hidden
     When I click the "Resultados de Lighthouse" tab
     Then the "Resultados de Lighthouse" tab should be selected, its panel visible and every other panel hidden
     When I click the "Visor de fotos" tab
@@ -75,17 +85,12 @@ Feature: The Admin page's tabs work in a real browser
     When I click the "Incidencias de GitHub" tab
     Then the "Incidencias de GitHub" tab should be selected, its panel visible and every other panel hidden
 
-  Scenario: Without JavaScript every panel can be read
-    Given JavaScript is switched off
-    When I open "/admin/"
-    Then every panel should be visible
-
   Scenario: The Admin page is not linked from the header, but its address still works
     When I open "/contact/"
     Then the header should offer no "Admin" link
     When I open "/admin/"
     Then the header should offer no "Admin" link
-    And the "Test Results" tab should be selected, its panel visible and every other panel hidden
+    And the "Access Info" tab should be selected, its panel visible and every other panel hidden
 
   Scenario: Using the tabs reports no errors and no policy violations
     When I open "/admin/"

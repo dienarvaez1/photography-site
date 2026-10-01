@@ -9,6 +9,7 @@ import { asR2Binding } from './r2-binding.js';
 import { publishRuns } from './results-fixtures.js';
 import { fakeOriginals } from './originals-fixtures.js';
 import { noGitHub } from './github-fixtures.js';
+import { fakeAccessBucket } from './access-fixtures.js';
 
 // The category page's client-side category switcher (Phase 6) fetches /api/photos.json from the
 // site's own origin (see src/pages/api/photos.json.ts) — a real route the snapshot build already
@@ -77,7 +78,8 @@ Before({ tags: '@browser' }, function () {
     // What the results API is doing: 'ok' (answers), 'unreachable', or 'slow'; `env` is its Worker environment (no
     // admin token until a scenario sets one up), `requests` is everything the page asked it. `localOrigin`: it also
     // answers there, as `npm run results-api:dev` does on this computer (the Admin page's `?api=` override).
-    results: { mode: 'ok', env: {}, delayMs: 0, requests: [], localOrigin: null },
+    // The access log starts empty, as a new day's would: the Admin page opens on Access Info, which reads it.
+    results: { mode: 'ok', env: { ACCESS: fakeAccessBucket([]) }, delayMs: 0, requests: [], localOrigin: null },
     // true: pages come with the headers the dev server sends (src/middleware.ts under `astro dev`), not the deployed site's.
     devHeaders: false,
     // The New Photo form's local service: null (as on the deployed site, which has none) or { middleware, requests }.
@@ -85,6 +87,8 @@ Before({ tags: '@browser' }, function () {
     // Category Maintenance's local service — same shape, same reasoning.
     categoryService: null,
     traceRequests: 0,
+    // What the pages reported to the access log (POST /api/access), in order, as sent: { page, event, photo? }.
+    accessReports: [],
     photoRequests: [],
     manifestRequests: [],
     pageRequests: [],
@@ -134,6 +138,25 @@ export async function addLighthouseRuns(world, runs) {
   world.b.results.lighthouseRunIds = lighthouseRunIds;
 }
 
+/**
+ * Waits for the Admin page's token box to finish checking a token just submitted (GET /auth is a round trip): the tabs
+ * appear, or the box shows why not. Every sign-in step ends with this, so the next step never races the check.
+ */
+export async function signInSettled(world) {
+  const page = world.b.page;
+  await page.waitForFunction(() => {
+    const tabs = document.querySelector('[data-tabs]');
+    const gate = document.querySelector('[data-admin-gate]');
+    const button = gate?.querySelector('button[type="submit"]');
+    return (tabs && !tabs.hidden) || (gate && !gate.hidden && gate.querySelector('.results-error')) || (button && !button.disabled);
+  }, null, { timeout: 8000 });
+}
+
+/** Puts a stand-in for the access log bucket (see access-fixtures.js), holding these day files, behind the results API. */
+export function setUpAccessLog(world, days) {
+  world.b.results.env.ACCESS = fakeAccessBucket(days);
+}
+
 /** Puts a stand-in for GitHub (see github-fixtures.js), holding this repository's issues, behind the results API. */
 export function setUpGitHub(world, github, repo) {
   world.b.results.github = github;
@@ -150,8 +173,12 @@ export function setUpOriginals(world, files, { objects } = {}) {
 async function serveResults(b, siteOrigin, request, route) {
   const results = b.results;
   const url = new URL(request.url());
-  results.requests.push({ method: request.method(), path: url.pathname, url: request.url(), authorization: request.headers()['authorization'] ?? '' });
+  // The page's sign-in (GET /auth, admin-gate.ts) is noted apart from what the tabs ask for, which scenarios check exactly.
+  const log = url.pathname === '/auth' ? (results.authRequests ??= []) : results.requests;
+  log.push({ method: request.method(), path: url.pathname, url: request.url(), authorization: request.headers()['authorization'] ?? '' });
   if (results.mode === 'unreachable') return route.abort('connectionrefused');
+  // A results API deployed before GET /auth existed answers it like any unknown route.
+  if (results.noAuthRoute && url.pathname === '/auth') return route.fulfill({ status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': siteOrigin }, body: JSON.stringify({ error: 'not-found', message: 'Not found.' }) });
   if (results.delayMs) await new Promise((resolve) => setTimeout(resolve, results.delayMs));
   // Only the site's own origin may read the answers, exactly as in production.
   const env = { ...results.env, ALLOWED_ORIGINS: siteOrigin };
@@ -241,6 +268,12 @@ export async function open(world) {
       // The category switcher's own manifest fetch (same-origin: see src/pages/api/photos.json.ts) —
       // no mocking needed, just noting it happened; route.continue() below serves the real built file.
       if (url.pathname === '/api/photos.json') b.manifestRequests.push(request.url());
+      // The access log's endpoint is the Worker's (src/endpoints/access.ts), which the static test build doesn't run:
+      // note what the page reported and answer the way the Worker does when it has recorded it.
+      if (url.pathname === '/api/access' && request.method() === 'POST') {
+        b.accessReports.push({ origin: request.headers()['origin'] ?? null, ...JSON.parse(request.postData() ?? 'null') });
+        return route.fulfill({ status: 204, body: '' });
+      }
       if (b.devHeaders && request.isNavigationRequest()) {
         const response = await route.fetch();
         const headers = response.headers();

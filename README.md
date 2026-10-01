@@ -59,7 +59,7 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against thirty-three areas. The
+tests bake in sample photos instead), then checks that built output against thirty-four areas. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
@@ -198,6 +198,16 @@ against every page in both English and Spanish**; expected text is read from
   refused; reports served sandboxed and uncached; the run's index page served with its report links signed, and
   those links working; expired, tampered and test-results signatures refused, in both directions; and nothing read
   outside `lighthouse-results/`.
+- **`access-log.feature`** — the access log's own code against a stand-in for its bucket that behaves like R2: what
+  a page may report (a path, a kind, a photo's id and category, nothing else), one file per UTC day named by its
+  first instant, entries in order, a visit that loses the race to another at the same moment still recorded (and
+  the other too), a full day, an unreadable file; the results API's `/access` and `/access/<day>` routes through
+  the real handler (days newest first, a day as recorded, the admin token, bad and missing days, no bucket bound);
+  the `geo` names from Cloudflare's codes and from ipinfo.io for the backfill (continents for every country), the
+  backfill itself (one lookup per address, private ones skipped, a dry run, a visit landing meanwhile kept); the map's
+  counts by country, its color bands, and its data (every country named as the log names it); and the tab's totals, top
+  pages and photos, and pie slices (five named and a sixth "Other", shares that make the whole,
+  no pie for a single group).
 - **`github-issues-api.feature`** — the results API's `/github/issues` route, called through the real handler with a
   stand-in for GitHub's API: open, closed and all issues, newest-updated first, never the pull requests; only the
   fields the tab shows (no bodies), with "not planned" closures told apart; GitHub asked once, for the configured
@@ -269,7 +279,10 @@ against every page in both English and Spanish**; expected text is read from
   build and no deploy**; a missing, unreadable or wrong-version manifest is a 500, never an empty gallery; one unusable
   entry is skipped; unknown addresses get the localized 404 page with a real 404 status; `/work/astro` redirects to
   `/work/astro/`; and pages the Worker renders carry the security headers of `public/_headers` (Cloudflare applies that
-  file to files only), are never cached, and pass the same HTML, SEO and no-inline-script checks.
+  file to files only), are never cached, and pass the same HTML, SEO and no-inline-script checks; and `/api/access`
+  adds a visit or a photo opened to that UTC day's access log with the Worker's own time and `CF-Connecting-IP`,
+  refuses reports from another site or not shaped like a page's (nothing written), and keeps all of 12 visits sent
+  at the same moment.
 - **Idle sign-out** — (in `admin.feature`) the timeout is 5 minutes, configured in one place and documented,
   which events count as being there, the reminder is translated with the minutes filled in from the
   configuration, and the built pages contain the timeout.
@@ -352,7 +365,24 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   first with their status, comments and labels, each linking to GitHub in a new tab, the New issue link, the Open,
   Closed and All filter, no open issues, GitHub's rate limit and GitHub unreachable (explained, still signed in),
   Spanish, and the accessibility audit, no sideways scrolling, no script errors and no CSP violations.
-- **`admin.feature`** (browser) — the five tabs really sit side by side on laptop and phone; clicking,
+- **`access-info.feature`** (browser) — every page reporting its visit once (the Admin page too, the path without
+  its query, from the site's own pages), each photo opened in the lightbox and each one reached with the arrow keys,
+  and a category switch in the gallery; and the Access Info tab against the real results API code and a stand-in
+  for the log: the token gate, the newest day's totals, the two-by-two table of pies (no row of counts under them), the
+  world map under them (only countries with visits
+  shaded, in their bands, the legend and the list, the outline and tooltip on hover and on keyboard focus, "No visits"
+  for the rest, only countries with visits in the tab order), the table's titles and pies with light gray lines (slices
+  in the legend's order and colors, each named and keyboard-reachable, no times or addresses shown), the tooltip on
+  hover and on keyboard focus (number first, then name), more than five pages folding into a sixth "Other" slice, a
+  day too small for a pie (its one line instead), no
+  visits yet, Spanish, and the accessibility audit, no sideways scrolling, no script errors and no CSP violations.
+- **`admin-gate.feature`** (browser) — until the token is accepted, only the token box and its button, whichever tab
+  the address asks for (no tabs, titles or descriptions, nothing requested from the results API or the local
+  services); a wrong token refused with the tabs still hidden; the right one showing the tabs on the tab asked for;
+  Sign out bringing the box back; the keyboard; no JavaScript (a message, no tabs); a results API without `/auth`
+  named as the problem (issue #6); Spanish and the accessibility audit.
+- **`admin.feature`** (browser) — signed in, the six tabs really sit side by side on laptop and phone, Access Info
+  first and showing; clicking,
   arrow keys, Home/End (with wrap-around), deep links like `/admin/#pics-viewer`, Spanish, no-JavaScript, and
   that the page works at its address although the header never links to it, with no errors or CSP violations.
 - **`results-viewer.feature`** (browser) — the Test Results tab against the real results API code and a
@@ -419,7 +449,7 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   keeps) one that still has photos; and without the local service, Edit says it only works on the owner's
   computer instead of doing anything.
 - **`admin-timeout.feature`** (browser) — with the page's clock under the test's control: still signed in at
-  4:55 and signed out at 5:00 (all five tabs, whichever is showing, header buttons gone, token forgotten,
+  4:55 and signed out at 5:00 (all six tabs, whichever is showing, header buttons gone, token forgotten,
   tooltip closed, no more requests); a mouse move, key press, scroll, click or tap restarts the 5 minutes but the
   page's own refresh does not; a tab left longer than 5 minutes and reloaded is signed out, one reloaded
   sooner stays signed in; the reminder goes away on the next sign-in and never shows after a manual sign-out;
@@ -806,19 +836,29 @@ both). Until 29 Sep 2026 the script wasn't allowed, so the browser blocked it on
 ## Admin page
 
 `/admin/` (and `/es/admin/`) works like any other page, but is **not linked from the header** — go there
-directly by typing the address. It has five tabs side by side: **Test Results**, **Lighthouse Test Results**,
-**Pics Viewer**, **Category Maintenance** and **GitHub Issues** (in Spanish: *Resultados de pruebas*, *Resultados de
-Lighthouse*, *Visor de fotos*, *Mantenimiento de categorías* and *Incidencias de GitHub*); on a phone the row of tabs scrolls sideways. The tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the
-selected tab is in the URL (`/admin/#pics-viewer`), and without JavaScript every panel is shown.
+directly by typing the address. It has six tabs side by side, as folder tabs with a light gray border: **Access Info**
+(the one showing when the page opens), **Test Results**, **Lighthouse Test Results**, **Pics Viewer**, **Category
+Maintenance** and **GitHub Issues** (in Spanish: *Información de acceso*, *Resultados de pruebas*, *Resultados de
+Lighthouse*, *Visor de fotos*, *Mantenimiento de categorías* and *Incidencias de GitHub*). On a laptop all six fit one row
+(a long label takes two lines); on a phone the row of tabs scrolls sideways. The tabs follow the WAI-ARIA tabs pattern: arrow keys, Home and End move between them, the
+selected tab is in the URL (`/admin/#pics-viewer`). Without JavaScript the tabs stay hidden (see below).
+
+**Until the admin token is accepted, the page shows only the token box and its Sign in button** (`src/lib/admin-gate.ts`):
+no tabs, no tab titles, no descriptions. The tabs are hidden in the page's own HTML and revealed by script only after
+the results API has checked the token (`GET /auth`), so they stay hidden without JavaScript too (the box then says the
+page needs JavaScript). A wrong token is refused there, and the tabs stay hidden. One sign-in serves every tab and
+lasts for the browser tab; Sign out, the idle timeout below, or a tab finding the token refused bring the box back.
+**Deploy the results API before the site** whenever both change (`npm run results-api:deploy`, then `npm run deploy`):
+a results API from before `/auth` existed answers it 404, and the box says to redeploy it (issue #6).
 
 **The Admin page signs out after 5 minutes of inactivity** (`src/config/admin.ts`): the token is forgotten,
-all five tabs return to the token form, and the form says why. Moving the pointer, pressing a key, scrolling,
+all six tabs return to the token form, and the form says why. Moving the pointer, pressing a key, scrolling,
 clicking or touching the page counts as being there and restarts the 5 minutes; requests the page makes by
 itself do not. A tab left for longer than that and then reloaded is signed out too. (While the tab is in the
 background the browser slows timers down, so the sign-out happens when you come back to it at the latest.)
 
 **Refresh and Sign out** are at the top of the page, across from the "Admin" title (they appear only while
-you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all five tabs.
+you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all six tabs.
 
 **Every page's footer names the build**, in its right corner ("Build v1.0.1"), so you can tell which code is live.
 It is stamped in when the site is built (`scripts/lib/build-info.mjs`, read by `astro.config.mjs`):
@@ -902,6 +942,79 @@ npx wrangler secret put GITHUB_TOKEN -c workers/results-api/wrangler.jsonc
 
 Like the Lighthouse tab, its code is loaded only the first time the tab is opened. `npm run results-api:deploy`
 publishes the route and the `GITHUB_REPO` setting.
+
+### Access Info tab
+
+Every page reports itself when it opens, and the lightbox reports each photo it shows, to the site's own
+`POST /api/access` (`src/lib/access-beacon.ts`, `src/endpoints/access.ts`). The Worker adds the time (UTC, ISO 8601,
+e.g. `2026-10-01T14:30:00.000Z`) and the visitor's address (Cloudflare's `CF-Connecting-IP`), and appends the entry to
+that UTC day's file in the **private** R2 bucket `photography-site-access` (`src/config/access-log.ts`):
+
+```
+photography-site-access/logs/2026-10-01T00:00:00.000Z.json   { "day": "2026-10-01T00:00:00.000Z", "entries": [...] }
+  { "time": "2026-10-01T14:30:00.000Z", "ip": "203.0.113.7", "page": "/work/nature/", "event": "view",
+    "geo": { "city": "Lelystad", "country": "Netherlands", "continent": "Europe", "timezone": "Europe/Amsterdam" } }
+  { "time": "2026-10-01T14:30:05.120Z", "ip": "203.0.113.7", "page": "/work/nature/", "event": "photo",
+    "photo": { "id": "4b3761b8ee641a7d", "category": "nature" }, "geo": { … } }
+```
+
+Each entry's **`geo`** is where Cloudflare places the visitor (`request.cf`): city, country, continent and time zone,
+by name (`geoFrom` in `src/config/access-log.ts`); any part Cloudflare doesn't know is left out, and a page can never
+send its own. Entries recorded before this existed were given one with `npm run access:geo-backfill` (add `-- --dry-run`
+to see what it would do): it looks each address without a place up **once with ipinfo.io** (so those addresses are
+sent there; private ones like `127.0.0.1` are not), and writes each day back only if no visit landed meanwhile. It is
+safe to run again: entries that have a place are left alone.
+
+The map's shapes are Natural Earth's 1:110m countries (public domain, via the `world-atlas` package), projected once
+by `npm run map:build` into `src/data/world-map.json` (plain SVG paths, about 115 KB, loaded only with the tab), so the
+page ships no mapping library; it matches visits to countries by the same English names `geo` uses. Run it again only
+to change the map's look or detail.
+
+One file per UTC day, named by the day's first instant. A page sends only its path (no query, nothing typed) and,
+for a photo, its id and category; anything else is refused, and so is a report from another site's page. R2 can't
+append, so an entry is added with a conditional write and tried again when another visit at the same moment wrote
+first: both are kept. A day holds at most 20,000 entries. Moving between categories in the gallery counts as a visit
+to the new category's page. Every page counts, the Admin page included, in every language. Visitors without
+JavaScript, and most bots, never report themselves, so they aren't counted. Nothing is ever deleted: remove old days
+with `npx wrangler r2 object delete photography-site-access/logs/<day>.json --remote` when you want to.
+
+The tab shows one day at a time, the newest first (pick another day from the list): how many different addresses
+visited; then one table with light gray lines, two columns by two rows: the titles (**Most visited pages** with the
+day's page visits under it, **Most opened photos** with its photos opened), then each one's **pie chart** with its
+legend (every slice's count and share, by title for photos); then, in a table of its own with the same lines (titled
+**Visits by country**, with how many countries), a **world map** of the day by country (each country
+shaded by its page visits and photos opened, one blue, lighter for more; hovering over a country, or focusing one with
+the keyboard, outlines it and shows a tooltip with its counts, and a country without visits says so), with a legend of
+the bands and, under it, one list of the countries down the page, most accessed first, each with its counts; hovering
+over a country in the list, or focusing it with the keyboard, shows a tooltip with its top five cities and their
+accesses (page visits and photos opened together), or says no city was recorded. Under the list, a note says how
+many of the day's visits had no country to place them.
+
+Each pie shares the whole day out: the first five by name and a sixth, gray **Other** slice for the rest, so a pie never
+has more than six slices (`src/lib/pie-chart.ts`). Hovering over a slice, or focusing it with the keyboard, shows a
+tooltip with its number and share first and its name after (`2 visits · 67%`, `/work/nature/`); the legend under the
+pie says the same for every slice, so nothing is told by color or hover alone. A day with a single page (or photo)
+gets that one line instead of a pie (`/es/: 1 visit · 100%`), and an empty one says so. The colors are the dark steps of the first four slots of a validated categorical palette, its
+violet for the fifth, and a neutral gray, checked as a ring against the page's background for color-blind and normal
+vision. The raw entries
+(times and addresses) stay in the bucket; the tab only shows them rolled up. It reads the log through
+the results API (`GET /access`, `GET /access/<day>`), behind the **same admin token** as the other tabs, and its code
+is loaded the first time the tab is opened.
+
+**IP addresses are personal data** in many places (the GDPR in the EU, for example). Say on the site that you record
+them and why, and keep them only as long as you need them.
+
+**One-time setup (needs you: it creates a bucket and deploys both Workers):**
+
+```bash
+npx wrangler r2 bucket create photography-site-access   # private: no public access, nothing else reads it
+npm run results-api:deploy                              # the API's ACCESS binding and the /access routes
+npm run deploy                                          # the site's ACCESS binding and /api/access
+```
+
+Locally, `npm run dev` records into a local copy of the bucket (`.wrangler/state`), never the real one, and
+`npm run results-api:dev` reads that same copy, so `http://localhost:4321/admin/?api=http://localhost:8788#access-info`
+shows your own local visits.
 
 ### Pics Viewer tab
 
@@ -1054,7 +1167,7 @@ page, use [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/p
 
 Lists every category configured on the site (`src/config/categories.json`), hidden or not, with its name in
 each language and how many photos are in it. It sits behind the same admin token as the other two tabs —
-checked against the results API the moment it's entered (one sign-in serves all five tabs, and Sign
+checked against the results API the moment it's entered (one sign-in serves all six tabs, and Sign
 out or the idle timeout signs all three out together), even though the tab itself asks that API for none of
 its own data: the list is public information once you're in, drawn straight from the page's own
 server-rendered data, and the token check exists only to gate the tab the same way its siblings are gated.
@@ -1102,10 +1215,10 @@ than a large screen (`photoSrcSet` never lists the same width twice for small ph
 gallery photos load eagerly (the first with high priority); the rest lazily. Every image declares its
 width and height so the page can't jump while loading; the header logos are right-sized (the small
 icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
-27 KB, styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
-page's client-side category switcher; the Admin pages, which carry five tabs of tools and are opened
-only by you, may have 52 KB of HTML and 56 KB of scripts, with the Lighthouse and GitHub Issues tabs' code loaded only
-when they are opened). If you change `PHOTO_VARIANTS`, run
+28 KB, styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
+page's client-side category switcher and every page's report of its own visit to the access log; the Admin pages,
+which carry six tabs of tools and are opened only by you, may have 58 KB of HTML, 57 KB of scripts and 27 KB of styles, with the
+Lighthouse, GitHub Issues and Access Info tabs' code loaded only when they are opened). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 
 ## Deployment to Cloudflare Pages (free)
