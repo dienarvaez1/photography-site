@@ -14,7 +14,7 @@ The `CI` workflow (`.github/workflows/ci.yml`) runs on every push to main and ev
 `workflow_dispatch` (`gh run list --workflow CI --event workflow_dispatch`) and never cancels a push's run:
 - **`test` job:** lint, `astro check`, offline Cucumber, browser Cucumber, `npm audit --audit-level=high`, then
   publish the results to R2.
-- **`live-smoke` job:** on pushes to main only (not manual runs), after the test job. Waits about 5 minutes for Cloudflare's build, then
+- **`live-smoke` job:** on pushes to main and on manual runs (Run in CI), after the test job. On a push it first waits about 5 minutes for Cloudflare's build (a manual run doesn't wait), then
   smoke-checks the live site.
 
 There is also a scheduled `smoke.yml`.

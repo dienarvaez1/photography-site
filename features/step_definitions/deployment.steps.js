@@ -479,3 +479,13 @@ Then('the Admin page should tell both results tabs whether this is the dev box, 
     assert.match(readFileSync(join(ROOT, 'src/lib', viewer), 'utf-8'), /const siteEnv = container\.dataset\.siteEnv \?\? 'production';/);
   }
 });
+
+Then('a CI run started by hand \\(Run in CI) should run the tests and then the live smoke check, without waiting for Cloudflare', function () {
+  const wf = workflow('ci.yml');
+  assert.ok('workflow_dispatch' in wf.on);
+  const job = wf.jobs['live-smoke'];
+  assert.match(job.if, /github\.event_name == 'workflow_dispatch'/);
+  assert.equal(job.needs, 'test');
+  const wait = job.steps.find((s) => /sleep/.test(s.run ?? ''));
+  assert.match(wait.if, /github\.event_name == 'push'/, 'only a push waits for Cloudflare');
+});

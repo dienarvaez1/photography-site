@@ -848,7 +848,7 @@ confirm both arrive in your inbox.
 Results tab, Actions → CI → Run workflow, or `gh workflow run ci.yml --ref main`): type-check, `npm test`, the browser
 tests, and `npm audit`. A run started by hand has its own concurrency group, so it never cancels a push's run, and
 takes an optional `source` input (where it was started from), which the stored results record (`GitHub` otherwise). On pushes to `main` it then waits five minutes for Cloudflare's build and
-smoke-checks the live site. `.github/workflows/smoke.yml` runs the same smoke check every six hours
+smoke-checks the live site; a run started by hand smoke-checks it straight after the tests. `.github/workflows/smoke.yml` runs the same smoke check every six hours
 and on demand (Actions → Live smoke check → Run workflow); a failure emails the repo owner.
 `.github/workflows/lighthouse.yml` measures the live site with the Lighthouse suite and stores the run in R2 (when the
 `CLOUDFLARE_*` secrets are set). It runs only when started: from Actions → Lighthouse → Run workflow, or with
@@ -953,7 +953,8 @@ answer. The results API has the same removal
 `npm run results -- prune --keep N` still trims the oldest runs from the command line.
 
 **Run in CI** (after Cleanup Test Results) runs every Cucumber test in CI: lint, type-check, the offline suite and the
-browser suite, the same `test` job as a push (`.github/workflows/ci.yml`; the live smoke check is for pushes only). Before anything starts, a dialog asks which
+browser suite (the `test` job), then the `live-smoke` job, which smoke-checks the live site straight away
+(`.github/workflows/ci.yml`; after a push to `main` it first waits for Cloudflare's build). Before anything starts, a dialog asks which
 branch to run it on: the branches on GitHub (`git ls-remote --heads origin`, nothing fetched), with the branch this
 checkout is on chosen. A checkout branch that isn't on GitHub yet is still listed and chosen, but says it must be
 pushed first, and Start waits until another branch is chosen. Cancel or Escape starts nothing. The last choice,

@@ -108,8 +108,9 @@ Feature: A deploy cannot silently break the site
     And the CI workflow's placeholder keys should satisfy the release-build guard
     And every workflow that builds the site should carry placeholder keys that satisfy the release-build guard
 
-  Scenario: CI smoke-checks the live site after Cloudflare has built it
+  Scenario: CI smoke-checks the live site after Cloudflare has built it, and on every run started by hand
     Then the CI workflow should smoke-check the live site only for pushes to main, after the tests pass and after waiting for Cloudflare
+    And a CI run started by hand (Run in CI) should run the tests and then the live smoke check, without waiting for Cloudflare
 
   Scenario: The live site is smoke-checked on a schedule
     Then the smoke workflow should run every few hours and on demand
