@@ -50,3 +50,38 @@ export function checkBuildEnv(env, argv = []) {
   const problems = keyProblems(env);
   return { ok: problems.length === 0, skipped: false, problems };
 }
+
+// --- Which machine is this: the dev box or production? ---------------------------------------------------------------
+
+/** The values SITE_ENV may take. */
+export const SITE_ENVS = ['development', 'production'];
+
+/**
+ * Where this build or server runs, from SITE_ENV: `development` on the owner's computer (the checkout; set in its .env),
+ * `production` everywhere else. Unset (or anything else), it is `development` under `astro dev` and `production` for a
+ * build, so Cloudflare's build needs nothing set. Decides which Admin buttons a page shows (src/pages/[...lang]/admin.astro).
+ */
+export function siteEnv(env, { dev = false } = {}) {
+  return SITE_ENVS.includes(env.SITE_ENV) ? env.SITE_ENV : dev ? 'development' : 'production';
+}
+
+/** A release build must be a production one: `development` would ship the dev box's buttons to the live site. */
+export function siteEnvProblems(env, argv = []) {
+  return isReleaseBuild(env, argv) && siteEnv(env) === 'development'
+    ? ['SITE_ENV is "development" (the dev box\'s setting) for a release build: deploy with SITE_ENV=production (npm run deploy does).']
+    : [];
+}
+
+/**
+ * May the dev server's services (photos, categories, results) write: upload to or delete from R2, or change the site's
+ * files? Only on the dev box (SITE_ENV=development; unset means development, since they only run under `astro dev`).
+ */
+export function writesAllowed(env) {
+  return siteEnv(env, { dev: true }) === 'development';
+}
+
+/** The answer a service gives a write it refuses because this isn't the dev box. */
+export const NOT_DEV_BOX = {
+  error: 'not-dev-box',
+  message: 'Writing to R2 and the site’s files is only allowed on the dev box (SITE_ENV=development).',
+};

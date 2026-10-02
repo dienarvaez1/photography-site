@@ -261,7 +261,6 @@
       },
       "needsJs": "The results viewer needs JavaScript. Without it, read the reports with npm run results:list.",
       "removal": {
-        "button": "Remove Results",
         "barLabel": "Remove test results",
         "select": "Select the run {id} for removal",
         "selected": "{count} selected",
@@ -283,7 +282,10 @@
         "failed": "{id} was taken off the list, but not all its files could be deleted ({message}). Removing it again is safe.",
         "requestFailed": "The runs could not be removed: {message}",
         "unreachable": "the local results service did not answer. Is npm run dev still running?",
-        "onlyLocal": "Removing test results only works on your own computer, while the site runs with npm run dev (it uses your Cloudflare login)."
+        "cleanup": "Cleanup Test Results",
+        "lighthouse": "Cleanup Lighthouse Test Results",
+        "nothing": "No runs to remove yet.",
+        "onlyLocal": "Removing test results only works on your own computer, with npm run dev."
       },
       "ci": {
         "button": "Run in CI",

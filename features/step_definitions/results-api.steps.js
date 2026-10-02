@@ -22,8 +22,14 @@ async function useBucket(world, runs) {
   const { bucket, runIds } = await publishRuns(runs);
   const asked = [];
   const binding = asR2Binding(bucket);
-  const spy = { get: (key) => (asked.push(key), binding.get(key)) };
-  Object.assign(state(world), { bucket, runIds, asked, env: { ...state(world).env, RESULTS: spy } });
+  // Every read is noted (`asked`), and so is every write or delete (`written`), to check what the API touched.
+  const written = [];
+  const spy = {
+    get: (key) => (asked.push(key), binding.get(key)),
+    put: (key, value, options) => (written.push(`put ${key}`), binding.put(key, value, options)),
+    delete: (keys) => (written.push(...(Array.isArray(keys) ? keys : [keys]).map((k) => `delete ${k}`)), binding.delete(keys)),
+  };
+  Object.assign(state(world), { bucket, runIds, asked, written, env: { ...state(world).env, RESULTS: spy } });
 }
 
 Given('a results API with the admin token {string} and these published runs:', async function (token, table) {
@@ -55,7 +61,8 @@ After(function () {
 
 Given('the same runs are stored in a local R2 bucket and the Worker runs in the real Workers runtime', { timeout: 120_000 }, async function () {
   const s = state(this);
-  s.runtime = await startWorker({ token: s.token, origins: ORIGINS, seed: { RESULTS: s.bucket.objects } });
+  // A copy on the dev box (SITE_ENV=development), so its removal route works.
+  s.runtime = await startWorker({ token: s.token, origins: ORIGINS, seed: { RESULTS: s.bucket.objects }, siteEnv: 'development' });
 });
 
 Given('the same photos are stored in a local originals bucket and the Worker runs in the real Workers runtime', { timeout: 120_000 }, async function () {
@@ -66,11 +73,12 @@ Given('the same photos are stored in a local originals bucket and the Worker run
 // --- Making calls ------------------------------------------------------------------------------------
 
 /** Calls the real handler and records everything about the answer. */
-async function call(world, url, { method = 'GET', headers = {}, now } = {}) {
+async function call(world, url, { method = 'GET', headers = {}, now, body: send } = {}) {
   const s = state(world);
   // Either the handler in this process, or (when set up) the same code running in the real Workers runtime.
   const target = url.startsWith('http') ? url : `${s.runtime?.base ?? API}${url}`;
-  const response = s.runtime ? await fetch(target, { method, headers }) : await handle(new Request(target, { method, headers }), s.env, now ?? s.now);
+  const init = { method, headers, ...(send === undefined ? {} : { body: send }) };
+  const response = s.runtime ? await fetch(target, init) : await handle(new Request(target, init), s.env, now ?? s.now);
   const bytes = Buffer.from(await response.arrayBuffer());
   const text = bytes.toString('utf-8');
   let body = null;
@@ -355,16 +363,100 @@ Then("the Worker's configuration should allow exactly the origins listed in the 
 });
 
 Then("the Worker's configuration should contain no secret value", function () {
-  // GITHUB_REPO is public (the repository's name); GITHUB_TOKEN, like ADMIN_TOKEN, is only ever a secret.
-  assert.deepEqual(Object.keys(workerConfig().vars), ['ALLOWED_ORIGINS', 'GITHUB_REPO']);
+  // GITHUB_REPO is public (the repository's name) and SITE_ENV only says where it runs; GITHUB_TOKEN, like
+  // ADMIN_TOKEN, is only ever a secret.
+  assert.deepEqual(Object.keys(workerConfig().vars), ['ALLOWED_ORIGINS', 'GITHUB_REPO', 'SITE_ENV']);
   assert.doesNotMatch(workerFile('wrangler.jsonc'), /(ADMIN_TOKEN|GITHUB_TOKEN)["']?\s*:/);
 });
 
-Then("the Worker's code should never write or delete anything in R2, and list only the originals", function () {
-  for (const file of ['src/index.mjs', 'src/pics.mjs']) assert.doesNotMatch(workerFile(file), /\.(put|delete|head|createMultipartUpload|createMultipartUpload|resumeMultipartUpload)\(/, `${file} writes or deletes`);
+Then("the Worker's code should write or delete only to remove runs, and list only the originals", function () {
+  for (const file of ['src/index.mjs', 'src/pics.mjs', 'src/access.mjs', 'src/issues.mjs']) assert.doesNotMatch(workerFile(file), /\.(put|delete|head|createMultipartUpload|resumeMultipartUpload)\(/, `${file} writes or deletes`);
+  // The only writes are Remove Results' (remove.mjs): to the runs' own store, inside its prefix.
+  const remove = workerFile('src/remove.mjs');
+  assert.match(remove, /bucket\.put\(key,/);
+  assert.match(remove, /key\.startsWith\(`\$\{prefix\}runs\/\$\{run\.runId\}\/`\)/);
+  assert.doesNotMatch(remove, /\.list\(|createMultipartUpload/);
   // The results are only ever read one object at a time; listing is for the originals only.
   const code = workerFile('src/index.mjs');
   const used = [...code.matchAll(/env\.RESULTS\.(\w+)\(/g)].map((m) => m[1]);
   assert.ok(used.length > 0);
   assert.deepEqual(used.filter((method) => method !== 'get'), []);
+});
+
+// --- Remove Results: the API's only writes ------------------------------------------------------------------------------
+
+const commitOf = (world, commit) => state(world).runIds.find((id) => id.includes(`-${commit}-`));
+
+When(/^I ask the API to remove the runs of "([^"]*)"( without a token| with the wrong token)?(?: from the origin "([^"]+)")?$/, async function (commits, how, origin) {
+  const runs = commits.split(', ').map((c) => commitOf(this, c) ?? c);
+  const headers = { 'Content-Type': 'application/json', ...(origin ? { Origin: origin } : {}) };
+  if (!how) headers.Authorization = `Bearer ${state(this).token}`;
+  else if (how.includes('wrong')) headers.Authorization = 'Bearer wrong-admin-token-000';
+  await call(this, '/runs/remove', { method: 'POST', headers, body: JSON.stringify({ runs }) });
+});
+
+When('I ask the API to remove {string}', async function (raw) {
+  await call(this, '/runs/remove', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state(this).token}` }, body: raw });
+});
+
+When('I ask the API to remove {int} made-up runs', async function (count) {
+  const runs = Array.from({ length: count }, (_, i) => `2026-09-23T09-00-00Z-r${i}-local`);
+  await call(this, '/runs/remove', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state(this).token}` }, body: JSON.stringify({ runs }) });
+});
+
+Then('the API should say it removed the runs of {string}', function (commits) {
+  const { status, body } = state(this).last;
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual([...body.removed].sort(), commits.split(', ').map((c) => commitOf(this, c)).sort());
+  assert.deepEqual([body.missing, body.failed], [[], []]);
+});
+
+Then('the bucket should no longer hold any file of the runs of {string}', function (commits) {
+  const keys = [...state(this).bucket.objects.keys()];
+  for (const c of commits.split(', ')) assert.deepEqual(keys.filter((k) => k.includes(`-${c}-`)), [], c);
+});
+
+Then('the stored index should list only the runs of {string}, and latest.json the run of {string}', function (commits, newest) {
+  const read = (key) => JSON.parse(state(this).bucket.objects.get(key).body.toString('utf-8'));
+  assert.deepEqual(read('results/index.json').runs.map((r) => r.runId), commits.split(', ').map((c) => commitOf(this, c)));
+  assert.equal(read('results/latest.json').runId, commitOf(this, newest));
+});
+
+Then('nothing in the bucket should have been written or deleted', function () {
+  assert.deepEqual(state(this).written, []);
+});
+
+Then('every write should have been inside {string}', function (prefix) {
+  assert.ok(state(this).written.length > 0);
+  for (const w of state(this).written) assert.ok(w.split(' ')[1].startsWith(prefix), w);
+});
+
+Then('the API should allow the site to POST JSON with the token', function () {
+  const { status, headers } = state(this).last;
+  assert.equal(status, 204);
+  assert.match(headers.get('access-control-allow-methods'), /POST/);
+  assert.match(headers.get('access-control-allow-headers'), /Content-Type/i);
+  assert.match(headers.get('access-control-allow-headers'), /Authorization/i);
+});
+
+When('I send a preflight for removing runs from the origin {string}', async function (origin) {
+  await call(this, '/runs/remove', { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type' } });
+});
+
+Then('the API should no longer know the run of {string}, and should list only the runs of {string}', async function (gone, kept) {
+  const token = { Authorization: `Bearer ${state(this).token}` };
+  await call(this, `/runs/${commitOf(this, gone)}`, { headers: token });
+  assert.equal(state(this).last.status, 404);
+  await call(this, '/index', { headers: token });
+  assert.deepEqual(state(this).last.body.runs.map((r) => r.runId), kept.split(', ').map((c) => commitOf(this, c)));
+  await call(this, '/latest', { headers: token });
+  assert.equal(state(this).last.body.runId, commitOf(this, kept.split(', ')[0]));
+});
+
+Given(/^the results API runs (on the dev box|in production)$/, function (where) {
+  state(this).env = { ...state(this).env, SITE_ENV: where === 'on the dev box' ? 'development' : 'production' };
+});
+
+Then("the deployed Worker's configuration should say it runs in production", function () {
+  assert.equal(workerConfig().vars.SITE_ENV, 'production');
 });

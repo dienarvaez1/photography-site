@@ -113,10 +113,10 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
 
   # --- Remove Results and Run in Production --------------------------------------------------------------------------------
 
-  Scenario: On the deployed site, Remove Results and Run in Production say they only work on your own computer
+  Scenario: Without the dev server's results service, Cleanup Lighthouse Test Results and Run in Production say they need the dev box
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
-    And I press "Remove Results" in the Lighthouse Test Results tab
+    And I press "Cleanup Lighthouse Test Results" in the Lighthouse Test Results tab
     Then the Lighthouse Test Results tab should say "Removing test results only works on your own computer"
     And no run should have a checkbox
     When I press "Run in Production" in the Lighthouse Test Results tab
@@ -128,7 +128,7 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     Given the local results service is running
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
-    And I press "Remove Results" in the Lighthouse Test Results tab
+    And I press "Cleanup Lighthouse Test Results" in the Lighthouse Test Results tab
     Then every run in the list should have a checkbox, none ticked
     When I tick the runs "bbbbbbb"
     And I press "Delete selected" in the removal bar
@@ -145,17 +145,17 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     Given the local results service is running
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
-    And I press "Remove Results" in the Lighthouse Test Results tab
+    And I press "Cleanup Lighthouse Test Results" in the Lighthouse Test Results tab
     And I press "Select all" in the removal bar
     Then the removal bar should say "2 selected", with "Delete selected" available
     When I press "Cancel" in the removal bar
     Then no run should have a checkbox
     And the local results service should not have been asked to remove anything
 
-  Scenario: Remove Results comes first above the list, then Run in Production
+  Scenario: Cleanup Lighthouse Test Results comes first above the list, then Run in Production
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
-    Then the Lighthouse Test Results tab's buttons above the list should be "Remove Results, Run in Production"
+    Then the Lighthouse Test Results tab's buttons above the list should be "Cleanup Lighthouse Test Results, Run in Production"
 
   Scenario: Run in Production first asks which branch, defaulting to main, and starts nothing until asked
     Given the local results service is running
@@ -262,7 +262,9 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     And the local results service is running
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
-    And I press "Run in Production" in the Lighthouse Test Results tab
+    Then the Lighthouse Test Results tab's buttons above the list should be "Cleanup Lighthouse Test Results, Run in Production"
+    And "Cleanup Lighthouse Test Results" should be unavailable in the Lighthouse Test Results tab
+    When I press "Run in Production" in the Lighthouse Test Results tab
     And I press "Start Lighthouse run" in the branch dialog
     Then the Lighthouse Test Results tab should come to say "every page met its budget"
     And the Lighthouse runs should be listed newest first, for the commits "ddddddd"
@@ -273,7 +275,7 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
     Then the page should pass the automated accessibility audit
-    When I press "Remove Results" in the Lighthouse Test Results tab
+    When I press "Cleanup Lighthouse Test Results" in the Lighthouse Test Results tab
     And I tick the runs "aaaaaaa"
     Then the page should pass the automated accessibility audit
     And the page should not scroll sideways
@@ -292,5 +294,5 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     And I press "Ejecutar en producción" in the Lighthouse Test Results tab
     And I press "Iniciar ejecución de Lighthouse" in the branch dialog
     Then the Lighthouse Test Results tab should say "Lighthouse está midiendo el sitio en línea (https://diego-narvaez-photography.org) en GitHub Actions, desde la rama main."
-    When I press "Eliminar resultados" in the Lighthouse Test Results tab
+    When I press "Limpiar resultados de Lighthouse" in the Lighthouse Test Results tab
     Then the removal bar should say "0 seleccionadas", with "Eliminar las seleccionadas" unavailable

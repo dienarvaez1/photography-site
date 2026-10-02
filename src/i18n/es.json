@@ -261,7 +261,6 @@
       },
       "needsJs": "El visor de resultados necesita JavaScript. Sin él, consulta los informes con npm run results:list.",
       "removal": {
-        "button": "Eliminar resultados",
         "barLabel": "Eliminar resultados de pruebas",
         "select": "Seleccionar la ejecución {id} para eliminarla",
         "selected": "{count} seleccionadas",
@@ -283,7 +282,10 @@
         "failed": "{id} se quitó de la lista, pero no se pudieron eliminar todos sus archivos ({message}). Eliminarla de nuevo es seguro.",
         "requestFailed": "No se pudieron eliminar las ejecuciones: {message}",
         "unreachable": "el servicio local de resultados no respondió. ¿Sigue en marcha npm run dev?",
-        "onlyLocal": "Eliminar resultados de pruebas solo funciona en tu propio ordenador, mientras el sitio se ejecuta con npm run dev (usa tu sesión de Cloudflare)."
+        "cleanup": "Limpiar resultados de pruebas",
+        "lighthouse": "Limpiar resultados de Lighthouse",
+        "nothing": "Nada que eliminar.",
+        "onlyLocal": "Solo funciona en tu ordenador, con npm run dev."
       },
       "ci": {
         "button": "Ejecutar en CI",

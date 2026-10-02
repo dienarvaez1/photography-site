@@ -55,6 +55,11 @@ When('the build guard runs with environment {string} and arguments {string}', fu
 
 Then('the build guard should {}', function (outcome) {
   const { status, stdout, stderr } = this.data.guard;
+  if (outcome.startsWith('refuse')) {
+    assert.equal(status, 1, `Expected the guard to refuse. ${stdout}${stderr}`);
+    for (const name of ['SITE_ENV', 'npm run deploy']) assert.ok(stderr.includes(name), `Error output should mention ${name}:\n${stderr}`);
+    return;
+  }
   if (outcome.startsWith('fail')) {
     assert.equal(status, 1, `Expected the guard to fail. ${stdout}${stderr}`);
     for (const name of ['PUBLIC_WEB3FORMS_KEY', 'PUBLIC_WEB3FORMS_KEY_ES', 'Cloudflare']) assert.ok(stderr.includes(name), `Error output should mention ${name}:\n${stderr}`);
@@ -376,4 +381,92 @@ Then('no built page should contain an inline script, an inline event handler or 
     if (/href="javascript:/i.test(html)) problems.push(`${route}: javascript: URL`);
   }
   assert.deepEqual(problems, []);
+});
+
+// --- The dev box or production (SITE_ENV) ------------------------------------------------------------------------------
+
+Then(/^with SITE_ENV "([^"]*)" (in a build|under the dev server) the site should count as "([^"]+)"$/, function (value, where, result) {
+  assert.equal(buildEnv.siteEnv(value ? { SITE_ENV: value } : {}, { dev: where.includes('dev server') }), result);
+});
+
+Then('the {string} and {string} scripts should check and build with SITE_ENV=production', function (pre, main) {
+  const scripts = pkg().scripts;
+  assert.match(scripts[pre], /^SITE_ENV=production node scripts\/check-build-env\.mjs --require/);
+  assert.match(scripts[main], /^SITE_ENV=production npm run build/);
+});
+
+Then('the site configuration should hand SITE_ENV to the pages, read from the environment or .env', function () {
+  const config = readFileSync(join(ROOT, 'astro.config.mjs'), 'utf-8');
+  assert.match(config, /const SITE_ENV = siteEnv\(loadEnv\(/);
+  assert.match(config, /__SITE_ENV__: JSON\.stringify\(SITE_ENV\)/);
+});
+
+Then('the Admin page should show every button when SITE_ENV is {string} or in the tests\' build', function (value) {
+  const page = readFileSync(join(ROOT, 'src/pages/[...lang]/admin.astro'), 'utf-8');
+  assert.ok(page.includes(`const showAdminButtons = __SITE_ENV__ === '${value}' || import.meta.env.PHOTOS_SNAPSHOT;`));
+});
+
+Then('.env.example should explain SITE_ENV', function () {
+  const example = readFileSync(join(ROOT, '.env.example'), 'utf-8');
+  assert.match(example, /^SITE_ENV=development$/m);
+  assert.match(example, /dev box/);
+});
+
+// --- The dev server's services write only on the dev box ---------------------------------------------------------------
+
+const SERVICES = {
+  'photo service': ['photo-form-server.mjs', 'photoFormMiddleware', '/__photos/upload'],
+  'category service': ['category-form-server.mjs', 'categoryFormMiddleware', '/__categories/add'],
+  'results service': ['results-form-server.mjs', 'resultsFormMiddleware', '/__results/remove'],
+};
+
+/** Sends one request through the service's middleware (as the dev server would) and resolves to { status, body, passed }. */
+async function throughService(name, method, { allowWrites, env } = {}) {
+  const [file, fn, path] = SERVICES[name];
+  const mod = await import(join(ROOT, 'scripts/lib', file));
+  const options = { storage: {}, contentDir: '/nonexistent', ...(allowWrites === undefined ? {} : { allowWrites }) };
+  const saved = process.env.SITE_ENV;
+  // allowWrites unset: decided from the environment (the .env file is ignored here: SITE_ENV is set or cleared outright).
+  if (env !== undefined) {
+    if (env === null) delete process.env.SITE_ENV;
+    else process.env.SITE_ENV = env;
+  }
+  let middleware;
+  try {
+    middleware = await mod[fn](options);
+  } finally {
+    if (saved === undefined) delete process.env.SITE_ENV;
+    else process.env.SITE_ENV = saved;
+  }
+  return new Promise((resolve) => {
+    const res = { statusCode: 200, headers: {}, setHeader(k, v) { this.headers[k] = v; }, end(body) { resolve({ status: this.statusCode, body: body ? JSON.parse(body) : null, passed: false }); } };
+    const req = { method, url: method === 'GET' ? path.replace(/\/[^/]+$/, '/status-not-checked') : path, headers: { host: 'localhost:4321' } };
+    // A request the guard lets through reaches the service's own handler; only whether it got past the guard matters.
+    const next = () => resolve({ status: null, body: null, passed: true });
+    if (method === 'GET') {
+      res.end = () => resolve({ status: res.statusCode, body: null, passed: true });
+    } else {
+      req.on = () => req;
+      req.pipe = () => req;
+    }
+    Promise.resolve(middleware(req, res, next)).catch(() => resolve({ status: null, body: null, passed: true }));
+  });
+}
+
+Then('the {} should answer a POST with 403 {string} when SITE_ENV is {string}, and leave GETs alone', async function (name, code, env) {
+  const post = await throughService(name, 'POST', { env, allowWrites: undefined });
+  assert.deepEqual([post.status, post.body?.error], [403, code]);
+  const get = await throughService(name, 'GET', { env });
+  assert.equal(get.passed, true, 'a GET reaches the service');
+});
+
+Then('the {} should let a POST through when SITE_ENV is {string}', async function (name, env) {
+  const post = await throughService(name, 'POST', { env });
+  assert.notEqual(post.body?.error, 'not-dev-box');
+});
+
+Then('without SITE_ENV the {} should let a POST through, since it only runs under the dev server', async function (name) {
+  assert.equal(buildEnv.writesAllowed({}), true);
+  const post = await throughService(name, 'POST', { allowWrites: buildEnv.writesAllowed({}) });
+  assert.notEqual(post.body?.error, 'not-dev-box');
 });

@@ -235,7 +235,7 @@ against every page in both English and Spanish**; expected text is read from
   tabs ("Test Results", "Pics Viewer", then "Category Maintenance") in a horizontal, labelled tab list
   wired to their own panels with only the first selected, a no-JavaScript fallback, and it is `noindex`
   and out of the sitemap.
-- **`results-api.feature`** — the read-only API behind the Admin page's Test Results tab, called through its
+- **`results-api.feature`** — the API behind the Admin page's Test Results tab (read-only but for removing runs), called through its
   real request handler over runs published by the real publisher: every data route needs the admin
   token (missing, wrong, near-miss and Basic credentials are refused; no secret set means a 503), the
   health check, `index.json` and `latest.json` served exactly as stored (an empty store gives an empty
@@ -375,8 +375,8 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   sign-in for every tab, Sign out), the latest run and every run newest first with their totals, a run's table of every
   page and device, what was over budget, signed report links opening in a new tab, the run's index page and raw data,
   the way back and the Back button, an unknown run, no runs yet, Spanish, and the accessibility audit and no sideways
-  scrolling on laptop and phone; and Remove Results and Run in Production: both saying they only work on your computer
-  on the deployed site, deleting the ticked runs after a confirmation naming them (the next run becoming the latest,
+  scrolling on laptop and phone; and Cleanup Lighthouse Test Results and Run in Production (both saying they need the
+  dev box without the dev server's results service): deleting the ticked runs after a confirmation naming them (the next run becoming the latest,
   the test results untouched), Cancel, Run in Production's branch dialog (main chosen, another branch on request,
   Cancel starting nothing), measuring production on GitHub with the button waiting until the new run is listed, not
   done until the results API confirms the new run (and saying so when it never does, after 2 minutes), a
@@ -415,10 +415,10 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   (a failure message containing HTML stays text), reports opening in new tabs from the API, screenshot
   and trace evidence, empty store, unreachable API and recovery, no requests while another tab is
   showing, Spanish, an axe audit and no sideways scrolling in every state, no errors or CSP violations; and
-  Remove Results: on the deployed site it says it only works on your computer, a checkbox on every run with
+  Cleanup Test Results: saying it needs the dev box without the dev server's results service, a checkbox on every run with
   a counting bar (select all, Cancel), a confirmation naming every run with Keep them focused and Escape backing
   out, deleting from the store and the list (the newest run's removal moving the latest card), a failed
-  delete reported, Spanish, and an axe audit on laptop and phone; and Run in CI: after Remove Results, saying it only
+  delete reported, Spanish, and an axe audit on laptop and phone; and Run in CI: after Cleanup Test Results, saying it only
   works on your computer on the deployed site, starting CI with a link to the run and the button waiting until GitHub
   says it is done (then the list read again), a failed run said so, a second press following the run going,
   GitHub's refusal shown, the button before the first run, an axe audit, Spanish.
@@ -918,26 +918,39 @@ A run shows its result, commit, branch and source, a table of the suites (offlin
 smoke), every failure with its feature, scenario, step and reason, the slowest scenarios, links to the
 full HTML and JSON reports, and the screenshots, traces and notes saved for failed browser scenarios.
 
-The results bucket stays **private**. The page reads it through a small read-only Worker,
+**The dev box or production (`SITE_ENV`).** `SITE_ENV` says which machine a build or server is on: `development` on
+your computer (set it in `.env`; see `.env.example`), `production` everywhere else. On the dev box every button of the
+Test Results, Lighthouse Test Results, Pics Viewer and Category Maintenance tabs shows, even in the preview of a
+production build (`npm run preview`); in production every button inside those tabs is hidden. Writing to R2 (and the
+site's files) is allowed only on the dev box too: the dev server's photo, category and results services refuse any
+write unless `SITE_ENV` is `development` (403 `not-dev-box`), and so does the results API's removal route, whose deployed
+copy is `production` (`workers/results-api/wrangler.jsonc`; a local copy gets `development` from its `.dev.vars`). Left
+unset it is `development` under `npm run dev` and `production` for a build, so Cloudflare needs nothing set.
+`npm run deploy` always checks and builds with `SITE_ENV=production`, and a release build refuses `development`, so a
+deploy from your computer can't ship the dev box's buttons.
+
+The results bucket stays **private**. The page reads it through a small Worker (read-only, except for removing runs),
 `workers/results-api/` (deployed as `photography-site-results`; for the results it can only read
 under `results/`). The page asks for an **admin token**, keeps it only for that browser tab
 (`sessionStorage`; *Sign out* forgets it) and sends it in an `Authorization` header — never in an
 address. Reports and screenshots open through short-lived (15 minute) signed links the Worker hands
 out with each run, so nothing else needs the token; HTML reports are served sandboxed.
 
-**Remove Results** deletes runs you don't want to keep. Press it and every run in the list gets a checkbox, with a
+**Cleanup Test Results** deletes runs you don't want to keep. Press it and every run in the list gets a checkbox, with a
 bar above the list: how many are ticked, *Select all* / *Select none*, **Delete selected** and *Cancel*. Delete
 selected first asks, naming every chosen run (date, commit, totals and id), with *Keep them* under the keyboard and
 Escape backing out; nothing is deleted until you confirm. The runs come off `index.json` first, then `latest.json`
 moves to the newest run left (or goes, with the last one), then each run's files are deleted. A run whose files
 couldn't all be deleted is already off the list and is named in the message; removing it again is safe. The
-Lighthouse Test Results tab has the same button for its own runs. The results
-API stays read-only: the deleting is done by a local service in `npm run dev` (`/__results/status`,
-`POST /__results/remove` with `{"runs": ["<run id>", …]}`, at most 100; `scripts/lib/results-form.mjs`) that uses
-your Cloudflare login, answers only on localhost and only its own page. On the deployed site the button says it
-only works on your computer. `npm run results -- prune --keep N` still trims the oldest runs from the command line.
+Lighthouse Test Results tab has the same button for its own runs, called **Cleanup Lighthouse Test Results**. Both
+are for the dev box (see `SITE_ENV` above): the deleting is done by the dev server's local results service
+(`POST /__results/remove` and `/__results/lighthouse/remove` with `{"runs": ["<run id>", …]}`, at most 100;
+`scripts/lib/results-form.mjs`) with your Cloudflare login, answering only on localhost and only its own page. Without
+it (the preview, the live site) the button says it only works on your computer. The results API has the same removal
+(`POST /runs/remove`, `POST /lighthouse/runs/remove`), allowed only in a copy running on the dev box.
+`npm run results -- prune --keep N` still trims the oldest runs from the command line.
 
-**Run in CI** (after Remove Results) runs every Cucumber test in CI: lint, type-check, the offline suite and the
+**Run in CI** (after Cleanup Test Results) runs every Cucumber test in CI: lint, type-check, the offline suite and the
 browser suite, the same `test` job as a push (`.github/workflows/ci.yml`; the live smoke check is for pushes only). Before anything starts, a dialog asks which
 branch to run it on: the branches on GitHub (`git ls-remote --heads origin`, nothing fetched), with the branch this
 checkout is on chosen. A checkout branch that isn't on GitHub yet is still listed and chosen, but says it must be
@@ -998,7 +1011,7 @@ served sandboxed by the results API (`/lighthouse/...` routes); a Lighthouse lin
 the reverse. The results API needs no new setup: it already reads the test bucket, and `npm run results-api:deploy`
 publishes the new routes.
 
-**Remove Results** works here exactly as on the Test Results tab (checkboxes, the counting bar, a confirmation naming
+**Cleanup Lighthouse Test Results** works here exactly as on the Test Results tab (checkboxes, the counting bar, a confirmation naming
 every run; `POST /__results/lighthouse/remove`), and only touches `lighthouse-results/`. **Run in Production**
 measures the production site (`SITE.url`, never your dev server) with the Lighthouse suite, on demand, on GitHub
 Actions. It first asks which branch to run on: a dialog listing the branches on GitHub (`GET /__results/branches`),
@@ -1313,7 +1326,7 @@ width and height so the page can't jump while loading; the header logos are righ
 icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
 28 KB, styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
 page's client-side category switcher and every page's report of its own visit to the access log; the Admin pages,
-which carry six tabs of tools and are opened only by you, may have 65 KB of HTML, 58 KB of scripts and 28 KB of styles, with the
+which carry six tabs of tools and are opened only by you, may have 65 KB of HTML, 59 KB of scripts and 28 KB of styles, with the
 Lighthouse, GitHub Issues and Access Info tabs' code loaded only when they are opened). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 
@@ -1398,7 +1411,7 @@ scripts/
 ├── run-tests.mjs       # `npm run test:record`
 ├── results.mjs         # `npm run results:*`
 └── lib/                # cli, photos (workflow), exif, exif-format, r2-storage, build-env, smoke, results, results-cli, test-runner
-workers/results-api/    # read-only Worker serving the private results bucket to the Admin page
+workers/results-api/    # Worker serving the private results bucket to the Admin page (read-only but for removing runs)
 test-fixtures/          # tiny suites the results tests run for real
 features/               # Gherkin tests; features/browser/ = real-Chromium tests; support/ = helpers
 .github/workflows/      # ci.yml (tests + live smoke on push), smoke.yml (every 6 hours), lighthouse.yml (on demand)

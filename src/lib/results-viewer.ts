@@ -129,10 +129,11 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
     if (!panel.hidden) void render();
   }
 
-  /** The buttons above the list: Remove Results (only when there is something to remove), then Run in CI. */
+  /** The buttons above the list: Cleanup Test Results (always there; unavailable while there is nothing to remove), then Run in CI. */
   function toolbar(hasRuns: boolean) {
-    const remove = hasRuns ? el('button', { class: 'results-button', text: m('removal.button'), attrs: { type: 'button', 'data-action': 'remove-results' } }) : null;
-    remove?.addEventListener('click', () => void startRemoving());
+    const remove = el('button', { class: 'results-button', text: m('removal.cleanup'), attrs: { type: 'button', 'data-action': 'remove-results', ...(hasRuns ? {} : { title: m('removal.nothing') }) } });
+    remove.disabled = !hasRuns;
+    remove.addEventListener('click', () => void startRemoving());
     const run = el('button', { class: 'results-button', text: m(ciRunning ? 'ci.waiting' : 'ci.button'), attrs: { type: 'button', 'data-action': 'run-tests-ci' } });
     run.disabled = ciRunning;
     run.addEventListener('click', () => void runInCi());

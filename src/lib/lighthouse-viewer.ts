@@ -187,8 +187,10 @@ export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement
     const run = el('button', { class: 'results-button', text: m(measuring ? 'lighthouse.production.running' : 'lighthouse.production.button'), attrs: { type: 'button', 'data-action': 'run-lighthouse-production' } });
     run.disabled = measuring;
     run.addEventListener('click', () => void runInProduction());
-    const remove = hasRuns ? el('button', { class: 'results-button', text: m('removal.button'), attrs: { type: 'button', 'data-action': 'remove-results' } }) : null;
-    remove?.addEventListener('click', () => void startRemoving());
+    // Always there, so it can be found; unavailable while there is nothing to remove.
+    const remove = el('button', { class: 'results-button', text: m('removal.lighthouse'), attrs: { type: 'button', 'data-action': 'remove-results', ...(hasRuns ? {} : { title: m('removal.nothing') }) } });
+    remove.disabled = !hasRuns;
+    remove.addEventListener('click', () => void startRemoving());
     return el('div', { class: 'results-toolbar results-remove-toolbar' }, remove, run);
   }
 

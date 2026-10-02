@@ -26,12 +26,13 @@ const tabs = [
   { id: 'github-issues', label: t('admin.tabs.githubIssues') },
 ];
 
-// In production these four tabs only show what is there: every button inside them (Remove Results, Run in CI/Production,
-// the photo and category actions, Show more) is hidden. They stay under `astro dev`, where their local services
-// (/__photos, /__categories, /__results) exist, and in the tests' snapshot build, which drives them against those services.
-// Decided when the site is built, so the preview of a production build (`npm run preview`) hides them too.
+// SITE_ENV decides the Admin buttons (astro.config.mjs; scripts/lib/build-env.mjs siteEnv). On the dev box
+// (`development`: under `astro dev`, and any build on the owner's computer, the preview included) every button of the
+// Test Results, Lighthouse Test Results, Pics Viewer and Category Maintenance tabs shows: they write to R2 and the site's
+// files through the dev server's services, which only allow that on the dev box. In `production` every button inside
+// those tabs is hidden. The tests' snapshot build shows them too, to drive them against those services.
 const ADMIN_BUTTONS_TABS = new Set(['test-results', 'lighthouse-results', 'pics-viewer', 'category-maintenance']);
-const showAdminButtons = import.meta.env.DEV || import.meta.env.PHOTOS_SNAPSHOT;
+const showAdminButtons = __SITE_ENV__ === 'development' || import.meta.env.PHOTOS_SNAPSHOT;
 
 // The viewer's texts travel to the browser as data (an attribute, since the policy allows no inline scripts), in the page's language.
 const adminMessages = (locale === 'es' ? es : en).admin;

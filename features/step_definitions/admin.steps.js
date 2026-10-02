@@ -147,5 +147,6 @@ Then('the built styles should hide every button inside a tab marked to hide its 
   const dir = join(DIST_DIR, '_astro');
   const css = readdirSync(dir).filter((f) => f.endsWith('.css')).map((f) => readFileSync(join(dir, f), 'utf-8')).join('\n');
   const inline = readFileSync(join(DIST_DIR, 'admin/index.html'), 'utf-8');
-  assert.match(css + inline, /\[data-buttons-hidden\] button\s*\{\s*display:\s*none\s*!important/);
+  // The minifier may list both hiding rules' selectors together ("a,b{display:none!important}").
+  assert.match(css + inline, /\[data-buttons-hidden\] button\s*(?:,[^{]*)?\{\s*display:\s*none\s*!important/);
 });

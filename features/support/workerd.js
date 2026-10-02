@@ -21,7 +21,7 @@ const freePort = () =>
  * seeded from `seed` = { RESULTS: Map(key -> { body }), ORIGINALS: Map(key -> { body }) }.
  * Returns { base, stop }.
  */
-export async function startWorker({ token, origins, seed }) {
+export async function startWorker({ token, origins, seed, siteEnv }) {
   const config = join(ROOT, 'workers/results-api/wrangler.jsonc');
   const dir = mkdtempSync(join(tmpdir(), 'results-workerd-'));
   // The same local R2 simulation `wrangler dev` uses, filled with what the fakes hold.
@@ -30,7 +30,7 @@ export async function startWorker({ token, origins, seed }) {
   await proxy.dispose();
 
   const port = await freePort();
-  const args = ['dev', '-c', config, '--local', '--persist-to', dir, '--ip', '127.0.0.1', '--port', String(port), '--inspector-port', String(await freePort()), '--var', `ADMIN_TOKEN:${token}`, '--var', `ALLOWED_ORIGINS:${origins}`];
+  const args = ['dev', '-c', config, '--local', '--persist-to', dir, '--ip', '127.0.0.1', '--port', String(port), '--inspector-port', String(await freePort()), '--var', `ADMIN_TOKEN:${token}`, '--var', `ALLOWED_ORIGINS:${origins}`, ...(siteEnv ? ['--var', `SITE_ENV:${siteEnv}`] : [])];
   const child = spawn(process.execPath, [join(ROOT, 'node_modules/wrangler/bin/wrangler.js'), ...args], { stdio: 'ignore', env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' } });
   const base = `http://127.0.0.1:${port}`;
   const stop = () => {

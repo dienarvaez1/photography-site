@@ -1,7 +1,7 @@
 Feature: The results API serves the private test-results bucket safely
   As the site owner
   I want the Admin page to read test results from the private bucket through a small, locked-down API
-  So that the results stay private, nothing can be written, and only someone with the admin token can see them
+  So that the results stay private, only the admin token can see them, and the only change it allows is removing runs
 
   The API is a Cloudflare Worker (workers/results-api). These scenarios call its real request handler with runs
   published by the real results publisher into a fake bucket, so the stored format and the API agree.
@@ -176,6 +176,46 @@ Feature: The results API serves the private test-results bucket safely
     And I open the signed link for "offline.html" of the newest run
     Then the bucket should not have been asked for anything outside "results/"
 
+  # --- Remove Results: the API's only writes ----------------------------------------------------------------------------
+
+  Scenario: On the dev box, removing runs with the token takes them off the index, moves latest.json, and deletes their files
+    Given the results API runs on the dev box
+    When I ask the API to remove the runs of "ccccccc, aaaaaaa"
+    Then the API should say it removed the runs of "ccccccc, aaaaaaa"
+    And the stored index should list only the runs of "bbbbbbb", and latest.json the run of "bbbbbbb"
+    And the bucket should no longer hold any file of the runs of "ccccccc, aaaaaaa"
+    And every write should have been inside "results/"
+
+  Scenario: In production the API never writes: removing runs is refused, even with the token
+    Given the results API runs in production
+    When I ask the API to remove the runs of "aaaaaaa"
+    Then the response should be 403 with the error "not-dev-box"
+    And nothing in the bucket should have been written or deleted
+
+  Scenario: Without SITE_ENV the API counts as production and refuses to remove runs
+    When I ask the API to remove the runs of "aaaaaaa"
+    Then the response should be 403 with the error "not-dev-box"
+    And nothing in the bucket should have been written or deleted
+
+  Scenario Outline: Removing runs needs the token, and only well-formed run ids
+    Given the results API runs on the dev box
+    When <request>
+    Then the response should be <status> with the error "<error>"
+    And nothing in the bucket should have been written or deleted
+
+    Examples:
+      | request                                                     | status | error         |
+      | I ask the API to remove the runs of "aaaaaaa" without a token    | 401    | unauthorized  |
+      | I ask the API to remove the runs of "aaaaaaa" with the wrong token | 401  | unauthorized  |
+      | I ask the API to remove '{"runs":["../index.json"]}'        | 400    | bad-request   |
+      | I ask the API to remove '{"runs":[]}'                       | 400    | bad-request   |
+      | I ask the API to remove 'not json'                          | 400    | bad-request   |
+      | I ask the API to remove 101 made-up runs                    | 400    | bad-request   |
+
+  Scenario: The site may send the removal request across origins, with its token
+    When I send a preflight for removing runs from the origin "https://site.test"
+    Then the API should allow the site to POST JSON with the token
+
   Scenario Outline: The API is read-only
     When I send a "<method>" request to "/index" with the admin token
     Then the response should be 405 with the error "method-not-allowed"
@@ -255,7 +295,8 @@ Feature: The results API serves the private test-results bucket safely
     Then the Worker's configuration should bind the bucket "photography-site-test" as RESULTS
     And the Worker's configuration should allow exactly the origins listed in the site configuration
     And the Worker's configuration should contain no secret value
-    And the Worker's code should never write or delete anything in R2, and list only the originals
+    And the Worker's code should write or delete only to remove runs, and list only the originals
+    And the deployed Worker's configuration should say it runs in production
 
   # --- The real Workers runtime ------------------------------------------------------------------------------------------------------
 
@@ -288,3 +329,6 @@ Feature: The results API serves the private test-results bucket safely
     Then the response should be 405 with the error "method-not-allowed"
     When I call "/runs/2030-01-01T00-00-00Z-nothing-local" with the admin token
     Then the response should be 404 with the error "not-found"
+    When I ask the API to remove the runs of "ccccccc"
+    Then the API should say it removed the runs of "ccccccc"
+    And the API should no longer know the run of "ccccccc", and should list only the runs of "bbbbbbb, aaaaaaa"

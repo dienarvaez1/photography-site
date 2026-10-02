@@ -101,7 +101,7 @@ Feature: The site renders its photo pages from R2 when they are requested
     Then the site should answer 200
     And the Admin page should know these photos by title: "Half Moon, Orion Nebula, Comet, Rockfish, Quinceañera, Street Market"
 
-  Scenario Outline: In production the Admin page hides every button inside four of its tabs
+  Scenario Outline: In production (SITE_ENV=production) the Admin page hides every button inside four of its tabs
     When I request "<route>"
     Then the site should answer 200
     And the Admin page should hide the buttons inside exactly these tabs: "test-results, lighthouse-results, pics-viewer, category-maintenance"

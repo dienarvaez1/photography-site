@@ -3,14 +3,24 @@
 // the tab works only on the owner's computer. See photo-form-server.mjs for the identical reasoning — this is
 // its twin for categories.
 import { Readable } from 'node:stream';
+import { fileURLToPath } from 'node:url';
+import { NOT_DEV_BOX, loadEnv, writesAllowed } from './build-env.mjs';
 
 /** Connect-style middleware: hands the form's addresses to the handler and lets every other request through. */
 export async function categoryFormMiddleware(options) {
+  // Decided once, when the dev server starts: `allowWrites` (tests) or SITE_ENV from the environment or .env.
+  const allowWrites = options.allowWrites ?? writesAllowed(loadEnv(fileURLToPath(new URL('../..', import.meta.url))));
   const { createCategoryFormHandler, CATEGORY_FORM_PREFIX } = await import('./category-form.mjs');
   const handle = createCategoryFormHandler(options);
   return async (req, res, next) => {
     if (!req.url?.startsWith(CATEGORY_FORM_PREFIX)) return next();
     const method = req.method ?? 'GET';
+    // Reading is always fine; writing (R2, the site's files) only on the dev box (SITE_ENV; scripts/lib/build-env.mjs).
+    if (method !== 'GET' && method !== 'HEAD' && !allowWrites) {
+      res.statusCode = 403;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return void res.end(JSON.stringify(NOT_DEV_BOX));
+    }
     const request = new Request(`http://${req.headers.host}${req.url}`, {
       method,
       headers: req.headers,
