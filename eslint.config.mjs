@@ -42,6 +42,8 @@ export default defineConfig(
 
   js.configs.recommended,
   { rules: { 'no-unused-vars': ['error', unusedVarsOptions] } },
+  // The dev box or production, stamped in at build time by astro.config.mjs (vite.define; declared in src/env.d.ts).
+  { files: ['src/**/*.astro', 'src/**/*.ts'], languageOptions: { globals: { __SITE_ENV__: 'readonly' } } },
 
   {
     files: ['src/lib/**/*.ts'],

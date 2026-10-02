@@ -13,7 +13,7 @@
 	"compatibility_date": "2026-09-17",
 	"workers_dev": true,
 	"r2_buckets": [
-		// results/ (test runs) and lighthouse-results/ (Lighthouse runs); read only.
+		// results/ (test runs) and lighthouse-results/ (Lighthouse runs): read; runs removed only on the dev box (remove.mjs).
 		{ "binding": "RESULTS", "bucket_name": "photography-site-test" },
 		// The private originals, for the Pics Viewer (read only: sizes and metadata, never the photo itself).
 		{ "binding": "ORIGINALS", "bucket_name": "photography-site-originals" },
@@ -22,7 +22,10 @@
 	],
 	"vars": {
 		"ALLOWED_ORIGINS": "https://photography-site.diego-narvaez.workers.dev,https://diego-narvaez-photography.org,http://localhost:4321",
-		"GITHUB_REPO": "dienarvaez1/photography-site"
+		"GITHUB_REPO": "dienarvaez1/photography-site",
+		// Where this Worker runs: production never writes to R2 (removing runs needs SITE_ENV=development, which a local
+		// copy on the dev box gets from its .dev.vars, overriding this).
+		"SITE_ENV": "production"
 	},
 	"observability": { "enabled": true }
 }

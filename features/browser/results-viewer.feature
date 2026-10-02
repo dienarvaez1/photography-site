@@ -314,12 +314,12 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And no Content-Security-Policy violation should have been reported
     And nothing but the site and the results API should have been requested
 
-  # --- Remove Results: deleting runs on demand ----------------------------------------------------------------------------
+  # --- Cleanup Test Results: deleting runs on demand ----------------------------------------------------------------------------
 
-  Scenario: On the deployed site, Remove Results says it only works on your own computer, and deletes nothing
+  Scenario: Without the dev server's results service, Cleanup Test Results says it needs the dev box, and deletes nothing
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    And I press "Remove Results" in the Test Results tab
+    And I press "Cleanup Test Results" in the Test Results tab
     Then the Test Results tab should say "Removing test results only works on your own computer"
     And no run should have a checkbox
 
@@ -327,7 +327,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Given the local results service is running
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    And I press "Remove Results" in the Test Results tab
+    And I press "Cleanup Test Results" in the Test Results tab
     Then every run in the list should have a checkbox, none ticked
     And the removal bar should say "0 selected", with "Delete selected" unavailable
     When I tick the runs "bbbbbbb, aaaaaaa"
@@ -343,7 +343,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Given the local results service is running
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    And I press "Remove Results" in the Test Results tab
+    And I press "Cleanup Test Results" in the Test Results tab
     And I tick the runs "bbbbbbb, aaaaaaa"
     And I press "Delete selected" in the removal bar
     Then the removal bar should ask "Permanently delete these 2 test runs and all their reports? This cannot be undone."
@@ -360,7 +360,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Given the local results service is running
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    And I press "Remove Results" in the Test Results tab
+    And I press "Cleanup Test Results" in the Test Results tab
     And I tick the runs "bbbbbbb, aaaaaaa"
     And I press "Delete selected" in the removal bar
     And I press "Delete 2 runs" in the removal bar
@@ -374,7 +374,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Given the local results service is running
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    And I press "Remove Results" in the Test Results tab
+    And I press "Cleanup Test Results" in the Test Results tab
     And I tick the runs "ccccccc"
     And I press "Delete selected" in the removal bar
     And I press "Delete 1 run" in the removal bar
@@ -387,7 +387,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And deleting files of "bbbbbbb" fails in the results bucket
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    And I press "Remove Results" in the Test Results tab
+    And I press "Cleanup Test Results" in the Test Results tab
     And I tick the runs "bbbbbbb"
     And I press "Delete selected" in the removal bar
     And I press "Delete 1 run" in the removal bar
@@ -399,7 +399,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And the local results service is running
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    And I press "Remove Results" in the Test Results tab
+    And I press "Cleanup Test Results" in the Test Results tab
     And I tick the runs "bbbbbbb"
     Then the page should pass the automated accessibility audit
     And the page should not scroll sideways
@@ -415,7 +415,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Given the local results service is running
     When I open "/es/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    And I press "Eliminar resultados" in the Test Results tab
+    And I press "Limpiar resultados de pruebas" in the Test Results tab
     Then the removal bar should say "0 seleccionadas", with "Eliminar las seleccionadas" unavailable
 
   # --- Run in CI -------------------------------------------------------------------------------------------------------------
@@ -469,10 +469,10 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     When I press "Start CI run" in the branch dialog
     Then the CI run should have been started from the tab on the branch "main"
 
-  Scenario: Remove Results comes first above the list, then Run in CI
+  Scenario: Cleanup Test Results comes first above the list, then Run in CI
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    Then the Test Results tab's buttons above the list should be "Remove Results, Run in CI"
+    Then the Test Results tab's buttons above the list should be "Cleanup Test Results, Run in CI"
 
   Scenario: On the deployed site, Run in CI says it only works on your own computer
     When I open "/admin/#test-results"
@@ -530,12 +530,13 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Then the Test Results tab should say "The CI run could not be started: HTTP 422: Workflow does not have 'workflow_dispatch' trigger"
     And "Run in CI" should be available in the Test Results tab
 
-  Scenario: Run in CI is there even before the first test run, and passes the accessibility audit
+  Scenario: Both buttons are there even before the first test run (Cleanup unavailable until there is one), and pass the accessibility audit
     Given the results API holds the admin token "browser-test-admin-token" and no published runs
     And the local results service is running
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    Then the Test Results tab's buttons above the list should be "Run in CI"
+    Then the Test Results tab's buttons above the list should be "Cleanup Test Results, Run in CI"
+    And "Cleanup Test Results" should be unavailable in the Test Results tab
     And the page should pass the automated accessibility audit
     When I press "Run in CI" in the Test Results tab
     And I press "Start CI run" in the branch dialog

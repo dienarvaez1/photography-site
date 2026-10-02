@@ -198,7 +198,9 @@ async function serveResults(b, siteOrigin, request, route) {
   // Only the site's own origin may read the answers, exactly as in production.
   const env = { ...results.env, ALLOWED_ORIGINS: siteOrigin };
   // GitHub is a stand-in too (setUpGitHub); a scenario without one never reaches the real GitHub.
-  const answer = await handleResultsRequest(new Request(request.url(), { method: request.method(), headers: request.headers() }), env, Date.now(), results.github?.fetcher ?? noGitHub);
+  // Remove Results POSTs JSON: pass its body on, as the browser sent it.
+  const payload = request.method() === 'POST' ? request.postDataBuffer() : null;
+  const answer = await handleResultsRequest(new Request(request.url(), { method: request.method(), headers: request.headers(), ...(payload ? { body: payload } : {}) }), env, Date.now(), results.github?.fetcher ?? noGitHub);
   let body = Buffer.from(await answer.arrayBuffer());
   if (results.foreignLink && url.pathname.startsWith('/runs/') && answer.status === 200) {
     // A misbehaving API: one of the run's file links points at another site.

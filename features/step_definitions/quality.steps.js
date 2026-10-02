@@ -151,7 +151,7 @@ function referencedBytes(root, pattern, attribute, extraImports = false) {
   return total;
 }
 
-Then("no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 65 KB, their scripts 58 KB and their styles 28 KB", function () {
+Then("no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 65 KB, their scripts 59 KB and their styles 28 KB", function () {
   const problems = [];
   for (const { route, page } of this.data.pages) {
     const isAdmin = /\/admin\/$/.test(route);
@@ -192,7 +192,8 @@ Then("no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB
     if (kb(html) > (isAdmin ? 65 : 30)) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
     // The page's own sign-in (src/lib/admin-gate.ts: one token box, the tabs hidden until GET /auth accepts the token)
     // replaced the six tabs' own token forms, but the check itself is new: 57 KB.
-    if (kb(js) > (isAdmin ? 58 : 28)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
+    // Cleanup Test Results / Remove Results going through the results API (the shared request code's POST, admin-common.ts): 59 KB.
+    if (kb(js) > (isAdmin ? 59 : 28)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
     if (kb(css) > (isAdmin ? 28 : 25)) problems.push(`${route}: styles ${kb(css).toFixed(1)} KB`);
   }
   assert.deepEqual(problems, [], 'A page grew past its budget — check for an oversized script, style or inlined asset');

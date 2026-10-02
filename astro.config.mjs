@@ -7,6 +7,7 @@ import { existsSync, renameSync, rmdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PHOTO_ENTRIES_DIR } from './scripts/lib/entries-dir.mjs';
 import { buildInfo } from './scripts/lib/build-info.mjs';
+import { loadEnv, siteEnv } from './scripts/lib/build-env.mjs';
 import { photoForm } from './scripts/lib/photo-form-server.mjs';
 import { categoryForm } from './scripts/lib/category-form-server.mjs';
 import { resultsForm } from './scripts/lib/results-form-server.mjs';
@@ -55,6 +56,10 @@ const accessLogEndpoint = {
 // src/lib/photo-entries.ts). The real build leaves the pages that show photos to be rendered by the Worker
 // when they are requested, from the entries in R2, so a new photo needs no build and no deploy.
 const SNAPSHOT = process.env.PHOTOS_SNAPSHOT === '1';
+// The dev box or production (SITE_ENV, from the environment or .env; scripts/lib/build-env.mjs siteEnv). On the dev
+// box every Admin button shows, even in a production build of the site (the preview); in production, only the ones
+// that work there.
+const SITE_ENV = siteEnv(loadEnv(fileURLToPath(new URL('.', import.meta.url))), { dev: process.argv.includes('dev') });
 
 // Which code this build is (scripts/lib/build-info.mjs), read once here and stamped into the site as constants — every
 // page's footer shows it. Under `astro dev` it is read when the server starts.
@@ -116,6 +121,9 @@ export default defineConfig({
     cacheDir: process.argv.includes('dev') ? 'node_modules/.vite' : 'node_modules/.vite-build',
     define: {
       'import.meta.env.PHOTOS_SNAPSHOT': JSON.stringify(SNAPSHOT),
+      // Its own constant, not import.meta.env.SITE_ENV: Astro fills import.meta.env from .env by itself, which would
+      // override the value resolved here (a production build on the dev box must stay production when asked to be).
+      __SITE_ENV__: JSON.stringify(SITE_ENV),
       'import.meta.env.BUILD_LABEL': JSON.stringify(BUILD.label),
       'import.meta.env.BUILD_COMMIT': JSON.stringify(BUILD.commit),
       'import.meta.env.BUILD_TIME': JSON.stringify(BUILD.builtAt),

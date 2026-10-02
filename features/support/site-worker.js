@@ -22,7 +22,7 @@ let built = false;
 /** Builds the site the way `npm run deploy` does (no snapshot), once, into this run's own folder (lib.js PRODUCTION_BUILD_DIR). */
 export function buildProduction() {
   if (built) return;
-  execSync(`npx astro build --outDir "${PRODUCTION_DIR}"`, { cwd: ROOT, stdio: 'pipe', env: { ...process.env, PHOTOS_SNAPSHOT: '' } });
+  execSync(`npx astro build --outDir "${PRODUCTION_DIR}"`, { cwd: ROOT, stdio: 'pipe', env: { ...process.env, PHOTOS_SNAPSHOT: '', SITE_ENV: 'production' } });
   built = true;
 }
 

@@ -1,11 +1,19 @@
 #!/usr/bin/env node
 // Runs before `npm run build` (npm's "prebuild" hook) and before deploys. See lib/build-env.mjs.
 import { fileURLToPath } from 'node:url';
-import { checkBuildEnv, loadEnv } from './lib/build-env.mjs';
+import { checkBuildEnv, loadEnv, siteEnvProblems } from './lib/build-env.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const argv = process.argv.slice(2);
-const result = checkBuildEnv(loadEnv(root), argv);
+const env = loadEnv(root);
+const result = checkBuildEnv(env, argv);
+
+const envProblems = siteEnvProblems(env, argv);
+if (envProblems.length) {
+  console.error('✗ Refusing to build for release:\n');
+  for (const problem of envProblems) console.error(`  - ${problem}`);
+  process.exit(1);
+}
 
 if (!result.ok) {
   console.error('✗ Refusing to build: the contact forms would ship without their Web3Forms keys.\n');

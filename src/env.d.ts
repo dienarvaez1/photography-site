@@ -12,3 +12,7 @@ interface ImportMetaEnv {
   readonly BUILD_COMMIT: string | null;
   readonly BUILD_TIME: string;
 }
+
+/** The dev box (`development`: the owner's computer) or `production`; stamped in by astro.config.mjs from SITE_ENV
+ *  (scripts/lib/build-env.mjs siteEnv). Decides which Admin buttons show. */
+declare const __SITE_ENV__: 'development' | 'production';

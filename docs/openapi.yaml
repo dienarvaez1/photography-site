@@ -8,7 +8,7 @@ info:
 
     | API | Server | Who can call it |
     | --- | --- | --- |
-    | **Results API** | `photography-site-results` Worker | The Admin page, with the admin token. Read-only. |
+    | **Results API** | `photography-site-results` Worker | The Admin page, with the admin token. Read-only (removing runs only on the dev box). |
     | **Site API** | The site itself | Anyone. Read-only. |
     | **Photo service** | `astro dev` on the owner's computer | Only the Admin page, on localhost. |
     | **Category service** | `astro dev` on the owner's computer | Only the Admin page, on localhost. |
@@ -46,7 +46,9 @@ tags:
       Read-only API behind the Admin page's **Test Results**, **Pics Viewer** and **GitHub Issues** tabs
       (`workers/results-api/`, deployed as `photography-site-results`). It reads the private test-results bucket
       (`photography-site-test`, only under `results/`), the private originals bucket (`photography-site-originals`)
-      and the site's issues on GitHub, never writes, and refuses everything until its `ADMIN_TOKEN` secret (16+
+      and the site's issues on GitHub. Its only writes are `POST /runs/remove` and `POST /lighthouse/runs/remove`, which
+      delete recorded runs from the test bucket, and only in a copy running on the dev box (`SITE_ENV=development`);
+      the deployed API is `production` and refuses them. It refuses everything until its `ADMIN_TOKEN` secret (16+
       characters) is set.
   - name: Test results
     description: Recorded test runs (`npm run test:record`), newest first.
@@ -170,6 +172,60 @@ paths:
         '405': { $ref: '#/components/responses/MethodNotAllowed' }
         '503': { $ref: '#/components/responses/NotConfigured' }
 
+  /runs/remove:
+    post:
+      tags: [Results API, Test results]
+      operationId: removeRuns
+      summary: Remove recorded test runs
+      description: |
+        Only where the API's `SITE_ENV` is `development` (a copy on the dev box); the deployed API answers 403
+        `not-dev-box`. Takes the runs off the store's `index.json` (and moves
+        `latest.json` to the newest run left, or deletes it with the last), then deletes each run's files. Ids not in
+        the index are reported as `missing` and change nothing; a run whose files couldn't all be deleted is already off
+        the index and reported in `failed` (removing it again is safe). Can't be undone.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [runs]
+              properties:
+                runs:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { type: string, pattern: '^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$' }
+            example: { runs: [2026-10-02T05-19-56Z-32f5617-ci] }
+      responses:
+        '200':
+          description: What was removed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [removed, missing, failed]
+                properties:
+                  removed: { type: array, items: { type: string } }
+                  missing: { type: array, items: { type: string } }
+                  failed:
+                    type: array
+                    items:
+                      type: object
+                      required: [runId, error]
+                      properties:
+                        runId: { type: string }
+                        error: { type: string }
+              example: { removed: [2026-10-02T05-19-56Z-32f5617-ci], missing: [], failed: [] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: This API isn't running on the dev box (`error` is `not-dev-box`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: not-dev-box, message: Removing runs is only allowed on the dev box (SITE_ENV=development). }
+        '503': { $ref: '#/components/responses/NotConfigured' }
   /runs/{runId}:
     get:
       tags: [Results API, Test results]
@@ -367,6 +423,60 @@ paths:
         '405': { $ref: '#/components/responses/MethodNotAllowed' }
         '503': { $ref: '#/components/responses/NotConfigured' }
 
+  /lighthouse/runs/remove:
+    post:
+      tags: [Results API, Lighthouse results]
+      operationId: removeLighthouseRuns
+      summary: Remove recorded Lighthouse runs
+      description: |
+        Only where the API's `SITE_ENV` is `development` (a copy on the dev box); the deployed API answers 403
+        `not-dev-box`. Takes the runs off the store's `index.json` (and moves
+        `latest.json` to the newest run left, or deletes it with the last), then deletes each run's files. Ids not in
+        the index are reported as `missing` and change nothing; a run whose files couldn't all be deleted is already off
+        the index and reported in `failed` (removing it again is safe). Can't be undone.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [runs]
+              properties:
+                runs:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { type: string, pattern: '^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$' }
+            example: { runs: [2026-10-02T05-19-56Z-32f5617-ci] }
+      responses:
+        '200':
+          description: What was removed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [removed, missing, failed]
+                properties:
+                  removed: { type: array, items: { type: string } }
+                  missing: { type: array, items: { type: string } }
+                  failed:
+                    type: array
+                    items:
+                      type: object
+                      required: [runId, error]
+                      properties:
+                        runId: { type: string }
+                        error: { type: string }
+              example: { removed: [2026-10-02T05-19-56Z-32f5617-ci], missing: [], failed: [] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: This API isn't running on the dev box (`error` is `not-dev-box`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: not-dev-box, message: Removing runs is only allowed on the dev box (SITE_ENV=development). }
+        '503': { $ref: '#/components/responses/NotConfigured' }
   /lighthouse/runs/{runId}:
     get:
       tags: [Results API, Lighthouse results]
@@ -1080,11 +1190,11 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
           example: { error: misconfigured, message: The originals bucket is not bound to this Worker. }
     MethodNotAllowed:
-      description: The Results API only answers `GET` (and CORS preflight `OPTIONS`); `error` is `method-not-allowed`.
+      description: The Results API answers `GET` (and CORS preflight `OPTIONS`); its only `POST`s are the two removal routes. Anything else gets `method-not-allowed`.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
-          example: { error: method-not-allowed, message: 'Read-only API: use GET.' }
+          example: { error: method-not-allowed, message: 'Read-only API: use GET (only POST /runs/remove and /lighthouse/runs/remove write).' }
     NotFound:
       description: No such route (`error` is `not-found`).
       content:
@@ -1131,7 +1241,7 @@ components:
         error:
           type: string
           description: A stable code.
-          enum: [bad-request, unauthorized, forbidden, expired, not-found, method-not-allowed, not-configured, misconfigured, not-local, not-jpeg, unreadable, too-large, duplicate, in-use, failed]
+          enum: [bad-request, unauthorized, forbidden, expired, not-found, method-not-allowed, not-configured, misconfigured, not-local, not-dev-box, not-jpeg, unreadable, too-large, duplicate, in-use, failed]
         message: { type: string, description: A sentence for people. }
 
     Health:

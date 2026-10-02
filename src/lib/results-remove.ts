@@ -2,9 +2,8 @@
 // bar above it (how many are chosen, select all / none, Delete selected, Cancel), then a confirmation that names every
 // run before anything is deleted. Also the Lighthouse tab's Run in Production and the Test Results tab's Run in CI, which
 // each ask for a branch and start a GitHub workflow there.
-// All are done by the local results
-// service (scripts/lib/results-form.mjs), which exists only in `astro dev`: the results API the tabs read from is
-// read-only.
+// All are done by the dev server's local results service (scripts/lib/results-form.mjs), which exists only in
+// `astro dev` on the dev box (SITE_ENV=development): writing to R2 is allowed only there.
 // Loaded when one of those buttons is first pressed. Built like the Pics Viewer's Remove Photos bar (photo-remove.ts),
 // with its styles. Every answer is put on the page as text.
 import { el, type Notice, type Reader } from './admin-common';
@@ -34,7 +33,6 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-const post = <T,>(path: string, body: unknown) => call<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 /** Is the local results service there? (Only while the site runs on the owner's computer.) */
 export async function resultsServiceAvailable(): Promise<boolean> {
@@ -46,7 +44,10 @@ export async function resultsServiceAvailable(): Promise<boolean> {
   }
 }
 
-const removeRuns = (store: Store, runIds: string[]) => post<RemovedRuns>(store === 'lighthouse' ? '/lighthouse/remove' : '/remove', { runs: runIds });
+
+/** Deletes these runs through the local results service (POST /__results/remove or /__results/lighthouse/remove). */
+const removeRunsLocally = (store: Store, runIds: string[]) =>
+  call<RemovedRuns>(store === 'lighthouse' ? '/lighthouse/remove' : '/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runs: runIds }) });
 
 /** Why a request to the service failed, in words: its own message, or that it isn't answering. */
 const reason = (m: Reader, error: Error) => (error.message === 'unavailable' || error.message === 'unreachable' ? m('removal.unreachable') : error.message);
@@ -263,7 +264,13 @@ export interface RunRemoval {
  * `done` gets what to say after a removal and reads the list again. Returns null (with the reason) when the local
  * service isn't there, as on the deployed site.
  */
-export async function startRunRemoval(options: { m: Reader; store: Store; root: HTMLElement; redraw: () => void; done: (notice: Notice) => void }): Promise<RunRemoval | Notice> {
+export async function startRunRemoval(options: {
+  m: Reader;
+  store: Store;
+  root: HTMLElement;
+  redraw: () => void;
+  done: (notice: Notice) => void;
+}): Promise<RunRemoval | Notice> {
   const { m, store, root, redraw, done } = options;
   if (!(await resultsServiceAvailable())) return { text: m('removal.onlyLocal'), alert: false };
 
@@ -348,7 +355,7 @@ export async function startRunRemoval(options: { m: Reader; store: Store; root: 
     element.replaceChildren(el('p', { class: 'pics-remove-count', text: plural('deleting', runIds.length), attrs: { role: 'status' } }));
     let notice: Notice;
     try {
-      const outcome = await removeRuns(store, runIds);
+      const outcome = await removeRunsLocally(store, runIds);
       const parts = [outcome.removed.length ? plural('done', outcome.removed.length) : ''];
       if (outcome.missing.length) parts.push(t('missing', { runs: outcome.missing.join(', ') }));
       for (const f of outcome.failed) parts.push(t('failed', { id: f.runId, message: f.error }));

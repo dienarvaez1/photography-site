@@ -53,6 +53,48 @@ Feature: A deploy cannot silently break the site
     And the "deploy:unchecked" script should exist as an explicit way around the checks
     And the "smoke" and "test:browser" scripts should exist
 
+  # --- The dev box or production (SITE_ENV) ------------------------------------------------------------------
+
+  Scenario Outline: SITE_ENV says whether this is the dev box or production
+    Then with SITE_ENV "<value>" <where> the site should count as "<result>"
+
+    Examples:
+      | value       | where                 | result      |
+      | development | in a build            | development |
+      | production  | under the dev server  | production  |
+      |             | under the dev server  | development |
+      |             | in a build            | production  |
+      | staging     | in a build            | production  |
+
+  Scenario Outline: A release build refuses the dev box's setting; anything else builds
+    Given a copy of the build guard in a folder with both keys
+    When the build guard runs with environment "<environment>" and arguments "<arguments>"
+    Then the build guard should <outcome>
+
+    Examples:
+      | environment                    | arguments | outcome                                   |
+      | SITE_ENV=development           | --require | refuse, naming SITE_ENV and npm run deploy |
+      | WORKERS_CI=1;SITE_ENV=development |        | refuse, naming SITE_ENV and npm run deploy |
+      | SITE_ENV=production            | --require | pass and confirm the keys                 |
+      | SITE_ENV=development           |           | pass without complaint                    |
+
+  Scenario Outline: The dev server's <service> refuses to write unless this is the dev box, and still answers reads
+    Then the <service> should answer a POST with 403 "not-dev-box" when SITE_ENV is "production", and leave GETs alone
+    And the <service> should let a POST through when SITE_ENV is "development"
+    And without SITE_ENV the <service> should let a POST through, since it only runs under the dev server
+
+    Examples:
+      | service          |
+      | photo service    |
+      | category service |
+      | results service  |
+
+  Scenario: Deploying always builds for production, and the Admin page decides its buttons from SITE_ENV
+    Then the "predeploy" and "deploy" scripts should check and build with SITE_ENV=production
+    And the site configuration should hand SITE_ENV to the pages, read from the environment or .env
+    And the Admin page should show every button when SITE_ENV is "development" or in the tests' build
+    And .env.example should explain SITE_ENV
+
   Scenario: The Cloudflare build variables are documented where the guard sends people
     Then the README should name both build variables and the Cloudflare settings page they go in
 

@@ -1,4 +1,6 @@
-// Read-only API over the private test-results bucket (results/ in photography-site-test).
+// API over the private test-results bucket (results/ in photography-site-test): read-only, except that recorded runs may
+// be removed (with the admin token, the runs' own files only; remove.mjs) — and only where SITE_ENV is `development` (a
+// copy run on the dev box). The deployed Worker is `production` (wrangler.jsonc), so it never writes.
 //
 //   GET /health                         is the API up, and is its secret set?   (public)
 //   GET /auth                           is this the admin token? {"ok":true}; the Admin page's sign-in (token)
@@ -15,6 +17,8 @@
 //   GET /github/issues?state=open|closed|all       the site's GitHub issues, newest-updated first (token)
 //   GET /access                         the days with an access log, newest first (photography-site-access) (token)
 //   GET /access/<day>                   one day's visits and photos opened, e.g. /access/2026-10-01T00:00:00.000Z (token)
+//   POST /runs/remove                   JSON { runs: [<run id>, …] }: removes those test runs → { removed, missing, failed } (token)
+//   POST /lighthouse/runs/remove        the same for Lighthouse runs (token)
 //
 // "token" = `Authorization: Bearer <ADMIN_TOKEN>`. Files are opened by links the run endpoint signs
 // (HMAC of the path and an expiry, keyed by the token), so a link can be opened in a new tab or an <img>
@@ -23,6 +27,7 @@
 import { isDay, listDays, readAccessDay } from './access.mjs';
 import { GitHubError, ISSUE_STATES, listIssues } from './issues.mjs';
 import { PHOTO_ID, describeOriginal, listOriginals } from './pics.mjs';
+import { MAX_REMOVALS, removeStoredRuns } from './remove.mjs';
 
 /**
  * The two run stores in the test bucket, read the same way: an index, a latest summary, runs with files. A signature is
@@ -70,7 +75,7 @@ const allowedOrigins = (env) => String(env.ALLOWED_ORIGINS ?? '').split(',').map
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin');
   return origin && allowedOrigins(env).includes(origin)
-    ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin', 'Access-Control-Allow-Headers': 'Authorization', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Max-Age': '600' }
+    ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Max-Age': '600' }
     : { Vary: 'Origin' };
 }
 
@@ -185,6 +190,28 @@ async function issuesRoute(request, env, fetcher) {
   }
 }
 
+/** The removal addresses, and the store each removes from. */
+const REMOVAL_ROUTES = { '/runs/remove': STORES.results, '/lighthouse/runs/remove': STORES.lighthouse };
+
+/** POST …/remove: the token, then a JSON list of well-formed run ids (at most MAX_REMOVALS), then removeStoredRuns. */
+async function removalRoute(request, env, store) {
+  const denied = await authorize(request, env);
+  if (denied) return denied;
+  // Writing to R2 is for the dev box only (SITE_ENV=development, e.g. in a local copy's .dev.vars).
+  if (env.SITE_ENV !== 'development') return fail(request, env, 403, 'not-dev-box', 'Removing runs is only allowed on the dev box (SITE_ENV=development).');
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return fail(request, env, 400, 'bad-request', 'Send JSON: { "runs": ["<run id>", …] }.');
+  }
+  const runs = body?.runs;
+  if (!Array.isArray(runs) || !runs.length) return fail(request, env, 400, 'bad-request', 'Name at least one run.');
+  if (runs.length > MAX_REMOVALS) return fail(request, env, 400, 'bad-request', `At most ${MAX_REMOVALS} runs can be removed at once.`);
+  if (!runs.every((id) => typeof id === 'string' && RUN_ID.test(id))) return fail(request, env, 400, 'bad-request', 'That is not a run id.');
+  return json(request, env, 200, await removeStoredRuns(env.RESULTS, store.prefix, [...new Set(runs)]));
+}
+
 /** The whole API. `now` is injectable so tests can check link expiry, and `fetcher` so they can stand in for GitHub. */
 export async function handle(request, env, now = Date.now(), fetcher = fetch) {
   const url = new URL(request.url);
@@ -192,7 +219,10 @@ export async function handle(request, env, now = Date.now(), fetcher = fetch) {
     const cors = corsHeaders(request, env);
     return cors['Access-Control-Allow-Origin'] ? new Response(null, { status: 204, headers: cors }) : new Response(null, { status: 403 });
   }
-  if (request.method !== 'GET') return fail(request, env, 405, 'method-not-allowed', 'Read-only API: use GET.');
+  // The only writes: removing recorded runs (Remove Results). Anything else that isn't a GET is refused.
+  const removal = request.method === 'POST' && REMOVAL_ROUTES[url.pathname];
+  if (removal) return removalRoute(request, env, removal);
+  if (request.method !== 'GET') return fail(request, env, 405, 'method-not-allowed', 'Read-only API: use GET (only POST /runs/remove and /lighthouse/runs/remove write).');
 
   const parts = url.pathname.split('/').filter(Boolean).map(decode);
   const [route, runId, ...rest] = parts;
