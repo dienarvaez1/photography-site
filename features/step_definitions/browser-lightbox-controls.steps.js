@@ -51,6 +51,7 @@ async function eventually(check, describe, timeout = 2000) {
 
 Then(/^the control box should sit (in the screen's bottom-right corner|centered along the bottom of the screen), stacked one box-height above the bottom margin$/, async function (where) {
   const viewport = page(this).viewportSize();
+  await page(this).locator(BOX).waitFor({ state: 'visible', timeout: 8000 });
   const box = await boxOf(this, BOX);
   // Its bottom edge is where the top of a box sitting at the very bottom (16px up) would be.
   const up = viewport.height - (box.y + box.height);

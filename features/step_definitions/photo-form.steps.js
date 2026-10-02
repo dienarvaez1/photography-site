@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { parse } from 'node-html-parser';
 import { config, lib, sourcePath, state } from '../support/photo-helpers.js';
-import { DIST_DIR, ROOT } from '../support/lib.js';
+import { DIST_DIR, ROOT, SNAPSHOT_BUILD_DIR } from '../support/lib.js';
 
 const form = await import(join(ROOT, 'scripts/lib/photo-form.mjs'));
 const formServer = await import(join(ROOT, 'scripts/lib/photo-form-server.mjs'));
@@ -197,7 +197,7 @@ function builtFiles() {
       else if (/\.(html|js|mjs|css|json|txt|xml)$/.test(entry.name)) files.push(join(dir, entry.name));
     }
   };
-  walk(join(ROOT, 'dist'));
+  walk(SNAPSHOT_BUILD_DIR);
   return files;
 }
 

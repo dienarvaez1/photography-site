@@ -12,6 +12,16 @@ Feature: The photo lightbox works with mouse, keyboard and screen readers
     And keyboard focus should be on the lightbox close button
     And the page behind the lightbox should not scroll
 
+  Scenario: A photo tapped while the page is still loading opens, and its buttons work once, after it has loaded
+    Given every image takes 3000 ms to arrive
+    When I open "/work/nature/" without waiting for it to finish loading
+    And I click photo number 1
+    Then the lightbox should be open showing photo number 1 of the page
+    When the page finishes loading
+    And I click the lightbox "next" button
+    Then the lightbox should be open showing photo number 2 of the page
+    And the browser history should have grown by 1 entry since the page opened
+
   Scenario: Escape closes the lightbox and returns focus to the photo that opened it
     When I open "/work/nature/"
     And I click photo number 3

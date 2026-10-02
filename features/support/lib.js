@@ -1,5 +1,5 @@
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { join, dirname, relative } from 'node:path';
+import { join, dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import matter from 'gray-matter';
 import { parse } from 'node-html-parser';
@@ -8,7 +8,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const ROOT = join(__dirname, '..', '..');
 // The sample library the tests build the site from (`PHOTOS_SNAPSHOT=1`); the site's real entries live in R2.
 export const CONTENT_DIR = join(ROOT, 'test-fixtures/photos');
-export const DIST_DIR = join(ROOT, 'dist/client');
+// Each test run builds the site into its own folder (one per process, under .test-builds/), never into the shared dist/:
+// two runs at once — an offline run started while the browser suite is serving pages — would otherwise rebuild the same
+// folder under each other, and pages, scripts and styles would go missing mid-scenario (issue #11). TEST_BUILD_DIR
+// names the folder instead. hooks.js builds it and removes it at the end.
+export const TEST_BUILDS_DIR = join(ROOT, '.test-builds');
+export const BUILD_DIR = process.env.TEST_BUILD_DIR ? resolve(ROOT, process.env.TEST_BUILD_DIR) : join(TEST_BUILDS_DIR, `run-${process.pid}`);
+/** The snapshot build (every page static, from the sample library): what most scenarios test. */
+export const SNAPSHOT_BUILD_DIR = join(BUILD_DIR, 'snapshot');
+export const DIST_DIR = join(SNAPSHOT_BUILD_DIR, 'client');
+/** The production build (pages rendered by the Worker), built only by the scenarios that need it (site-worker.js). */
+export const PRODUCTION_BUILD_DIR = join(BUILD_DIR, 'production');
 
 const ALLOWED_FRONTMATTER_FIELDS = new Set([
   'title',
@@ -120,7 +130,7 @@ export function localizedRoute(route, locale, defaultLocale = 'en') {
   return locale === defaultLocale ? route : `/${locale}${route}`;
 }
 
-/** Read a built static page from dist/client and parse it as HTML. Throws with a clear message if the site hasn't been built. */
+/** Read a built static page from this run's snapshot build (DIST_DIR) and parse it as HTML. Throws with a clear message if the site hasn't been built. */
 export function readBuiltPage(routePath) {
   const normalized = routePath.endsWith('.html')
     ? routePath // e.g. /404.html
@@ -128,7 +138,7 @@ export function readBuiltPage(routePath) {
   const filePath = join(DIST_DIR, normalized);
   if (!existsSync(filePath)) {
     throw new Error(
-      `Built page not found: ${filePath}. Run "npm run build" before the test suite (the BeforeAll hook should have done this).`
+      `Built page not found: ${filePath}. The BeforeAll hook (features/support/hooks.js) builds it for each run: did the build fail?`
     );
   }
   const html = readFileSync(filePath, 'utf-8');

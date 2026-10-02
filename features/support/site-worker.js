@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getPlatformProxy } from 'wrangler';
-import { ROOT } from './lib.js';
+import { PRODUCTION_BUILD_DIR, ROOT } from './lib.js';
 
 const freePort = () =>
   new Promise((resolve, reject) => {
@@ -16,13 +16,13 @@ const freePort = () =>
     });
   });
 
-const PRODUCTION_DIR = join(ROOT, 'dist-prod');
+const PRODUCTION_DIR = PRODUCTION_BUILD_DIR;
 let built = false;
 
-/** Builds the site the way `npm run deploy` does (no snapshot), once, into dist-prod/. */
+/** Builds the site the way `npm run deploy` does (no snapshot), once, into this run's own folder (lib.js PRODUCTION_BUILD_DIR). */
 export function buildProduction() {
   if (built) return;
-  execSync('npx astro build --outDir dist-prod', { cwd: ROOT, stdio: 'pipe', env: { ...process.env, PHOTOS_SNAPSHOT: '' } });
+  execSync(`npx astro build --outDir "${PRODUCTION_DIR}"`, { cwd: ROOT, stdio: 'pipe', env: { ...process.env, PHOTOS_SNAPSHOT: '' } });
   built = true;
 }
 

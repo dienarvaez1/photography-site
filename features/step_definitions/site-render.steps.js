@@ -5,7 +5,7 @@ import { request as httpRequest } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'node-html-parser';
-import { ROOT } from '../support/lib.js';
+import { PRODUCTION_BUILD_DIR, ROOT } from '../support/lib.js';
 import { buildProduction, startSite } from '../support/site-worker.js';
 
 const { MANIFEST_KEY, buildManifest } = await import(join(ROOT, 'src/config/photo-manifest.ts'));
@@ -13,7 +13,7 @@ const { PHOTOS_BASE_URL, photoVariant } = await import(join(ROOT, 'src/config/ph
 const { CATEGORIES } = await import(join(ROOT, 'src/config/categories.ts'));
 const { SITE } = await import(join(ROOT, 'src/config/site.ts'));
 const { headersFor, parseHeadersFile } = await import(join(ROOT, 'src/lib/headers-file.ts'));
-const PROD = join(ROOT, 'dist-prod/client');
+const PROD = join(PRODUCTION_BUILD_DIR, 'client');
 const ACCESS = await import(join(ROOT, 'src/config/access-log.ts'));
 
 // One site (one workerd) for the whole run: each scenario puts the entries it needs into the bucket.
@@ -197,8 +197,8 @@ Then('the production build should hold no static page for the home page, the cat
 });
 
 Then('the production build should hold a Worker that renders them', function () {
-  assert.ok(existsSync(join(ROOT, 'dist-prod/server/entry.mjs')));
-  assert.match(readFileSync(join(ROOT, 'dist-prod/server/wrangler.json'), 'utf-8'), /"binding":"WEB"/);
+  assert.ok(existsSync(join(PRODUCTION_BUILD_DIR, 'server/entry.mjs')));
+  assert.match(readFileSync(join(PRODUCTION_BUILD_DIR, 'server/wrangler.json'), 'utf-8'), /"binding":"WEB"/);
 });
 
 Then("the production build's sitemap should list the home page and every category's page in both languages", function () {

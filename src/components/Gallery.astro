@@ -967,8 +967,18 @@ const defaultCategoryLabel = defaultCategorySlug ? (categoryLabels[defaultCatego
   // per tab, never fires a second time) is harmless.
   initPlaceholders(document);
 
+  // The tiles and the lightbox are wired right away too. Waiting for astro:page-load (which on a first visit follows
+  // the native `load` event) left a gap where the photos were on screen but a tap on one did nothing: on a slow phone,
+  // or a busy test run, the click landed before the handlers did. The lightbox wired here is remembered, so that first
+  // astro:page-load, for this same page, doesn't wire it a second time (that would stack every button's handler);
+  // every later one is a client-routed navigation to a fresh page, wired as before.
+  initGallery(document);
+  let wiredEarly: HTMLElement | null = document.getElementById('lightbox');
+
   document.addEventListener('astro:page-load', () => {
-    initGallery(document);
+    const sameLightbox = wiredEarly !== null && document.getElementById('lightbox') === wiredEarly;
+    wiredEarly = null;
+    if (!sameLightbox) initGallery(document);
     initPlaceholders(document);
   });
 
