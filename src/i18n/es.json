@@ -295,7 +295,6 @@
         "ended": "La ejecución de CI terminó: {conclusion}.",
         "lost": "El servidor de desarrollo se reinició y perdió la ejecución de CI; puede seguir en GitHub.",
         "failed": "No se pudo iniciar la ejecución de CI: {message}",
-        "onlyLocal": "Iniciar una ejecución de CI solo funciona en tu ordenador, con npm run dev (usa tu sesión de GitHub, gh).",
         "unreachable": "El servicio local de resultados dejó de responder; la ejecución puede seguir en GitHub.",
         "notFound": "GitHub nunca mostró la ejecución de CI; no hay resultado que esperar. Revisa Actions → CI en GitHub.",
         "dialog": {
@@ -397,7 +396,6 @@
         "unreachable": "El servicio local de resultados dejó de responder, así que ya no se sigue aquí la ejecución de Lighthouse; puede que siga en marcha en GitHub. ¿Sigue en marcha npm run dev?",
         "notFound": "GitHub nunca mostró la ejecución de Lighthouse que se inició, así que no hay resultado que esperar. Revisa Actions → Lighthouse en GitHub.",
         "failed": "No se pudo iniciar la ejecución de Lighthouse: {message}",
-        "onlyLocal": "Ejecutar Lighthouse en producción solo funciona en tu ordenador, con npm run dev (usa tu sesión de GitHub, gh).",
         "branchesFailed": "No se pudieron listar las ramas de GitHub: {message}",
         "dialog": {
           "title": "Medir producción con Lighthouse",

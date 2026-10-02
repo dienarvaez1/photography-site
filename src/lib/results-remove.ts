@@ -34,17 +34,6 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 
-/** Is the local results service there? (Only while the site runs on the owner's computer.) */
-export async function resultsServiceAvailable(): Promise<boolean> {
-  try {
-    await call('/status');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-
 /** Deletes these runs through the local results service (POST /__results/remove or /__results/lighthouse/remove). */
 const removeRunsLocally = (store: Store, runIds: string[]) =>
   call<RemovedRuns>(store === 'lighthouse' ? '/lighthouse/remove' : '/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runs: runIds }) });
@@ -65,7 +54,7 @@ export const CONFIRM_POLL_MS = 2000;
 export const CONFIRM_TIMEOUT_MS = 2 * 60 * 1000;
 
 /**
- * The two workflows a tab can start. `keys` is where its texts are (onlyLocal, failed, open, lost, unreachable,
+ * The two workflows a tab can start. `keys` is where its texts are (failed, open, lost, unreachable,
  * notFound, branchesFailed, dialog.*); `path` its service addresses (POST/GET `<path>/run`); `prefer` the branch the
  * dialog has chosen when it opens: this checkout's (Run in CI) or main (Run in Production).
  */
@@ -181,10 +170,14 @@ export async function runWorkflowAndFollow<R extends WorkflowRun>(
   kind: WorkflowKind,
   describe: (run: R) => Notice,
   update: (notice: Notice) => void,
-  onStart: () => void
+  onStart: () => void,
+  /** The page's SITE_ENV (data-site-env): starting runs is the dev box's alone, so anywhere else nothing starts. */
+  siteEnv: string
 ): Promise<{ run: R | null; notice: Notice | null; started: boolean }> {
   const t = (key: string) => m(`${kind.keys}.${key}`);
-  if (!(await resultsServiceAvailable())) return { run: null, notice: { text: t('onlyLocal'), alert: false }, started: false };
+  // SITE_ENV decides, not a probe of the dev server: on the dev box the branch dialog opens straight away (if the dev
+  // server isn't reachable, listing the branches says so); anywhere else, where the button is hidden, nothing starts.
+  if (siteEnv !== 'development') return { run: null, notice: null, started: false };
   const chosen = await chooseBranch(m, kind);
   if (chosen === null) return { run: null, notice: null, started: false }; // cancelled: nothing started, nothing to say
   if (typeof chosen !== 'string') return { run: null, notice: chosen, started: false };
@@ -218,8 +211,8 @@ function localRunNotice(m: Reader, run: CiRun): Notice {
 }
 
 /** Run in CI from start to end (see runWorkflowAndFollow), resolving to what to say at the end and whether a run was started. */
-export async function runCiAndFollow(m: Reader, update: (notice: Notice) => void, onStart: () => void): Promise<{ notice: Notice | null; started: boolean }> {
-  const ended = await runWorkflowAndFollow<CiRun>(m, CI_KIND, (run) => ciRunNotice(m, run), update, onStart);
+export async function runCiAndFollow(m: Reader, update: (notice: Notice) => void, onStart: () => void, siteEnv: string): Promise<{ notice: Notice | null; started: boolean }> {
+  const ended = await runWorkflowAndFollow<CiRun>(m, CI_KIND, (run) => ciRunNotice(m, run), update, onStart, siteEnv);
   return { notice: ended.notice ?? (ended.run ? ciRunNotice(m, ended.run) : null), started: ended.started };
 }
 

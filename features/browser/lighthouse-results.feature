@@ -113,7 +113,7 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
 
   # --- Remove Results and Run in Production --------------------------------------------------------------------------------
 
-  Scenario: On the dev box Cleanup Lighthouse Test Results opens straight away; without the dev server's service, Run in Production says it needs it
+  Scenario: On the dev box both buttons go straight on (SITE_ENV decides); without the dev server's service, Run in Production says why
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
     And I press "Cleanup Lighthouse Test Results" in the Lighthouse Test Results tab
@@ -121,7 +121,8 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     And the Lighthouse Test Results tab should not say "only works on your own computer"
     When I press "Cancel" in the removal bar
     And I press "Run in Production" in the Lighthouse Test Results tab
-    Then the Lighthouse Test Results tab should say "Running Lighthouse against production only works on your own computer"
+    Then the Lighthouse Test Results tab should say "The branches on GitHub could not be listed: the local results service did not answer"
+    And the Lighthouse Test Results tab should not say "only works on your own computer"
     And "Run in Production" should be available in the Lighthouse Test Results tab
     And Lighthouse should have measured the production site 0 times
 
