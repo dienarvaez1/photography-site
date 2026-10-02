@@ -94,6 +94,10 @@ Before({ tags: '@browser' }, function () {
     // Remove Results' local service — the same again.
     resultsService: null,
     traceRequests: 0,
+    // When each request for the visitor's location (/cdn-cgi/trace) arrived here, and requests that failed in the
+    // browser: what a failed language-redirect scenario reports, to say why (issue #12).
+    traceTimes: [],
+    failedRequests: [],
     // What the pages reported to the access log (POST /api/access), in order, as sent: { page, event, photo? }.
     accessReports: [],
     photoRequests: [],
@@ -312,6 +316,7 @@ export async function open(world) {
     if (url.origin === site.url) {
       if (url.pathname === '/cdn-cgi/trace') {
         b.traceRequests += 1;
+        b.traceTimes.push(Date.now());
         if (b.trace === 'unreachable') return route.abort('connectionrefused');
         if (b.trace === 'timeout') return; // never answers: the page's own timeout must handle it
         if (b.trace === 'not-found') return route.fulfill({ status: 404, body: '' });
@@ -404,6 +409,7 @@ export async function open(world) {
     }
   });
   page.on('pageerror', (error) => b.consoleErrors.push(`pageerror: ${error.message}`));
+  page.on('requestfailed', (request) => b.failedRequests.push(`${request.url()} (${request.failure()?.errorText ?? 'failed'})`));
   world.b.context = context;
   world.b.page = page;
 

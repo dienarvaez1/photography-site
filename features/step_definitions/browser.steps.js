@@ -18,6 +18,7 @@ const messages = async (world) => loadMessages(await htmlLang(world));
 
 async function goto(world, path, waitUntil = 'load') {
   const p = await open(world);
+  world.b.openedAt = Date.now();
   const response = await p.goto(`${world.b.siteOrigin}${path}`, { waitUntil });
   world.b.lastResponse = response;
   return p;
@@ -85,6 +86,22 @@ Given('every image takes {int} ms to arrive', function (ms) {
 
 When('I open {string}', async function (path) {
   await goto(this, path);
+});
+
+// Returns as soon as the page's HTML is parsed, before images or the `load` event: a visitor who taps straight away.
+When('I open {string} without waiting for it to finish loading', async function (path) {
+  const p = await goto(this, path, 'domcontentloaded');
+  this.b.historyAtOpen = await p.evaluate(() => history.length);
+});
+
+// Opening a photo adds one history entry and "next" replaces it: wiring the gallery twice would add two.
+Then('the browser history should have grown by {int} entry/entries since the page opened', async function (n) {
+  assert.equal((await page(this).evaluate(() => history.length)) - this.b.historyAtOpen, n);
+});
+
+When('the page finishes loading', async function () {
+  await page(this).waitForLoadState('load', { timeout: 20_000 });
+  await settle(500); // astro:page-load follows the native load event
 });
 
 When('I open {string} and wait for everything to load', async function (path) {
@@ -590,7 +607,23 @@ Then('the current language {string} should be marked, and {string} should be a l
 });
 
 Then('the visitor should end up on {string}', async function (path) {
-  await page(this).waitForFunction((p) => location.pathname === p, path, { timeout: 8000 });
+  try {
+    await page(this).waitForFunction((p) => location.pathname === p, path, { timeout: 8000 });
+  } catch (error) {
+    // Say what the page did instead, so a failure explains itself (issue #12: it once timed out, and passed on rerun).
+    const b = this.b;
+    const facts = await page(this)
+      .evaluate(() => ({ stored: (() => { try { return localStorage.getItem('preferred-locale'); } catch { return 'unreadable'; } })(), referrer: document.referrer, scripts: [...document.scripts].length }))
+      .catch((e) => ({ unreadable: e.message }));
+    throw new Error([
+      `The visitor never reached ${path} (${error.message.split('\n')[0]}).`,
+      `Now on: ${page(this).url()}`,
+      `Location asked of Cloudflare: ${b.traceRequests} time(s), answered as "${b.trace}"${b.traceTimes.length ? `, first ${b.traceTimes[0] - b.openedAt} ms after the page was opened` : ''}`,
+      `Page: ${JSON.stringify(facts)}`,
+      `Console errors: ${b.consoleErrors.join(' | ') || 'none'}`,
+      `Failed requests: ${b.failedRequests.join(' | ') || 'none'}`,
+    ].join('\n  '), { cause: error });
+  }
 });
 
 Then('the visitor should end up on {string} with the address ending {string}', async function (path, suffix) {
@@ -831,7 +864,11 @@ Then('the contact form should still be fully visible without sideways scrolling'
 Then('every page and both error pages should load with no Content-Security-Policy violation, no script error and no blocked request', { timeout: 300_000 }, async function () {
   const problems = [];
   for (const route of await everyRoute()) {
-    const p = await goto(this, route, 'networkidle');
+    // Loaded, then given a moment to go quiet so a late error or violation still lands on its own page. Waiting for
+    // quiet is only that: a page slow to settle on a busy machine (issue #11) isn't a failure, so its own timeout is
+    // short and not an error; everything checked below still is.
+    const p = await goto(this, route, 'load');
+    await p.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
     await settle(150);
     if (!this.b.lastResponse.headers()['content-security-policy']) problems.push(`${route}: served without a CSP header`);
     if (this.b.csp.length) problems.push(`${route}: CSP ${this.b.csp.splice(0).join(', ')}`);

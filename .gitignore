@@ -1,6 +1,8 @@
 # build output
 dist/
 dist-prod/
+# each test run's own builds of the site (features/support/lib.js)
+.test-builds/
 
 # local mirror of the photo entries (they live in R2; see scripts/lib/entry-sync.mjs)
 .photo-entries/
