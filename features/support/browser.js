@@ -26,6 +26,8 @@ const { withLocalApi } = await import(join(ROOT, 'src/lib/headers-file.ts'));
 // The New Photo form's service is the real dev-server middleware too, over a temporary content folder and a fake R2.
 const { photoFormMiddleware } = await import(join(ROOT, 'scripts/lib/photo-form-server.mjs'));
 // Category Maintenance's service, the same way — see startCategoryService below.
+// Remove Results' service (the Test Results tab), the same way, over the scenario's own fake results bucket.
+const { resultsFormMiddleware } = await import(join(ROOT, 'scripts/lib/results-form-server.mjs'));
 const { categoryFormMiddleware } = await import(join(ROOT, 'scripts/lib/category-form-server.mjs'));
 
 // Real-browser scenarios are slower than the rest: page loads, axe scans, animations.
@@ -43,6 +45,7 @@ async function shared() {
     server = await startStaticServer();
     server.mount('/__photos/', servePhotoService);
     server.mount('/__categories/', serveCategoryService);
+    server.mount('/__results/', serveResultsService);
   }
   if (!imageBytes) imageBytes = await sharp({ create: { width: 16, height: 11, channels: 3, background: '#557' } }).webp().toBuffer();
   return { browser, server, imageBytes };
@@ -88,6 +91,8 @@ Before({ tags: '@browser' }, function () {
     photoService: null,
     // Category Maintenance's local service — same shape, same reasoning.
     categoryService: null,
+    // Remove Results' local service — the same again.
+    resultsService: null,
     traceRequests: 0,
     // What the pages reported to the access log (POST /api/access), in order, as sent: { page, event, photo? }.
     accessReports: [],
@@ -213,6 +218,56 @@ function servePhotoService(req, res, next) {
   service.requests.push({ method: req.method, path: new URL(req.url, 'http://localhost').pathname.replace('/__photos/', '') });
   // A slow service (as on a busy CI runner): scenarios that start one bulk action before the last one finished show up.
   if (service.delayMs) return void setTimeout(() => service.middleware(req, res, next), service.delayMs);
+  return service.middleware(req, res, next);
+}
+
+/**
+ * Remove Results' local service (scripts/lib/results-form.mjs), as `astro dev` adds it, deleting from the same fake
+ * bucket the results API reads (setUpResultsApi). Off unless a scenario turns it on (startResultsService), as on the
+ * deployed site, which has none.
+ */
+export async function startResultsService(world) {
+  // Run in Production never measures anything: running Lighthouse is stood in for. Each start is recorded with its
+  // target; after `after` ms it ends with `outcome` (a scenario may change it first): `ok` publishes a new run into the
+  // fake bucket (as the real script does) and exits 0, `over budget` publishes one and exits 1, `never` keeps running.
+  const service = { requests: [], measured: [], outcome: 'ok', after: 500, newRun: { time: '2026-09-30T10:00:00Z', commit: 'ddddddd', phone: 93, laptop: 99 } };
+  const measure = (run) => {
+    service.measured.push(run.target);
+    if (service.outcome === 'never') return;
+    setTimeout(async () => {
+      run.onOutput('=== publishing to photography-site-test ===');
+      if (service.outcome === 'over budget') service.newRun = { ...service.newRun, phone: 40 };
+      await addLighthouseRuns(world, [service.newRun]);
+      run.onOutput(service.outcome === 'ok' ? '✓ every page within budget' : '✗ some pages over budget (see test-results/lighthouse/index.html)');
+      run.onExit(service.outcome === 'ok' ? 0 : 1);
+    }, service.after);
+  };
+  // Run in CI never reaches GitHub either: starting names run 777 (counted in `ciStarted`), and GitHub's answers about
+  // it come from `ciAnswers`, one per question (the last repeats); `ciFailure` makes starting fail. Asked every 200 ms.
+  Object.assign(service, { ciStarted: 0, ciFailure: null, ciAnswers: [{ status: 'in_progress', conclusion: '' }, { status: 'completed', conclusion: 'success' }] });
+  const ci = {
+    start: async () => {
+      if (service.ciFailure) throw new Error(service.ciFailure);
+      service.ciStarted++;
+      return { id: '777', url: 'https://github.com/dienarvaez1/photography-site/actions/runs/777' };
+    },
+    status: async () => ({ ...(service.ciAnswers.length > 1 ? service.ciAnswers.shift() : service.ciAnswers[0]), url: 'https://github.com/dienarvaez1/photography-site/actions/runs/777' }),
+  };
+  service.middleware = await resultsFormMiddleware({ storage: world.b.results.bucket, measure, ci, ciPollMs: 200 });
+  world.b.resultsService = service;
+}
+
+function serveResultsService(req, res, next) {
+  const service = currentWorld?.b.resultsService;
+  if (!service) return next();
+  const path = new URL(req.url, 'http://localhost').pathname.replace('/__results/', '');
+  service.requests.push({ method: req.method, path });
+  // A dev server restarting: the next `missChecks` questions about the CI run get no service answer.
+  if (req.method === 'GET' && path === 'tests/run' && service.missChecks > 0) {
+    service.missChecks--;
+    res.statusCode = 502;
+    return void res.end('Bad gateway');
+  }
   return service.middleware(req, res, next);
 }
 

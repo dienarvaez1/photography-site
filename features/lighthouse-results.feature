@@ -62,6 +62,56 @@ Feature: Lighthouse runs are stored in R2, next to the test results, for the Adm
     Then the Lighthouse index should list 2 runs
     And the oldest Lighthouse run's files should be gone from the bucket
 
+  Scenario: Remove Results deletes chosen Lighthouse runs through the local results service, and the next run becomes the latest
+    When I publish 3 Lighthouse runs keeping only the newest 3
+    And the local results service is asked to remove the newest Lighthouse run
+    Then the Lighthouse index should list 2 runs
+    And the latest Lighthouse summary should be the newest run left
+    And the removed Lighthouse run's files should be gone from the bucket
+    And nothing should be stored under "results/"
+
+  Scenario: Run in Production measures the live site on this computer, and says how it is going until it ends
+    When the local results service is asked to run Lighthouse in production
+    Then the service should answer 202 with a measurement of the production site that is still running
+    And Lighthouse should have been started once, against the production site
+    When the service is asked how the measurement is going
+    Then it should say the measurement is still running
+    When the measurement ends with exit code 0 after printing "✓ every page within budget"
+    And the service is asked how the measurement is going
+    Then it should say the measurement ended ok, with "✓ every page within budget" as its last line
+
+  Scenario: A measurement with pages over budget, or one that couldn't be published, ends not ok with its own last line
+    When the local results service is asked to run Lighthouse in production
+    And the measurement ends with exit code 1 after printing "✗ some pages over budget — and the run could not be published"
+    And the service is asked how the measurement is going
+    Then it should say the measurement ended not ok, with "✗ some pages over budget — and the run could not be published" as its last line
+
+  Scenario: A measurement that can't start says why
+    When the local results service is asked to run Lighthouse in production
+    And the measurement can't start because "spawn node ENOENT"
+    And the service is asked how the measurement is going
+    Then it should say the measurement ended not ok, with the error "spawn node ENOENT"
+
+  Scenario: Only one measurement runs at a time; asking again answers with the one running
+    When the local results service is asked to run Lighthouse in production
+    And the local results service is asked to run Lighthouse in production
+    Then the service should answer 409 with the error "busy" and the measurement already running
+    And Lighthouse should have been started once, against the production site
+
+  Scenario: Run in Production only takes requests from the Admin page itself
+    When another site asks the local results service to run Lighthouse in production
+    Then the service should answer 403 with the error "not-local" saying "only takes requests from its own page"
+    And Lighthouse should not have been started
+
+  Scenario: Run in Production runs the recording script against production, in its own results folder
+    Then the local results service should measure "https://diego-narvaez-photography.org", the site's own address
+    And it should run "scripts/run-lighthouse.mjs" with LIGHTHOUSE_URL set to that address and its own results folder
+
+  Scenario: The Lighthouse workflow is started by hand, measures the live site and stores the run when the R2 secrets exist
+    Then the Lighthouse workflow should only run when started by hand
+    And it should install Chromium and run "npm run test:lighthouse:record" when the R2 secrets exist, and "npm run test:lighthouse:record -- --no-publish" when they don't
+    And it should keep the reports with the run even when pages are over budget
+
   Scenario: The test results' own publisher leaves the Lighthouse folder alone
     Given the results folder also holds a report of 3 passing scenarios
     When I publish the test results

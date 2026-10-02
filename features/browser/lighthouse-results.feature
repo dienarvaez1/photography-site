@@ -110,3 +110,118 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     And I open the Lighthouse run for commit "aaaaaaa"
     Then no script error should have been logged
     And no Content-Security-Policy violation should have been reported
+
+  # --- Remove Results and Run in Production --------------------------------------------------------------------------------
+
+  Scenario: On the deployed site, Remove Results and Run in Production say they only work on your own computer
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Remove Results" in the Lighthouse Test Results tab
+    Then the Lighthouse Test Results tab should say "Removing test results only works on your own computer"
+    And no run should have a checkbox
+    When I press "Run in Production" in the Lighthouse Test Results tab
+    Then the Lighthouse Test Results tab should say "Running Lighthouse against production only works on your own computer"
+    And "Run in Production" should be available in the Lighthouse Test Results tab
+    And Lighthouse should have measured the production site 0 times
+
+  Scenario: Remove Results deletes the ticked Lighthouse runs, after a confirmation naming them, and leaves the test results alone
+    Given the local results service is running
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Remove Results" in the Lighthouse Test Results tab
+    Then every run in the list should have a checkbox, none ticked
+    When I tick the runs "bbbbbbb"
+    And I press "Delete selected" in the removal bar
+    Then the removal bar should ask "Permanently delete this test run and all its reports? This cannot be undone."
+    And the confirmation should name the runs "bbbbbbb"
+    When I press "Delete 1 run" in the removal bar
+    Then the Lighthouse Test Results tab should say "Deleted 1 test run."
+    And the Lighthouse runs should be listed newest first, for the commits "aaaaaaa"
+    And the latest Lighthouse run should be shown as commit "aaaaaaa", "Over budget", with "2 of 3 within budget"
+    And no file of the Lighthouse runs "bbbbbbb" should be left in the results bucket
+    And the test results should be untouched
+
+  Scenario: Cancel leaves every Lighthouse run in place
+    Given the local results service is running
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Remove Results" in the Lighthouse Test Results tab
+    And I press "Select all" in the removal bar
+    Then the removal bar should say "2 selected", with "Delete selected" available
+    When I press "Cancel" in the removal bar
+    Then no run should have a checkbox
+    And the local results service should not have been asked to remove anything
+
+  Scenario: Remove Results comes first above the list, then Run in Production
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    Then the Lighthouse Test Results tab's buttons above the list should be "Remove Results, Run in Production"
+
+  Scenario: Run in Production measures the live site, waits while it runs, then lists the new run
+    Given the local results service is running
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Run in Production" in the Lighthouse Test Results tab
+    Then the Lighthouse Test Results tab should say "Measuring the live site (https://diego-narvaez-photography.org) with Lighthouse on this computer."
+    And "Measuring production…" should be unavailable in the Lighthouse Test Results tab
+    And the Lighthouse Test Results tab should come to say "every page met its budget"
+    And the Lighthouse runs should be listed newest first, for the commits "ddddddd, bbbbbbb, aaaaaaa"
+    And "Run in Production" should be available again in the Lighthouse Test Results tab
+    And Lighthouse should have measured the production site 1 time
+
+  Scenario: A run with pages over budget says so in its own words, and is listed too
+    Given the local results service is running
+    And a Lighthouse run of production ends with pages over budget
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Run in Production" in the Lighthouse Test Results tab
+    Then the Lighthouse Test Results tab should come to say "Lighthouse ended: ✗ some pages over budget"
+    And the Lighthouse runs should be listed newest first, for the commits "ddddddd, bbbbbbb, aaaaaaa"
+
+  Scenario: Pressing Run in Production while a run is measuring follows that run instead of starting another
+    Given the local results service is running
+    And a Lighthouse run of production never ends
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Run in Production" in the Lighthouse Test Results tab
+    And I reload the page
+    And I press "Run in Production" in the Lighthouse Test Results tab
+    Then the Lighthouse Test Results tab should say "Measuring the live site"
+    And "Measuring production…" should be unavailable in the Lighthouse Test Results tab
+    And Lighthouse should have measured the production site 1 time
+
+  Scenario: Run in Production is there even before the first Lighthouse run
+    Given the results bucket holds no Lighthouse runs
+    And the local results service is running
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Run in Production" in the Lighthouse Test Results tab
+    Then the Lighthouse Test Results tab should come to say "every page met its budget"
+    And the Lighthouse runs should be listed newest first, for the commits "ddddddd"
+
+  Scenario Outline: The buttons, the removal bar and the confirmation pass the automated accessibility audit, on laptop and phone
+    Given the visitor uses a <device>
+    And the local results service is running
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    Then the page should pass the automated accessibility audit
+    When I press "Remove Results" in the Lighthouse Test Results tab
+    And I tick the runs "aaaaaaa"
+    Then the page should pass the automated accessibility audit
+    And the page should not scroll sideways
+    When I press "Delete selected" in the removal bar
+    Then the page should pass the automated accessibility audit
+
+    Examples:
+      | device |
+      | laptop |
+      | phone  |
+
+  Scenario: Remove Results and Run in Production speak Spanish
+    Given the local results service is running
+    When I open "/es/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Ejecutar en producción" in the Lighthouse Test Results tab
+    Then the Lighthouse Test Results tab should say "Midiendo el sitio en línea (https://diego-narvaez-photography.org) con Lighthouse en este ordenador."
+    When I press "Eliminar resultados" in the Lighthouse Test Results tab
+    Then the removal bar should say "0 seleccionadas", with "Eliminar las seleccionadas" unavailable

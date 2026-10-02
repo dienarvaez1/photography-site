@@ -174,6 +174,106 @@ Feature: Test results are kept in R2
     And the index should list these runs, newest first:
       | 2026-09-22T09-00-00Z-bbbbbbb-local |
 
+  # --- Removing runs on demand (the Admin page's Remove Results) ---------------------------------------------------------------
+
+  Scenario: Removing runs takes them off the index first, then deletes their files, and leaves the others alone
+    Given a results folder holding the offline and browser reports of a real run
+    When I publish the results at "2026-09-21T04:30:12Z" from commit "aaaaaaa" as "local"
+    And I publish the results at "2026-09-22T09:00:00Z" from commit "bbbbbbb" as "local"
+    And I publish the results at "2026-09-23T09:00:00Z" from commit "ccccccc" as "local"
+    And I remove the runs "2026-09-21T04-30-12Z-aaaaaaa-local, 2026-09-22T09-00-00Z-bbbbbbb-local"
+    Then the removal should report removed "2026-09-21T04-30-12Z-aaaaaaa-local, 2026-09-22T09-00-00Z-bbbbbbb-local" and nothing missing or failed
+    And the index should list these runs, newest first:
+      | 2026-09-23T09-00-00Z-ccccccc-local |
+    And no object of the run "2026-09-21T04-30-12Z-aaaaaaa-local" should remain in the bucket
+    And no object of the run "2026-09-22T09-00-00Z-bbbbbbb-local" should remain in the bucket
+    And every object of the run "2026-09-23T09-00-00Z-ccccccc-local" should still be in the bucket
+    And latest.json should name the run "2026-09-23T09-00-00Z-ccccccc-local"
+
+  Scenario: Removing the newest run makes the next one the latest
+    Given a results folder holding the offline and browser reports of a real run
+    When I publish the results at "2026-09-22T09:00:00Z" from commit "bbbbbbb" as "local"
+    And I publish the results at "2026-09-23T09:00:00Z" from commit "ccccccc" as "local"
+    And I remove the runs "2026-09-23T09-00-00Z-ccccccc-local"
+    Then latest.json should name the run "2026-09-22T09-00-00Z-bbbbbbb-local"
+    And latest.json should be that run's own summary
+
+  Scenario: Removing every run leaves an empty index and no latest pointer
+    Given a results folder holding the offline and browser reports of a real run
+    When I publish the results at "2026-09-23T09:00:00Z" from commit "ccccccc" as "local"
+    And I remove the runs "2026-09-23T09-00-00Z-ccccccc-local"
+    Then the index should list no runs
+    And the bucket should hold nothing but the empty index
+
+  Scenario: A run that isn't in the index is reported as missing and changes nothing
+    Given a results folder holding the offline and browser reports of a real run
+    When I publish the results at "2026-09-23T09:00:00Z" from commit "ccccccc" as "local"
+    And I remove the runs "2020-01-01T00-00-00Z-nothing-local"
+    Then the removal should report removed "" and missing "2020-01-01T00-00-00Z-nothing-local"
+    And every object of the run "2026-09-23T09-00-00Z-ccccccc-local" should still be in the bucket
+
+  Scenario: A run whose files can't all be deleted is still off the index, and reported, so removing it again is safe
+    Given a results folder holding the offline and browser reports of a real run
+    When I publish the results at "2026-09-22T09:00:00Z" from commit "bbbbbbb" as "local"
+    And I publish the results at "2026-09-23T09:00:00Z" from commit "ccccccc" as "local"
+    And deleting "bbbbbbb" fails in the bucket
+    And I remove the runs "2026-09-22T09-00-00Z-bbbbbbb-local"
+    Then the removal should report the run "2026-09-22T09-00-00Z-bbbbbbb-local" as failed
+    And the index should list these runs, newest first:
+      | 2026-09-23T09-00-00Z-ccccccc-local |
+
+  Scenario Outline: The local results service answers only the Admin page on localhost, and only with run ids
+    Given a results folder holding the offline and browser reports of a real run
+    When I publish the results at "2026-09-23T09:00:00Z" from commit "ccccccc" as "local"
+    And the local results service gets <request>
+    Then it should answer <status> with <answer>
+
+    Examples:
+      | request                                                                                    | status | answer                    |
+      | GET /__results/status on localhost                                                         | 200    | {"ok":true}               |
+      | GET /__results/status on example.com                                                       | 403    | the error "not-local"     |
+      | POST /__results/remove on localhost from another site, removing "2026-09-23T09-00-00Z-ccccccc-local" | 403 | the error "not-local" |
+      | POST /__results/remove on localhost from its own page, removing "../../index.json"          | 400    | the error "bad-request"   |
+      | POST /__results/remove on localhost from its own page, removing nothing                    | 400    | the error "bad-request"   |
+      | POST /__results/remove on localhost from its own page, removing 101 runs                   | 400    | the error "bad-request"   |
+      | POST /__results/remove on localhost from its own page, removing "2026-09-23T09-00-00Z-ccccccc-local" | 200 | the run removed |
+
+  Scenario: Run in CI starts the CI workflow on main and follows it until GitHub says it is done
+    When the local results service is asked to run every test in CI, and GitHub names the run 4242
+    Then the service should answer 202 with the CI run 4242 on "main", queued
+    And the CI workflow should have been started once
+    When GitHub says the CI run is "in_progress"
+    And the service is asked how the CI run is going
+    Then the service should say the CI run is "in_progress", not finished
+    When GitHub says the CI run is "completed" with "failure"
+    And the service is asked how the CI run is going
+    Then the service should say the CI run finished with "failure"
+
+  Scenario: Only one CI run at a time from here; asking again while it goes answers with that run
+    When the local results service is asked to run every test in CI, and GitHub names the run 4242
+    And the local results service is asked to run every test in CI, and GitHub names the run 4243
+    Then the service should answer 409 with the error "busy" and the CI run 4242
+    And the CI workflow should have been started once
+    When GitHub says the CI run is "completed" with "success"
+    And the local results service is asked to run every test in CI, and GitHub names the run 4243
+    Then the service should answer 202 with the CI run 4243 on "main", queued
+
+  Scenario: Run in CI says why the workflow could not be started
+    When the local results service is asked to run every test in CI, and gh fails with "HTTP 422: Workflow does not have 'workflow_dispatch' trigger"
+    Then it should answer 502 with the error "ci-failed"
+
+  Scenario: Run in CI only takes requests from the Admin page itself
+    When another site asks the local results service to run every test in CI
+    Then it should answer 403 with the error "not-local"
+    And the CI workflow should not have been started
+
+  Scenario: Run in CI starts ci.yml on main with the GitHub CLI
+    Then the local results service should start CI with "gh workflow run ci.yml --ref main" and follow it with "gh run view"
+
+  Scenario: The service is part of the dev server only, never of the built site
+    Then the dev server's integrations should include the results service
+    And the built site should hold nothing under "/__results/"
+
   # --- Trends --------------------------------------------------------------------------------------------------------------------
 
   Scenario: A scenario that fails only sometimes is called flaky, and one that always fails is not

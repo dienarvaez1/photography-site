@@ -59,7 +59,8 @@ Feature: A deploy cannot silently break the site
   # --- GitHub automation ---------------------------------------------------------------
 
   Scenario: CI runs the whole suite on every push and pull request
-    Then the CI workflow should run on pushes to main and on pull requests
+    Then the CI workflow should run on pushes to main, on pull requests and when started by hand
+    And a CI run started by hand should never cancel a push's run, or the reverse
     And the CI workflow should type-check, run the tests, run the browser tests and audit dependencies
     And the CI workflow's placeholder keys should satisfy the release-build guard
 

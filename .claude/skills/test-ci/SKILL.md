@@ -9,10 +9,12 @@ argument-hint: "[branch|commit|PR number|run id]"
 Arguments: `$ARGUMENTS`. A branch, a commit SHA, a PR number or a run id. If none is given, use the current
 branch's latest commit.
 
-The `CI` workflow (`.github/workflows/ci.yml`) runs on every push to main and every PR:
+The `CI` workflow (`.github/workflows/ci.yml`) runs on every push to main and every PR, and when started by hand
+(`gh workflow run ci.yml --ref main`, or the Admin page's Test Results tab → Run in CI); a manual run has event
+`workflow_dispatch` (`gh run list --workflow CI --event workflow_dispatch`) and never cancels a push's run:
 - **`test` job:** lint, `astro check`, offline Cucumber, browser Cucumber, `npm audit --audit-level=high`, then
   publish the results to R2.
-- **`live-smoke` job:** on main only, after the test job. Waits about 5 minutes for Cloudflare's build, then
+- **`live-smoke` job:** on pushes to main only (not manual runs), after the test job. Waits about 5 minutes for Cloudflare's build, then
   smoke-checks the live site.
 
 There is also a scheduled `smoke.yml`.

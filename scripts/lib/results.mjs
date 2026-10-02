@@ -292,6 +292,48 @@ export async function pruneResults({ storage, keep = DEFAULT_RETENTION, log = ()
   return { pruned: dropped.map((r) => r.runId) };
 }
 
+/**
+ * Removes these runs, by id: from the index first (so it never names a run whose files are gone), then from latest.json
+ * when the newest run is among them (it becomes the newest run left, or goes when none is), then each run's files.
+ * Ids not in the index are reported as `missing` and change nothing. A run whose files can't all be deleted is out of
+ * the index anyway and is reported in `failed`; running the removal again for it is safe.
+ * `prefix` picks the store: the test results (`results/`) or the Lighthouse results (`lighthouse-results/`), which
+ * share this layout. Returns { removed: [runId], missing: [runId], failed: [{ runId, error }] }.
+ */
+export async function removeRuns({ storage, runIds, prefix = RESULTS_PREFIX, log = () => {} }) {
+  const indexKey = `${prefix}index.json`;
+  const latestKey = `${prefix}latest.json`;
+  const runKey = (runId, file) => `${prefix}runs/${runId}/${file}`;
+  const wanted = new Set(runIds);
+  const index = (await getJson(storage, indexKey)) ?? { updatedAt: null, runs: [] };
+  const gone = index.runs.filter((r) => wanted.has(r.runId));
+  const missing = [...wanted].filter((id) => !gone.some((r) => r.runId === id));
+  if (!gone.length) return { removed: [], missing, failed: [] };
+
+  const kept = index.runs.filter((r) => !wanted.has(r.runId));
+  await putJson(storage, indexKey, { updatedAt: index.updatedAt, runs: kept });
+  log(`updated ${indexKey} (${kept.length} runs)`);
+
+  const latest = await getJson(storage, latestKey);
+  if (!latest || wanted.has(latest.runId)) {
+    const newest = kept[0] ? await getJson(storage, runKey(kept[0].runId, 'summary.json')) : null;
+    if (newest) await putJson(storage, latestKey, newest);
+    else await storage.delete(latestKey);
+    log(newest ? `${latestKey} is now ${newest.runId}` : `removed ${latestKey} (no runs left)`);
+  }
+
+  const failed = [];
+  for (const run of gone) {
+    try {
+      for (const key of run.files ?? []) await storage.delete(key);
+      log(`removed ${run.runId}`);
+    } catch (error) {
+      failed.push({ runId: run.runId, error: error.message });
+    }
+  }
+  return { removed: gone.map((r) => r.runId).filter((id) => !failed.some((f) => f.runId === id)), missing, failed };
+}
+
 export async function directoryExists(dir) {
   try {
     return (await stat(dir)).isDirectory();

@@ -110,10 +110,18 @@ Then('the README should name both build variables and the Cloudflare settings pa
 const workflow = (name) => yaml.load(readFileSync(join(ROOT, '.github/workflows', name), 'utf-8'));
 const stepsOf = (job) => job.steps.map((s) => `${s.name ?? ''} ${s.run ?? ''} ${s.uses ?? ''}`);
 
-Then('the CI workflow should run on pushes to main and on pull requests', function () {
+Then('the CI workflow should run on pushes to main, on pull requests and when started by hand', function () {
   const { on } = workflow('ci.yml');
   assert.deepEqual(on.push.branches, ['main']);
   assert.ok('pull_request' in on);
+  assert.ok('workflow_dispatch' in on);
+});
+
+Then("a CI run started by hand should never cancel a push's run, or the reverse", function () {
+  const { group } = workflow('ci.yml').concurrency;
+  // The group differs by how the run started, so manual and automatic runs of the same branch never share one.
+  assert.match(group, /github\.event_name == 'workflow_dispatch' && 'manual' \|\| 'auto'/);
+  assert.match(group, /github\.ref/);
 });
 
 Then('the CI workflow should type-check, run the tests, run the browser tests and audit dependencies', function () {

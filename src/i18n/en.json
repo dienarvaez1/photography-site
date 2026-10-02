@@ -258,7 +258,45 @@
         "trace": "Trace (zip)",
         "log": "Log"
       },
-      "needsJs": "The results viewer needs JavaScript. Without it, read the reports with npm run results:list."
+      "needsJs": "The results viewer needs JavaScript. Without it, read the reports with npm run results:list.",
+      "removal": {
+        "button": "Remove Results",
+        "barLabel": "Remove test results",
+        "select": "Select the run {id} for removal",
+        "selected": "{count} selected",
+        "selectAll": "Select all",
+        "selectNone": "Select none",
+        "delete": "Delete selected",
+        "cancel": "Cancel",
+        "confirm": "Permanently delete these {count} test runs and all their reports? This cannot be undone.",
+        "confirmOne": "Permanently delete this test run and all its reports? This cannot be undone.",
+        "yes": "Delete {count} runs",
+        "yesOne": "Delete 1 run",
+        "keep": "Keep them",
+        "more": "…and {count} more",
+        "deleting": "Deleting {count} runs…",
+        "deletingOne": "Deleting 1 run…",
+        "done": "Deleted {count} test runs.",
+        "doneOne": "Deleted 1 test run.",
+        "missing": "Already gone: {runs}.",
+        "failed": "{id} was taken off the list, but not all its files could be deleted ({message}). Removing it again is safe.",
+        "requestFailed": "The runs could not be removed: {message}",
+        "unreachable": "the local results service did not answer. Is npm run dev still running?",
+        "onlyLocal": "Removing test results only works on your own computer, while the site runs with npm run dev (it uses your Cloudflare login)."
+      },
+      "ci": {
+        "button": "Run in CI",
+        "waiting": "CI run in progress…",
+        "running": "Running every Cucumber test in CI on {ref}. It takes about 20 minutes; its results are listed here when it is done.",
+        "open": "Open the run on GitHub",
+        "passed": "The CI run is done: every test passed. Its results are listed below.",
+        "ended": "The CI run ended: {conclusion}.",
+        "started": "Started a CI run of every Cucumber test on {ref}. Press Refresh when it is done.",
+        "lost": "The dev server restarted and lost track of the CI run; it may still be going on GitHub.",
+        "failed": "The CI run could not be started: {message}",
+        "onlyLocal": "Starting a CI run only works on your own computer, with npm run dev (it uses your GitHub login, gh).",
+        "unreachable": "The local results service stopped answering, so the CI run is no longer followed here; it may still be going on GitHub. Is npm run dev still running?"
+      }
     },
     "lighthouse": {
       "intro": "Lighthouse measurements of the live site, read from the private results store. Pick a run to see every page on a phone and a laptop, and anything over budget.",
@@ -324,6 +362,17 @@
         "summary": "Raw data (JSON)",
         "newTab": "(opens in a new tab)",
         "expiry": "Links stay valid for {minutes} minutes. Reload the run for fresh ones."
+      },
+      "production": {
+        "button": "Run in Production",
+        "running": "Measuring production…",
+        "measuring": "Measuring the live site ({target}) with Lighthouse on this computer. It takes a few minutes; the run is listed here when it is done.",
+        "done": "Lighthouse is done: every page met its budget. The run is listed below.",
+        "ended": "Lighthouse ended: {message}",
+        "noOutput": "it printed nothing.",
+        "lost": "The local results service stopped answering. Is npm run dev still running?",
+        "failed": "The Lighthouse run could not be started: {message}",
+        "onlyLocal": "Running Lighthouse against production only works on your own computer, with npm run dev."
       }
     },
     "issues": {

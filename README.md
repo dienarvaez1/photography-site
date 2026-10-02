@@ -176,7 +176,10 @@ against every page in both English and Spanish**; expected text is read from
   fixture suite: accurate summaries (counts, per-feature results, each failure with its step and
   reason, slowest scenarios), sortable run ids, what a published run contains and where (only under
   `results/`, never cached), the index written last so it never names a missing file, retention and
-  pruning, flaky-scenario trends, the command line, the runner's plan, and the GitHub workflow steps.
+  pruning, removing chosen runs on demand (off the index first, `latest.json` moved to the next run or gone with
+  the last, missing ids and failed deletes reported) and the local service behind it (localhost and its own page
+  only, run ids only, at most 100, dev server only), Run in CI (`gh workflow run ci.yml --ref main`, followed until GitHub
+  says it is done, one at a time, GitHub's refusal passed on, other sites refused), flaky-scenario trends, the command line, the runner's plan, and the GitHub workflow steps.
 - **`build-info.feature`** — which build the footer names, tried on throwaway git repositories: the short hash
   before any tag, the tag for a tagged release, the short hash again once past it, `-dirty` (never a tag) with
   uncommitted changes, "unknown" without git, a name given in the environment; every page's footer ends with this
@@ -190,8 +193,12 @@ against every page in both English and Spanish**; expected text is read from
   reports, index page and summary under `lighthouse-results/` and never under `results/`; the summary (site, runs per
   page, commit, every page and device, totals); an over-budget run not ok, and the index naming the page; runs newest
   first with their median performance per device; the index written last; nothing usable refused before any upload;
-  retention; the test results' own publisher leaving the Lighthouse folder alone; the command line; and the Admin
-  tab's logic (its addresses, which links it follows, how scores and timings read).
+  retention; Remove Results through the local results service (the next run becoming the latest, nothing under
+  `results/` touched); Run in Production (measuring the site's own production address on this computer, reporting a
+  measurement while it runs and how it ended with its own last line, one at a time, other sites refused, the
+  recording script run with `LIGHTHOUSE_URL` in its own results folder) and the on-demand workflow (started by hand only, Chromium, stores the run only when
+  the R2 secrets exist, reports kept with the run); the test results' own publisher leaving the Lighthouse folder alone;
+  the command line; and the Admin tab's logic (its addresses, which links it follows, how scores and timings read).
 - **`lighthouse-api.feature`** — the results API's Lighthouse routes, called through the real handler over runs
   published by the real publisher: index (newest first), latest, one run with a signed link per file (15 minutes);
   every route but the signed files needs the admin token (none, wrong, not set up); malformed ids and unknown routes
@@ -359,7 +366,11 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   sign-in for every tab, Sign out), the latest run and every run newest first with their totals, a run's table of every
   page and device, what was over budget, signed report links opening in a new tab, the run's index page and raw data,
   the way back and the Back button, an unknown run, no runs yet, Spanish, and the accessibility audit and no sideways
-  scrolling on laptop and phone.
+  scrolling on laptop and phone; and Remove Results and Run in Production: both saying they only work on your computer
+  on the deployed site, deleting the ticked runs after a confirmation naming them (the next run becoming the latest,
+  the test results untouched), Cancel, measuring production with the button waiting until the new run is listed, a
+  run over budget explained in its own words, a second press following the run already measuring, Run in Production
+  before the first run, Spanish, and the accessibility audit on laptop and phone.
 - **`github-issues.feature`** (browser) — the GitHub Issues tab against the real results API code and a stand-in for
   GitHub: the token gate (nothing requested before signing in, one sign-in for every tab), the open issues newest-updated
   first with their status, comments and labels, each linking to GitHub in a new tab, the New issue link, the Open,
@@ -392,7 +403,14 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   card, Back button, reload, direct links, unknown run, keyboard), suites, failures shown as plain text
   (a failure message containing HTML stays text), reports opening in new tabs from the API, screenshot
   and trace evidence, empty store, unreachable API and recovery, no requests while another tab is
-  showing, Spanish, an axe audit and no sideways scrolling in every state, no errors or CSP violations.
+  showing, Spanish, an axe audit and no sideways scrolling in every state, no errors or CSP violations; and
+  Remove Results: on the deployed site it says it only works on your computer, a checkbox on every run with
+  a counting bar (select all, Cancel), a confirmation naming every run with Keep them focused and Escape backing
+  out, deleting from the store and the list (the newest run's removal moving the latest card), a failed
+  delete reported, Spanish, and an axe audit on laptop and phone; and Run in CI: after Remove Results, saying it only
+  works on your computer on the deployed site, starting CI with a link to the run and the button waiting until GitHub
+  says it is done (then the list read again), a failed run said so, a second press following the run going,
+  GitHub's refusal shown, the button before the first run, an axe audit, Spanish.
 - **`pics-viewer.feature`** (browser) — the Pics Viewer against the real API code and fake buckets: Refresh
   and Sign out at the top of the page (across from the title, only while signed in, Refresh reloads only the
   tab showing, Sign out signs out of both, keyboard, Spanish, phone); the
@@ -815,10 +833,14 @@ confirm both arrive in your inbox.
 
 ## Continuous integration and live monitoring
 
-`.github/workflows/ci.yml` runs on every push and pull request: type-check, `npm test`, the browser
-tests, and `npm audit`. On pushes to `main` it then waits five minutes for Cloudflare's build and
+`.github/workflows/ci.yml` runs on every push and pull request, and when started by hand (the Admin page's Test
+Results tab, Actions → CI → Run workflow, or `gh workflow run ci.yml --ref main`): type-check, `npm test`, the browser
+tests, and `npm audit`. A run started by hand has its own concurrency group, so it never cancels a push's run. On pushes to `main` it then waits five minutes for Cloudflare's build and
 smoke-checks the live site. `.github/workflows/smoke.yml` runs the same smoke check every six hours
-and on demand (Actions → Live smoke check → Run workflow); a failure emails the repo owner. CI uses
+and on demand (Actions → Live smoke check → Run workflow); a failure emails the repo owner.
+`.github/workflows/lighthouse.yml` measures the live site with the Lighthouse suite and stores the run in R2 (when the
+`CLOUDFLARE_*` secrets are set). It runs only when started: from Actions → Lighthouse → Run workflow, or with
+`gh workflow run lighthouse.yml` (the Admin page's Run in Production measures from your computer instead). CI uses
 placeholder Web3Forms keys (the tests never send anything; the real keys stay in Cloudflare).
 
 ## Security headers
@@ -891,6 +913,28 @@ under `results/`). The page asks for an **admin token**, keeps it only for that 
 address. Reports and screenshots open through short-lived (15 minute) signed links the Worker hands
 out with each run, so nothing else needs the token; HTML reports are served sandboxed.
 
+**Remove Results** deletes runs you don't want to keep. Press it and every run in the list gets a checkbox, with a
+bar above the list: how many are ticked, *Select all* / *Select none*, **Delete selected** and *Cancel*. Delete
+selected first asks, naming every chosen run (date, commit, totals and id), with *Keep them* under the keyboard and
+Escape backing out; nothing is deleted until you confirm. The runs come off `index.json` first, then `latest.json`
+moves to the newest run left (or goes, with the last one), then each run's files are deleted. A run whose files
+couldn't all be deleted is already off the list and is named in the message; removing it again is safe. The
+Lighthouse Test Results tab has the same button for its own runs. The results
+API stays read-only: the deleting is done by a local service in `npm run dev` (`/__results/status`,
+`POST /__results/remove` with `{"runs": ["<run id>", …]}`, at most 100; `scripts/lib/results-form.mjs`) that uses
+your Cloudflare login, answers only on localhost and only its own page. On the deployed site the button says it
+only works on your computer. `npm run results -- prune --keep N` still trims the oldest runs from the command line.
+
+**Run in CI** (after Remove Results) runs every Cucumber test in CI: lint, type-check, the offline suite and the
+browser suite, the same `test` job as a push (`.github/workflows/ci.yml`, started on `main`; the live smoke check is for
+pushes only). It goes through the local results service too (`POST /__results/tests/run`, which runs
+`gh workflow run ci.yml --ref main` with your GitHub CLI login). The button waits (*CI run in progress…*) while the tab
+asks `GET /__results/tests/run` every 30 seconds (each answer is one `gh run view`), links to the run on GitHub, says
+how it ended (passed, or GitHub's conclusion: failure, cancelled…) and reads the list again: CI stores the run's
+results in R2 (when the `CLOUDFLARE_*` secrets are set), so it shows up here. One run at a time from here; pressing
+again while one goes follows it. GitHub can only start a workflow by hand once that trigger is on `main`, so Run in CI
+works after this change is merged; until then it shows GitHub's refusal.
+
 **One-time setup (needs you — it deploys a Worker and sets a secret):**
 
 ```bash
@@ -919,6 +963,18 @@ index page and raw data. The reports open through the same short-lived (15 minut
 served sandboxed by the results API (`/lighthouse/...` routes); a Lighthouse link never opens a test-results file, or
 the reverse. The results API needs no new setup: it already reads the test bucket, and `npm run results-api:deploy`
 publishes the new routes.
+
+**Remove Results** works here exactly as on the Test Results tab (checkboxes, the counting bar, a confirmation naming
+every run; `POST /__results/lighthouse/remove`), and only touches `lighthouse-results/`. **Run in Production**
+measures the production site (`SITE.url`, never your dev server) with the Lighthouse suite, on demand, from your
+computer: `POST /__results/lighthouse/run` runs `scripts/run-lighthouse.mjs` (the same as
+`npm run test:lighthouse:record`) with `LIGHTHOUSE_URL` set to production, in its own folder
+(`test-results/on-demand/`), and publishes the run to R2 with your Cloudflare login. The button waits
+(*Measuring production…*) while the tab asks `GET /__results/lighthouse/run` every few seconds; when it ends the tab
+says how it went (every page within budget, or the run's own last line: pages over budget, or why it couldn't be
+published) and lists the new run. One measurement runs at a time; pressing again while one runs follows it. It takes
+several minutes, and nothing else on the page waits for it. Both buttons use the dev server's local results service,
+so on the deployed site they say they only work on your computer.
 
 ### GitHub Issues tab
 
@@ -1217,7 +1273,7 @@ width and height so the page can't jump while loading; the header logos are righ
 icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
 28 KB, styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
 page's client-side category switcher and every page's report of its own visit to the access log; the Admin pages,
-which carry six tabs of tools and are opened only by you, may have 58 KB of HTML, 57 KB of scripts and 27 KB of styles, with the
+which carry six tabs of tools and are opened only by you, may have 63 KB of HTML, 58 KB of scripts and 27 KB of styles, with the
 Lighthouse, GitHub Issues and Access Info tabs' code loaded only when they are opened). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 
@@ -1305,6 +1361,6 @@ scripts/
 workers/results-api/    # read-only Worker serving the private results bucket to the Admin page
 test-fixtures/          # tiny suites the results tests run for real
 features/               # Gherkin tests; features/browser/ = real-Chromium tests; support/ = helpers
-.github/workflows/      # ci.yml (tests + live smoke on push), smoke.yml (every 6 hours)
+.github/workflows/      # ci.yml (tests + live smoke on push), smoke.yml (every 6 hours), lighthouse.yml (on demand)
 cucumber.js             # default profile skips @browser; `--profile browser` runs only those
 ```

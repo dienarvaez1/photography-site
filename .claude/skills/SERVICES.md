@@ -6,7 +6,7 @@ Shared by the `service-*` skills: what runs where, how to tell whether it's runn
 
 | Service | Port | Start | What it is |
 |---|---|---|---|
-| **dev** | 4321 | `npx astro dev --background` | The site in development, plus the Admin page's local-only services: the photo service (`/__photos/*`) and the category service (`/__categories/*`). Reads the **production** R2 buckets (it uses your Cloudflare login). |
+| **dev** | 4321 | `npx astro dev --background` | The site in development, plus the Admin page's local-only services: the photo service (`/__photos/*`), the category service (`/__categories/*`) and the results service (`/__results/*`: Remove Results on the Test Results and Lighthouse tabs, the Test Results tab's Run in CI, which starts `ci.yml` on `main` with your gh login and follows it, and the Lighthouse tab's Run in Production, which measures the production site with Lighthouse on this computer and publishes the run). Reads the **production** R2 buckets (it uses your Cloudflare login). |
 | **preview** | 8787 | `npm run preview` (builds, then `wrangler dev`) | The production build in the real Workers runtime (workerd). Its R2 is a **local** copy, empty until seeded (see below). |
 | **results-api** | 8788 | `npm run results-api:dev` | The Admin page's read-only API Worker (`workers/results-api/`), over **local** R2 copies of the test, originals and access log buckets. It shares the dev server's local copy (`--persist-to .wrangler/state`), so it sees the visits dev recorded. |
 

@@ -4,9 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  # On demand: the Admin page's Test Results tab (Run in CI, through the dev server's local results service), the
+  # Actions page, or `gh workflow run ci.yml --ref main`. Runs the same test job (every Cucumber test, offline and in the
+  # browser), stores its results in R2 and, as it isn't a push, skips the live smoke check.
+  workflow_dispatch:
 
+# A newer push cancels the older run of the same branch. Runs started by hand have their own group, so one never
+# cancels a push's run (or the reverse).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'workflow_dispatch' && 'manual' || 'auto' }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

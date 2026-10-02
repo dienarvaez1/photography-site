@@ -30,7 +30,7 @@ Production Workers have no process to start (SERVICES.md). If the user means pro
    - **preview:** check `localhost:8787/api/photos.json`. If it returns 500, local R2 isn't seeded. Seed it from
      production (SERVICES.md; this reads production only), then check `/`, `/work/all/` and `/es/` answer 200.
    - **results-api:** `curl -s localhost:8788/health` must say `"configured": true`.
-   - **dev:** check `/`, then `/__photos/status` and `/__categories/status` (the local services).
+   - **dev:** check `/`, then `/__photos/status`, `/__categories/status` and `/__results/status` (the local services).
 
 `--remote` (preview or results-api) runs the Worker on Cloudflare's network against the **production** buckets
 instead of local copies. Use it only when asked, and say so: the results API only reads, but a remote preview is a
