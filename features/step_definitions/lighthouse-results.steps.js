@@ -501,3 +501,7 @@ When('the local results service at {string} is asked to measure production on th
 Then('GitHub should have been asked to start the Lighthouse run with the input source {string}', function (host) {
   assert.deepEqual(state(this).lighthouseInputs, [{ source: host }]);
 });
+
+Then('the Lighthouse workflow should run with SITE_ENV set to {string}', function (value) {
+  assert.equal(workflow().jobs.lighthouse.env.SITE_ENV, value);
+});

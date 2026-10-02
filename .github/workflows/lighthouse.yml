@@ -23,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      # Run in Production measures production: the whole job runs as production (scripts/lib/build-env.mjs siteEnv),
+      # whatever started it.
+      SITE_ENV: production
       # The suite builds the site before it measures (the tests' shared setup), and on GitHub (CI=true) the
       # release-build guard refuses a build without contact-form keys. The same placeholders as ci.yml: nothing is
       # sent, and the real keys stay in Cloudflare's build settings.
