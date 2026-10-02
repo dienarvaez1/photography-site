@@ -11,6 +11,7 @@
     "build": "astro build",
     "preview": "npm run build && wrangler dev",
     "astro": "astro",
+    "git:safe-defaults": "node scripts/setup-git-safety.mjs",
     "prelint": "astro sync",
     "lint": "eslint .",
     "generate-types": "wrangler types",
