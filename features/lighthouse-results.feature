@@ -156,6 +156,7 @@ Feature: Lighthouse runs are stored in R2, next to the test results, for the Adm
     Then the local results service should measure "https://diego-narvaez-photography.org", the site's own address
     And it should start "lighthouse.yml" with "gh workflow run", follow it with "gh run view", and read its log with "gh run view --log"
     And the Lighthouse workflow should leave LIGHTHOUSE_URL unset, so the suite measures that address
+    And the Lighthouse workflow should run with SITE_ENV set to "production"
 
   Scenario: The run a workflow published is read from its log as GitHub prints it
     When the service reads this Lighthouse workflow log:

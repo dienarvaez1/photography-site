@@ -850,7 +850,7 @@ tests, and `npm audit`. A run started by hand has its own concurrency group, so 
 takes an optional `source` input (where it was started from), which the stored results record (`GitHub` otherwise). On pushes to `main` it then waits five minutes for Cloudflare's build and
 smoke-checks the live site; a run started by hand smoke-checks it straight after the tests. `.github/workflows/smoke.yml` runs the same smoke check every six hours
 and on demand (Actions → Live smoke check → Run workflow); a failure emails the repo owner.
-`.github/workflows/lighthouse.yml` measures the live site with the Lighthouse suite and stores the run in R2 (when the
+`.github/workflows/lighthouse.yml` runs with `SITE_ENV=production`, measures the live site with the Lighthouse suite and stores the run in R2 (when the
 `CLOUDFLARE_*` secrets are set). It runs only when started: from Actions → Lighthouse → Run workflow, or with
 `gh workflow run lighthouse.yml`, or from the Admin page's Run in Production (which asks which branch to run it on). CI uses
 placeholder Web3Forms keys (the tests never send anything; the real keys stay in Cloudflare).
