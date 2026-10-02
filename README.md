@@ -945,8 +945,10 @@ couldn't all be deleted is already off the list and is named in the message; rem
 Lighthouse Test Results tab has the same button for its own runs, called **Cleanup Lighthouse Test Results**. Both
 are for the dev box (see `SITE_ENV` above): the deleting is done by the dev server's local results service
 (`POST /__results/remove` and `/__results/lighthouse/remove` with `{"runs": ["<run id>", …]}`, at most 100;
-`scripts/lib/results-form.mjs`) with your Cloudflare login, answering only on localhost and only its own page. Without
-it (the preview, the live site) the button says it only works on your computer. The results API has the same removal
+`scripts/lib/results-form.mjs`) with your Cloudflare login, answering only on localhost and only its own page. The page
+knows from `SITE_ENV` that it is on the dev box, so the button goes straight to the checkboxes; in production it is
+hidden. Deleting needs `npm run dev` running: in the preview (no local service) a delete says the service didn't
+answer. The results API has the same removal
 (`POST /runs/remove`, `POST /lighthouse/runs/remove`), allowed only in a copy running on the dev box.
 `npm run results -- prune --keep N` still trims the oldest runs from the command line.
 

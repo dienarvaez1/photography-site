@@ -470,3 +470,12 @@ Then('without SITE_ENV the {} should let a POST through, since it only runs unde
   const post = await throughService(name, 'POST', { allowWrites: buildEnv.writesAllowed({}) });
   assert.notEqual(post.body?.error, 'not-dev-box');
 });
+
+Then('the Admin page should tell both results tabs whether this is the dev box, from the same decision', function () {
+  const page = readFileSync(join(ROOT, 'src/pages/[...lang]/admin.astro'), 'utf-8');
+  const told = page.match(/data-site-env=\{showAdminButtons \? 'development' : 'production'\}/g) ?? [];
+  assert.equal(told.length, 2, 'the Test Results and Lighthouse containers');
+  for (const viewer of ['results-viewer.ts', 'lighthouse-viewer.ts']) {
+    assert.match(readFileSync(join(ROOT, 'src/lib', viewer), 'utf-8'), /const siteEnv = container\.dataset\.siteEnv \?\? 'production';/);
+  }
+});

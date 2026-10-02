@@ -284,8 +284,7 @@
         "unreachable": "the local results service did not answer. Is npm run dev still running?",
         "cleanup": "Cleanup Test Results",
         "lighthouse": "Cleanup Lighthouse Test Results",
-        "nothing": "No runs to remove yet.",
-        "onlyLocal": "Removing test results only works on your own computer, with npm run dev."
+        "nothing": "No runs to remove yet."
       },
       "ci": {
         "button": "Run in CI",

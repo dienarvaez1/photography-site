@@ -93,6 +93,7 @@ Feature: A deploy cannot silently break the site
     Then the "predeploy" and "deploy" scripts should check and build with SITE_ENV=production
     And the site configuration should hand SITE_ENV to the pages, read from the environment or .env
     And the Admin page should show every button when SITE_ENV is "development" or in the tests' build
+    And the Admin page should tell both results tabs whether this is the dev box, from the same decision
     And .env.example should explain SITE_ENV
 
   Scenario: The Cloudflare build variables are documented where the guard sends people
