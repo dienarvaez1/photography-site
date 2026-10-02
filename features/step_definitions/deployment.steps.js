@@ -470,3 +470,22 @@ Then('without SITE_ENV the {} should let a POST through, since it only runs unde
   const post = await throughService(name, 'POST', { allowWrites: buildEnv.writesAllowed({}) });
   assert.notEqual(post.body?.error, 'not-dev-box');
 });
+
+Then('the Admin page should tell both results tabs whether this is the dev box, from the same decision', function () {
+  const page = readFileSync(join(ROOT, 'src/pages/[...lang]/admin.astro'), 'utf-8');
+  const told = page.match(/data-site-env=\{showAdminButtons \? 'development' : 'production'\}/g) ?? [];
+  assert.equal(told.length, 2, 'the Test Results and Lighthouse containers');
+  for (const viewer of ['results-viewer.ts', 'lighthouse-viewer.ts']) {
+    assert.match(readFileSync(join(ROOT, 'src/lib', viewer), 'utf-8'), /const siteEnv = container\.dataset\.siteEnv \?\? 'production';/);
+  }
+});
+
+Then('a CI run started by hand \\(Run in CI) should run the tests and then the live smoke check, without waiting for Cloudflare', function () {
+  const wf = workflow('ci.yml');
+  assert.ok('workflow_dispatch' in wf.on);
+  const job = wf.jobs['live-smoke'];
+  assert.match(job.if, /github\.event_name == 'workflow_dispatch'/);
+  assert.equal(job.needs, 'test');
+  const wait = job.steps.find((s) => /sleep/.test(s.run ?? ''));
+  assert.match(wait.if, /github\.event_name == 'push'/, 'only a push waits for Cloudflare');
+});

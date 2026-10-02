@@ -93,6 +93,7 @@ Feature: A deploy cannot silently break the site
     Then the "predeploy" and "deploy" scripts should check and build with SITE_ENV=production
     And the site configuration should hand SITE_ENV to the pages, read from the environment or .env
     And the Admin page should show every button when SITE_ENV is "development" or in the tests' build
+    And the Admin page should tell both results tabs whether this is the dev box, from the same decision
     And .env.example should explain SITE_ENV
 
   Scenario: The Cloudflare build variables are documented where the guard sends people
@@ -107,8 +108,9 @@ Feature: A deploy cannot silently break the site
     And the CI workflow's placeholder keys should satisfy the release-build guard
     And every workflow that builds the site should carry placeholder keys that satisfy the release-build guard
 
-  Scenario: CI smoke-checks the live site after Cloudflare has built it
+  Scenario: CI smoke-checks the live site after Cloudflare has built it, and on every run started by hand
     Then the CI workflow should smoke-check the live site only for pushes to main, after the tests pass and after waiting for Cloudflare
+    And a CI run started by hand (Run in CI) should run the tests and then the live smoke check, without waiting for Cloudflare
 
   Scenario: The live site is smoke-checked on a schedule
     Then the smoke workflow should run every few hours and on demand

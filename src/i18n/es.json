@@ -284,8 +284,7 @@
         "unreachable": "el servicio local de resultados no respondió. ¿Sigue en marcha npm run dev?",
         "cleanup": "Limpiar resultados de pruebas",
         "lighthouse": "Limpiar resultados de Lighthouse",
-        "nothing": "Nada que eliminar.",
-        "onlyLocal": "Solo funciona en tu ordenador, con npm run dev."
+        "nothing": "Nada que eliminar."
       },
       "ci": {
         "button": "Ejecutar en CI",

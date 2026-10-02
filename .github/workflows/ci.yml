@@ -6,7 +6,7 @@ on:
   pull_request:
   # On demand: the Admin page's Test Results tab (Run in CI, through the dev server's local results service), the
   # Actions page, or `gh workflow run ci.yml --ref main`. Runs the same test job (every Cucumber test, offline and in the
-  # browser), stores its results in R2 and, as it isn't a push, skips the live smoke check.
+  # browser), stores its results in R2, then the live smoke check (straight away: no Cloudflare build to wait for).
   workflow_dispatch:
     inputs:
       source:
@@ -66,8 +66,9 @@ jobs:
 
   # After Cloudflare's Git build has had time to finish, check the live site the way a visitor
   # would. This catches a build that deployed without the contact-form keys.
+  # On pushes to main (after Cloudflare's build) and on runs started by hand (Run in CI), once the tests have passed.
   live-smoke:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     needs: test
     runs-on: ubuntu-latest
     steps:
@@ -76,6 +77,8 @@ jobs:
         with:
           node-version: 24
       - name: Wait for Cloudflare's build to finish
+        # A push to main starts Cloudflare's build; a run started by hand checks the site as it is now.
+        if: ${{ github.event_name == 'push' }}
         run: sleep 300
       - name: Smoke-check the live site
         run: node scripts/smoke.mjs --wait --timeout 180

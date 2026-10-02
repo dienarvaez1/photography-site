@@ -133,7 +133,7 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
         <div class="tabpanel" role="tabpanel" id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`} tabindex="0" hidden={index !== 0} data-buttons-hidden={!showAdminButtons && ADMIN_BUTTONS_TABS.has(tab.id) ? '' : undefined}>
           <h2>{tab.label}</h2>
           {tab.id === 'test-results' ? (
-            <div class="results" data-results data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(resultsMessages)}>
+            <div class="results" data-results data-api={RESULTS_API_URL} data-locale={locale} data-site-env={showAdminButtons ? 'development' : 'production'} data-messages={JSON.stringify(resultsMessages)}>
               <p class="results-intro">{t('admin.results.intro')}</p>
               <div data-results-root aria-live="polite">
                 <p>{t('admin.results.loading')}</p>
@@ -141,7 +141,7 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
               <noscript><p>{t('admin.results.needsJs')}</p></noscript>
             </div>
           ) : tab.id === 'lighthouse-results' ? (
-            <div class="results" data-lighthouse data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(lighthouseMessages)}>
+            <div class="results" data-lighthouse data-api={RESULTS_API_URL} data-locale={locale} data-site-env={showAdminButtons ? 'development' : 'production'} data-messages={JSON.stringify(lighthouseMessages)}>
               <p class="results-intro">{t('admin.lighthouse.intro')}</p>
               <div data-lighthouse-root aria-live="polite">
                 <p>{t('admin.results.loading')}</p>

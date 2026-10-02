@@ -94,7 +94,7 @@ Given('the results API never has the new Lighthouse run', function () {
   this.b.resultsService.confirm = 'never';
 });
 
-Then('the Lighthouse Test Results tab should not say {string}', async function (text) {
+Then(/^the (?:Lighthouse )?Test Results tab should not say "([^"]+)"$/, async function (text) {
   assert.equal(await panel(this).getByText(text, { exact: false }).count(), 0);
 });
 

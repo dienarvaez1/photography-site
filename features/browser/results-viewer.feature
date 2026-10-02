@@ -316,12 +316,17 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
 
   # --- Cleanup Test Results: deleting runs on demand ----------------------------------------------------------------------------
 
-  Scenario: Without the dev server's results service, Cleanup Test Results says it needs the dev box, and deletes nothing
+  Scenario: On the dev box Cleanup Test Results opens straight away (SITE_ENV decides); without the dev server's service, deleting says so
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I press "Cleanup Test Results" in the Test Results tab
-    Then the Test Results tab should say "Removing test results only works on your own computer"
-    And no run should have a checkbox
+    Then every run in the list should have a checkbox, none ticked
+    And the Test Results tab should not say "only works on your own computer"
+    When I tick the runs "aaaaaaa"
+    And I press "Delete selected" in the removal bar
+    And I press "Delete 1 run" in the removal bar
+    Then the Test Results tab should say "the local results service did not answer"
+    And the list of all runs should show the commits "ccccccc, bbbbbbb, aaaaaaa" in that order
 
   Scenario: Remove Results puts a checkbox on every run, and the bar counts what is ticked
     Given the local results service is running

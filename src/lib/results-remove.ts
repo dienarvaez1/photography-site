@@ -264,15 +264,17 @@ export interface RunRemoval {
  * `done` gets what to say after a removal and reads the list again. Returns null (with the reason) when the local
  * service isn't there, as on the deployed site.
  */
-export async function startRunRemoval(options: {
+export function startRunRemoval(options: {
   m: Reader;
   store: Store;
   root: HTMLElement;
   redraw: () => void;
   done: (notice: Notice) => void;
-}): Promise<RunRemoval | Notice> {
-  const { m, store, root, redraw, done } = options;
-  if (!(await resultsServiceAvailable())) return { text: m('removal.onlyLocal'), alert: false };
+  /** The page's SITE_ENV (data-site-env): removing runs is the dev box's alone, so anywhere else nothing starts. */
+  siteEnv: string;
+}): RunRemoval | null {
+  const { m, store, root, redraw, done, siteEnv } = options;
+  if (siteEnv !== 'development') return null;
 
   const t = (key: string, values?: Record<string, string | number>) => m(`removal.${key}`, values);
   const plural = (base: string, count: number) => t(count === 1 ? `${base}One` : base, { count });

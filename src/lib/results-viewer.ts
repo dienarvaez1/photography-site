@@ -25,6 +25,8 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   const root = container.querySelector<HTMLElement>('[data-results-root]')!;
   const messages = parseJson<Messages>(container.dataset.messages ?? '{}');
   const locale = container.dataset.locale ?? 'en';
+  // The dev box or production (admin.astro, from SITE_ENV): Cleanup is the dev box's alone.
+  const siteEnv = container.dataset.siteEnv ?? 'production';
   const apiUrl = resolveApiUrl(container.dataset.api ?? '', location.search, location.hostname);
   const m = messageReader(messages);
 
@@ -86,7 +88,8 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
 
   async function startRemoving() {
     const { startRunRemoval } = await removalModule();
-    const started = await startRunRemoval({
+    const started = startRunRemoval({
+      siteEnv,
       m,
       store: 'tests',
       root,
@@ -98,8 +101,8 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
         void render();
       },
     });
-    if ('text' in started) notice = started;
-    else [removal, notice] = [started, null];
+    if (!started) return; // not the dev box: Cleanup does nothing (its button is hidden there anyway)
+    [removal, notice] = [started, null];
     drawList();
     root.querySelector<HTMLButtonElement>('[data-remove-bar] button:not(:disabled)')?.focus();
   }
