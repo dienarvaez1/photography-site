@@ -11,6 +11,7 @@ paid backend.
 | Command                         | Action                                                              |
 | :------------------------------ | :------------------------------------------------------------------ |
 | `npm install`                   | Install dependencies                                                |
+| `npm run git:safe-defaults`     | Opt in to repository-local Git safety defaults (see Git safety)      |
 | `npm run dev`                   | Start the local dev server at `localhost:4321`                      |
 | `npm run build`                 | Build the production site to `./dist/` (runs the key guard first)   |
 | `npm run preview`               | Preview the production build locally                                |
@@ -31,6 +32,30 @@ paid backend.
 | `npm run results-api:deploy`    | Deploy the results API Worker (see Admin page)                      |
 | `npm run smoke`                 | Check the live site (or `-- <url>`); `-- --wait` retries for 2 minutes |
 | `npm run photos -- help`        | Add / replace / remove / verify photos in R2 (see Photos)           |
+
+## Git safety
+
+Git does not automatically back up uncommitted work. To opt in to safer defaults for this repository, run
+`npm run git:safe-defaults` once in each clone. The script changes only repository-local Git settings; it does not
+change your global configuration or files. It leaves matching settings alone and stops without changing anything
+if one of these settings already has a different local value:
+
+| Setting | Protection |
+| :--- | :--- |
+| `pull.ff=only` | A pull that needs a merge stops instead of silently creating a merge commit. Stop and get help if it refuses; do not force the pull. |
+| `push.default=simple` | Pushes only the current branch to its matching upstream branch. |
+| `fetch.prune=true` | Removes stale *remote-tracking references* when fetching; it does not delete local branches or branches on GitHub. |
+| `merge.conflictStyle=diff3` | Shows the common ancestor in conflict sections to give more context when resolving them. |
+
+### A safe day-to-day workflow
+
+1. Before editing, run `git status --short --branch` and check that you are on the branch you intend to use. Start new work on a branch, for example `git switch -c improve-gallery`.
+2. Save progress in small commits. Review `git status` and `git diff` first, stage only the files you mean to save with `git add <file>`, then run `git diff --cached` before `git commit -m "Describe the change"`. A commit is a local recovery point; it is not an off-computer backup.
+3. To back up committed work off this computer, deliberately push your branch with `git push -u origin improve-gallery`. A push uploads the commit to GitHub, so only push content intended for that repository; never push secrets or private photos. A branch keeps work separate but is not itself a backup.
+4. If a pull is refused or Git reports conflicts, stop and keep the files as they are. Read `git status`; conflicts need a person to combine both sides, and the `<<<<<<<`, `=======`, and `>>>>>>>` lines are markers, not code to keep. Do not choose “ours” or “theirs” everywhere. Ask for help if the right result is unclear.
+5. If something seems lost, stop before trying cleanup or undo commands. Check `git status` and ask for help recovering it. Avoid `git reset --hard`, `git clean`, force-push, deleting branches, or accepting a conflict wholesale: these can permanently discard work or rewrite shared history.
+
+The defaults only guide certain Git operations; they do not automatically commit, back up, or protect files, nor do they configure GitHub branch protection. GitHub settings require a repository owner to configure them on GitHub. Review changes before committing or pushing, and keep separate backups of important work.
 
 ## Linting
 
