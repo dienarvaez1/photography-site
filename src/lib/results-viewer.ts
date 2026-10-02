@@ -119,7 +119,8 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
       () => {
         ciRunning = true; // a branch was chosen: the button waits from here
         drawList();
-      }
+      },
+      siteEnv
     );
     ciRunning = false;
     notice = ended.notice ?? notice;

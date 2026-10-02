@@ -156,10 +156,17 @@ export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement
       notice = said;
       if (!panel.hidden) drawList();
     };
-    const ended = await runWorkflowAndFollow<import('./results-remove').LighthouseRun>(m, LIGHTHOUSE_KIND, (run) => lighthouseRunNotice(m, run), update, () => {
-      measuring = true;
-      drawList();
-    });
+    const ended = await runWorkflowAndFollow<import('./results-remove').LighthouseRun>(
+      m,
+      LIGHTHOUSE_KIND,
+      (run) => lighthouseRunNotice(m, run),
+      update,
+      () => {
+        measuring = true;
+        drawList();
+      },
+      siteEnv
+    );
     const { run } = ended;
     if (!run) {
       [notice, measuring] = [ended.notice ?? notice, false];

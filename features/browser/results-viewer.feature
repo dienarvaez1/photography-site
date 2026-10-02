@@ -479,11 +479,12 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And I sign in with the token "browser-test-admin-token"
     Then the Test Results tab's buttons above the list should be "Cleanup Test Results, Run in CI"
 
-  Scenario: On the deployed site, Run in CI says it only works on your own computer
+  Scenario: On the dev box Run in CI goes straight to the branch list (SITE_ENV decides); without the dev server's service, it says why
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I press "Run in CI" in the Test Results tab
-    Then the Test Results tab should say "Starting a CI run only works on your own computer"
+    Then the Test Results tab should say "The branches on GitHub could not be listed: the local results service did not answer"
+    And the Test Results tab should not say "only works on your own computer"
     And "Run in CI" should be available in the Test Results tab
     And the CI workflow should have been started 0 times
 

@@ -295,7 +295,6 @@
         "ended": "The CI run ended: {conclusion}.",
         "lost": "The dev server restarted and lost track of the CI run; it may still be going on GitHub.",
         "failed": "The CI run could not be started: {message}",
-        "onlyLocal": "Starting a CI run only works on your own computer, with npm run dev (it uses your GitHub login, gh).",
         "unreachable": "The local results service stopped answering, so the CI run is no longer followed here; it may still be going on GitHub. Is npm run dev still running?",
         "notFound": "GitHub never listed the CI run that was started, so there is no result to wait for. Check Actions → CI on GitHub.",
         "dialog": {
@@ -397,7 +396,6 @@
         "unreachable": "The local results service stopped answering, so the Lighthouse run is no longer followed here; it may still be going on GitHub. Is npm run dev still running?",
         "notFound": "GitHub never listed the Lighthouse run that was started, so there is no result to wait for. Check Actions → Lighthouse on GitHub.",
         "failed": "The Lighthouse run could not be started: {message}",
-        "onlyLocal": "Running Lighthouse against production only works on your own computer, with npm run dev (it uses your GitHub login, gh).",
         "branchesFailed": "The branches on GitHub could not be listed: {message}",
         "dialog": {
           "title": "Measure production with Lighthouse",
