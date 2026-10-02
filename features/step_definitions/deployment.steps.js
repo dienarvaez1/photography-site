@@ -131,6 +131,17 @@ Then('the CI workflow should type-check, run the tests, run the browser tests an
   }
 });
 
+Then('every workflow that builds the site should carry placeholder keys that satisfy the release-build guard', function () {
+  // A workflow running the test suites (offline, browser or Lighthouse) builds the site in the suites' shared setup.
+  const builds = /npm (test|run test:)|cucumber/;
+  for (const file of readdirSync(join(ROOT, '.github/workflows')).filter((f) => f.endsWith('.yml'))) {
+    for (const [name, job] of Object.entries(workflow(file).jobs)) {
+      if (!job.steps.some((step) => builds.test(step.run ?? ''))) continue;
+      assert.deepEqual(buildEnv.keyProblems(job.env ?? {}), [], `${file} → ${name} builds the site, so it needs valid placeholder keys`);
+    }
+  }
+});
+
 Then("the CI workflow's placeholder keys should satisfy the release-build guard", function () {
   const env = workflow('ci.yml').jobs.test.env;
   assert.deepEqual(buildEnv.keyProblems(env), [], 'CI sets CI=true, so the guard requires valid, distinct keys');

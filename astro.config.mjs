@@ -109,6 +109,11 @@ export default defineConfig({
   // inline scripts, so the browser blocks it. Not something this redesign asked for anyway.
   prefetch: false,
   vite: {
+    // `astro dev` keeps its pre-bundled dependencies in node_modules/.vite; anything else (a build, `astro check`, the
+    // tests' builds) gets its own folder. Sharing one let a build re-bundle the dev server's files from under it, and
+    // every page then failed (runInRunnerObject: "The file does not exist … in the optimize deps directory"); Run in
+    // CI's "local checkout" builds while the dev server runs.
+    cacheDir: process.argv.includes('dev') ? 'node_modules/.vite' : 'node_modules/.vite-build',
     define: {
       'import.meta.env.PHOTOS_SNAPSHOT': JSON.stringify(SNAPSHOT),
       'import.meta.env.BUILD_LABEL': JSON.stringify(BUILD.label),

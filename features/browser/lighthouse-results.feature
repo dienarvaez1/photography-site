@@ -157,17 +157,81 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
     Then the Lighthouse Test Results tab's buttons above the list should be "Remove Results, Run in Production"
 
-  Scenario: Run in Production measures the live site, waits while it runs, then lists the new run
+  Scenario: Run in Production first asks which branch, defaulting to main, and starts nothing until asked
     Given the local results service is running
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
     And I press "Run in Production" in the Lighthouse Test Results tab
-    Then the Lighthouse Test Results tab should say "Measuring the live site (https://diego-narvaez-photography.org) with Lighthouse on this computer."
+    Then the branch dialog should offer "QA-feature_optimization (this checkout), main", with "main" chosen
+    And the page should pass the automated accessibility audit
+    And Lighthouse should have measured the production site 0 times
+    When I press "Start Lighthouse run" in the branch dialog
+    Then the branch dialog should be closed
+    And the Lighthouse run should have been started from the tab on the branch "main"
+
+  Scenario: Run in Production runs on another branch when one is chosen
+    Given the local results service is running
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Run in Production" in the Lighthouse Test Results tab
+    And I choose the branch "QA-feature_optimization" in the branch dialog
+    And I press "Start Lighthouse run" in the branch dialog
+    Then the Lighthouse run should have been started from the tab on the branch "QA-feature_optimization"
+    And the Lighthouse Test Results tab should say "from the branch QA-feature_optimization"
+    And the Lighthouse Test Results tab should come to say "every page met its budget"
+
+  Scenario: Cancel in Run in Production's branch dialog starts nothing
+    Given the local results service is running
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Run in Production" in the Lighthouse Test Results tab
+    And I press "Cancel" in the branch dialog
+    Then the branch dialog should be closed
+    And "Run in Production" should be available in the Lighthouse Test Results tab
+    And Lighthouse should have measured the production site 0 times
+
+  Scenario: Run in Production measures the live site on GitHub, waits while it runs, then lists the new run
+    Given the local results service is running
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Run in Production" in the Lighthouse Test Results tab
+    And I press "Start Lighthouse run" in the branch dialog
+    Then the Lighthouse Test Results tab should say "Lighthouse is measuring the live site (https://diego-narvaez-photography.org) on GitHub Actions, from the branch main."
+    And the Lighthouse Test Results tab should link to the run on GitHub
     And "Measuring production…" should be unavailable in the Lighthouse Test Results tab
+    And the Lighthouse run should have been started from the tab on the branch "main"
     And the Lighthouse Test Results tab should come to say "every page met its budget"
     And the Lighthouse runs should be listed newest first, for the commits "ddddddd, bbbbbbb, aaaaaaa"
     And "Run in Production" should be available again in the Lighthouse Test Results tab
     And Lighthouse should have measured the production site 1 time
+
+  Scenario: Run in Production is not done until the results API confirms it has the new run
+    Given the local results service is running
+    And the results API only has the new Lighthouse run 3 seconds after it is stored
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Run in Production" in the Lighthouse Test Results tab
+    And I press "Start Lighthouse run" in the branch dialog
+    Then the Lighthouse Test Results tab should come to say "Waiting for the results API to confirm it has the run"
+    And "Measuring production…" should be unavailable in the Lighthouse Test Results tab
+    And the Lighthouse Test Results tab should not say "every page met its budget"
+    And the Lighthouse Test Results tab should come to say "every page met its budget"
+    And the results API should have been asked for the new Lighthouse run
+    And the Lighthouse runs should be listed newest first, for the commits "ddddddd, bbbbbbb, aaaaaaa"
+    And "Run in Production" should be available again in the Lighthouse Test Results tab
+
+  Scenario: When the results API never confirms the new run, the tab stops waiting after 2 minutes and says so
+    Given the page clock is under the test's control
+    And the local results service is running
+    And the results API never has the new Lighthouse run
+    When I open "/admin/#lighthouse-results"
+    And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
+    And I press "Run in Production" in the Lighthouse Test Results tab
+    And I press "Start Lighthouse run" in the branch dialog
+    Then the Lighthouse Test Results tab should come to say "Waiting for the results API to confirm it has the run"
+    When 2 minutes pass with nobody touching the page
+    Then the Lighthouse Test Results tab should come to say "the results API still had not confirmed it after 2 minutes"
+    And "Run in Production" should be available again in the Lighthouse Test Results tab
 
   Scenario: A run with pages over budget says so in its own words, and is listed too
     Given the local results service is running
@@ -175,6 +239,7 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
     And I press "Run in Production" in the Lighthouse Test Results tab
+    And I press "Start Lighthouse run" in the branch dialog
     Then the Lighthouse Test Results tab should come to say "Lighthouse ended: ✗ some pages over budget"
     And the Lighthouse runs should be listed newest first, for the commits "ddddddd, bbbbbbb, aaaaaaa"
 
@@ -184,9 +249,11 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
     And I press "Run in Production" in the Lighthouse Test Results tab
+    And I press "Start Lighthouse run" in the branch dialog
     And I reload the page
     And I press "Run in Production" in the Lighthouse Test Results tab
-    Then the Lighthouse Test Results tab should say "Measuring the live site"
+    And I press "Start Lighthouse run" in the branch dialog
+    Then the Lighthouse Test Results tab should say "Lighthouse is measuring the live site"
     And "Measuring production…" should be unavailable in the Lighthouse Test Results tab
     And Lighthouse should have measured the production site 1 time
 
@@ -196,6 +263,7 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     When I open "/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
     And I press "Run in Production" in the Lighthouse Test Results tab
+    And I press "Start Lighthouse run" in the branch dialog
     Then the Lighthouse Test Results tab should come to say "every page met its budget"
     And the Lighthouse runs should be listed newest first, for the commits "ddddddd"
 
@@ -222,6 +290,7 @@ Feature: The Admin page's Lighthouse Test Results tab shows every Lighthouse run
     When I open "/es/admin/#lighthouse-results"
     And I sign in to the Lighthouse Test Results tab with the token "browser-test-admin-token"
     And I press "Ejecutar en producción" in the Lighthouse Test Results tab
-    Then the Lighthouse Test Results tab should say "Midiendo el sitio en línea (https://diego-narvaez-photography.org) con Lighthouse en este ordenador."
+    And I press "Iniciar ejecución de Lighthouse" in the branch dialog
+    Then the Lighthouse Test Results tab should say "Lighthouse está midiendo el sitio en línea (https://diego-narvaez-photography.org) en GitHub Actions, desde la rama main."
     When I press "Eliminar resultados" in the Lighthouse Test Results tab
     Then the removal bar should say "0 seleccionadas", with "Eliminar las seleccionadas" unavailable

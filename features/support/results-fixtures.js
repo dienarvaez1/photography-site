@@ -36,8 +36,7 @@ const ZIP = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x66, 0x61, 0x6b, 0x65]);
  * runs = [{ time, commit, source?, offline: [scenarios], browser?: [scenarios], smoke?: [checks], artifacts?: [names] }].
  * Returns { bucket, runIds } (newest first, like the index).
  */
-export async function publishRuns(runs) {
-  const bucket = createMemoryBucket();
+export async function publishRuns(runs, bucket = createMemoryBucket()) {
   const runIds = [];
   for (const run of runs) {
     const dir = mkdtempSync(join(tmpdir(), 'fixture-run-'));
@@ -58,7 +57,7 @@ export async function publishRuns(runs) {
         put(`artifacts/browser/${name}.zip`, ZIP);
         put(`artifacts/browser/${name}.txt`, `Scenario: ${name}\nStatus: FAILED\n`);
       }
-      const { runId } = await lib.publishResults({ dir, storage: bucket, source: run.source ?? 'local', meta: { commit: run.commit, branch: 'main', dirty: false }, now: new Date(run.time) });
+      const { runId } = await lib.publishResults({ dir, storage: bucket, source: run.source ?? 'local', from: run.from, target: run.target, meta: { commit: run.commit, branch: 'main', dirty: false }, now: new Date(run.time) });
       runIds.unshift(runId);
     } finally {
       rmSync(dir, { recursive: true, force: true });

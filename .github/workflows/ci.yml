@@ -8,6 +8,11 @@ on:
   # Actions page, or `gh workflow run ci.yml --ref main`. Runs the same test job (every Cucumber test, offline and in the
   # browser), stores its results in R2 and, as it isn't a push, skips the live smoke check.
   workflow_dispatch:
+    inputs:
+      source:
+        description: Where the run was started from (Run in CI passes the Admin page's host, e.g. localhost:4321)
+        required: false
+        default: ''
 
 # A newer push cancels the older run of the same branch. Runs started by hand have their own group, so one never
 # cancels a push's run (or the reverse).
@@ -51,6 +56,12 @@ jobs:
         run: npm audit --audit-level=high
       - name: Store the test results in R2 (only when the R2 secrets are configured)
         if: ${{ always() && env.CLOUDFLARE_API_TOKEN != '' }}
+        # The run's source: the host that started it by hand (Run in CI), else (empty) the publisher names the GitHub
+        # event ("GitHub push", "GitHub pull request", "GitHub manual run"). Passed as an environment variable, never
+        # pasted into the command, so the input is only ever text.
+        env:
+          RESULTS_FROM: ${{ inputs.source }}
+          RESULTS_TARGET: GitHub CI
         run: node scripts/results.mjs publish --source ci
 
   # After Cloudflare's Git build has had time to finish, check the live site the way a visitor

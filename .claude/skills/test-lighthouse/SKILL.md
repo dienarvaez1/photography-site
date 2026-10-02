@@ -15,7 +15,7 @@ page `LIGHTHOUSE_RUNS` times (3 by default) and judges the median run against th
 **In CI instead:** `--ci` (or the user asking to run it in CI or on GitHub) starts `.github/workflows/lighthouse.yml`
 with `gh workflow run lighthouse.yml --ref main`. It measures production and stores the run in R2. Then follow it as
 /test-ci does with `--workflow Lighthouse` (about 10 minutes) and report as below. The workflow must be on `main` for GitHub to start it. (The Lighthouse tab's Run in Production button
-is the same as running this skill with `--publish` against production, from the dev server.)
+starts this same workflow, on the branch chosen in its dialog — main by default — from the dev server.)
 
 ## Steps
 

@@ -151,7 +151,7 @@ function referencedBytes(root, pattern, attribute, extraImports = false) {
   return total;
 }
 
-Then("no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 63 KB, their scripts 58 KB and their styles 27 KB", function () {
+Then("no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 65 KB, their scripts 58 KB and their styles 28 KB", function () {
   const problems = [];
   for (const { route, page } of this.data.pages) {
     const isAdmin = /\/admin\/$/.test(route);
@@ -187,11 +187,13 @@ Then("no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB
     // languages (61 KB of HTML in Spanish), and the buttons that load them (src/lib/results-remove.ts, loaded only
     // when pressed): 61 KB of HTML and 58 KB of scripts.
     // Run in CI (Test Results tab) and Run in Production (Lighthouse tab) added their texts in turn: 63 KB of HTML.
-    if (kb(html) > (isAdmin ? 63 : 30)) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
+    // Run in CI's branch dialog (its texts and styles) and the Lighthouse tab's wait for the results API to confirm a
+    // new run (its texts): 65 KB of HTML and 28 KB of styles.
+    if (kb(html) > (isAdmin ? 65 : 30)) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
     // The page's own sign-in (src/lib/admin-gate.ts: one token box, the tabs hidden until GET /auth accepts the token)
     // replaced the six tabs' own token forms, but the check itself is new: 57 KB.
     if (kb(js) > (isAdmin ? 58 : 28)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
-    if (kb(css) > (isAdmin ? 27 : 25)) problems.push(`${route}: styles ${kb(css).toFixed(1)} KB`);
+    if (kb(css) > (isAdmin ? 28 : 25)) problems.push(`${route}: styles ${kb(css).toFixed(1)} KB`);
   }
   assert.deepEqual(problems, [], 'A page grew past its budget — check for an oversized script, style or inlined asset');
 });

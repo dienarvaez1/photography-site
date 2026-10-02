@@ -218,7 +218,8 @@
         "node": "Node",
         "dirty": "uncommitted changes",
         "clean": "clean",
-        "runId": "Run"
+        "runId": "Run",
+        "target": "Ran in"
       },
       "suites": {
         "heading": "Suites",
@@ -291,11 +292,28 @@
         "open": "Open the run on GitHub",
         "passed": "The CI run is done: every test passed. Its results are listed below.",
         "ended": "The CI run ended: {conclusion}.",
-        "started": "Started a CI run of every Cucumber test on {ref}. Press Refresh when it is done.",
         "lost": "The dev server restarted and lost track of the CI run; it may still be going on GitHub.",
         "failed": "The CI run could not be started: {message}",
         "onlyLocal": "Starting a CI run only works on your own computer, with npm run dev (it uses your GitHub login, gh).",
-        "unreachable": "The local results service stopped answering, so the CI run is no longer followed here; it may still be going on GitHub. Is npm run dev still running?"
+        "unreachable": "The local results service stopped answering, so the CI run is no longer followed here; it may still be going on GitHub. Is npm run dev still running?",
+        "notFound": "GitHub never listed the CI run that was started, so there is no result to wait for. Check Actions → CI on GitHub.",
+        "dialog": {
+          "title": "Run every test in CI",
+          "hint": "Lint, type-check and every Cucumber test, on the branch you choose (it must be on GitHub) or in this local checkout.",
+          "branch": "Branch",
+          "thisCheckout": "{branch} (this checkout)",
+          "notOnGitHub": "{branch} is not on GitHub yet. Push it first, or choose another branch.",
+          "start": "Start CI run",
+          "cancel": "Cancel",
+          "localCheckout": "local checkout on this computer ({branch})"
+        },
+        "branchesFailed": "The branches on GitHub could not be listed: {message}",
+        "local": {
+          "running": "Running every Cucumber test in the local checkout ({ref}) on this computer. It takes about 25 minutes; its results are listed here when it is done.",
+          "passed": "The local run is done: every test passed.",
+          "ended": "The local run ended: {message}",
+          "interrupted": "The dev server restarted during the local run, so it is no longer followed here."
+        }
       }
     },
     "lighthouse": {
@@ -331,7 +349,8 @@
         "branch": "Branch",
         "source": "Source",
         "dirty": "uncommitted changes",
-        "clean": "clean"
+        "clean": "clean",
+        "target": "Measured"
       },
       "table": {
         "heading": "Every page measured",
@@ -366,13 +385,28 @@
       "production": {
         "button": "Run in Production",
         "running": "Measuring production…",
-        "measuring": "Measuring the live site ({target}) with Lighthouse on this computer. It takes a few minutes; the run is listed here when it is done.",
+        "measuring": "Lighthouse is measuring the live site ({target}) on GitHub Actions, from the branch {ref}. It takes about 10 minutes; the run is listed here when it is done.",
+        "open": "Open the run on GitHub",
+        "confirming": "Lighthouse has finished and stored run {runId}. Waiting for the results API to confirm it has the run…",
+        "unconfirmed": "Lighthouse stored run {runId}, but the results API still had not confirmed it after {minutes} minutes. Press Refresh to look again.",
+        "noRunId": "The Lighthouse run on GitHub finished, but its log did not say which run it stored, so the results API could not confirm it. Press Refresh to look for it.",
         "done": "Lighthouse is done: every page met its budget. The run is listed below.",
         "ended": "Lighthouse ended: {message}",
-        "noOutput": "it printed nothing.",
-        "lost": "The local results service stopped answering. Is npm run dev still running?",
+        "lost": "The dev server restarted and lost track of the Lighthouse run; it may still be going on GitHub.",
+        "unreachable": "The local results service stopped answering, so the Lighthouse run is no longer followed here; it may still be going on GitHub. Is npm run dev still running?",
+        "notFound": "GitHub never listed the Lighthouse run that was started, so there is no result to wait for. Check Actions → Lighthouse on GitHub.",
         "failed": "The Lighthouse run could not be started: {message}",
-        "onlyLocal": "Running Lighthouse against production only works on your own computer, with npm run dev."
+        "onlyLocal": "Running Lighthouse against production only works on your own computer, with npm run dev (it uses your GitHub login, gh).",
+        "branchesFailed": "The branches on GitHub could not be listed: {message}",
+        "dialog": {
+          "title": "Measure production with Lighthouse",
+          "hint": "Runs the Lighthouse workflow on GitHub Actions with the branch you choose (its tests and budgets), against the live site. The branch must be on GitHub, with the Lighthouse workflow on it.",
+          "branch": "Branch",
+          "thisCheckout": "{branch} (this checkout)",
+          "notOnGitHub": "{branch} is not on GitHub yet. Push it first, or choose another branch.",
+          "start": "Start Lighthouse run",
+          "cancel": "Cancel"
+        }
       }
     },
     "issues": {

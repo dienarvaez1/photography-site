@@ -27,7 +27,7 @@ export function parseHeadersFile(text) {
 }
 
 /**
- * Serves the built site (dist/client) the way Cloudflare's asset hosting does: `_headers` applied,
+ * Serves the built site (this run's snapshot build, lib.js DIST_DIR) the way Cloudflare's asset hosting does: `_headers` applied,
  * /dir redirected to /dir/, and for an unknown URL the nearest 404.html with a real 404 status.
  * Options simulate a bad deploy: `transform(path, body, contentType)` may rewrite a text response,
  * `blank404` answers unknown URLs with an empty 404 (what the site did before it had a 404 page),

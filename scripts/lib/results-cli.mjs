@@ -1,13 +1,13 @@
 // Command line for the test-results store, as a function so tests can drive it with a fake bucket.
 import { parseArgs } from 'node:util';
-import { DEFAULT_RETENTION, RESULTS_BUCKET, RESULTS_PREFIX, directoryExists, listRuns, pruneResults, publishResults, showRun, trend } from './results.mjs';
+import { DEFAULT_RETENTION, RESULTS_BUCKET, RESULTS_PREFIX, directoryExists, listRuns, pruneResults, publishResults, showRun, startedFrom, targetFromEnv, trend } from './results.mjs';
 
 export const HELP = `Test results in R2 — bucket ${RESULTS_BUCKET}, under ${RESULTS_PREFIX}
 
   npm run test:record [-- --suite offline|browser|all] [--no-publish]
       Runs the test suites with reporters, then publishes the results.
 
-  npm run results:publish [-- --source local|ci]
+  npm run results:publish [-- --source local|ci] [--from <where started>] [--target <where it ran>]
       Uploads test-results/ (Cucumber JSON + HTML, smoke.json, failure screenshots and traces)
       as one run, with a summary, and adds it to the index.
 
@@ -27,10 +27,14 @@ export async function run(args, { dir, storage, log = console.log, error = conso
   try {
     switch (command) {
       case 'publish': {
-        const { values } = parseArgs({ args: rest, options: { source: { type: 'string' }, retain: { type: 'string' } } });
+        const { values } = parseArgs({ args: rest, options: { source: { type: 'string' }, from: { type: 'string' }, target: { type: 'string' }, retain: { type: 'string' } } });
         if (!(await directoryExists(dir))) throw new Error(`No test results folder at ${dir}. Run \`npm run test:record\` first.`);
         const { runId, summary, pruned } = await publishResults({
           dir, storage, meta, now, source: values.source ?? (process.env.CI ? 'ci' : 'local'),
+          // Where it was started from and ran: --from/--target, else RESULTS_FROM/RESULTS_TARGET (set by Run in CI and
+          // the CI workflow), else what started it here (startedFrom: the GitHub event, or this computer from a terminal)
+          // and what the publisher works out (the live site for a smoke-only run, else GitHub CI / local checkout).
+          from: values.from ?? startedFrom(), target: values.target ?? targetFromEnv(),
           retain: values.retain ? Number(values.retain) : DEFAULT_RETENTION, log,
         });
         log(`${mark(summary.ok)} published ${runId}: ${summary.totals.passed}/${summary.totals.scenarios} passed${summary.totals.failed ? `, ${summary.totals.failed} failed` : ''} → ${RESULTS_BUCKET}/${RESULTS_PREFIX}runs/${runId}/`);

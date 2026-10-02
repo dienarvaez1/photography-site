@@ -2,11 +2,17 @@ name: Lighthouse
 
 # Measures the live site with the Lighthouse suite and stores the run in R2 (bucket photography-site-test, under
 # lighthouse-results/), where the Admin page's Lighthouse Test Results tab shows it. Started by hand: from the Actions
-# page, or with `gh workflow run lighthouse.yml`. (The tab's "Run in Production" button measures the same site from
-# the owner's computer instead, through the dev server's local results service.) A run whose pages miss their budgets
+# page, with `gh workflow run lighthouse.yml`, or from the tab's "Run in Production" button (on the branch chosen in its
+# dialog, through the dev server's local results service, which reads the published run's id from this job's log —
+# keep the publisher's "published <run id>:" line in it). A run whose pages miss their budgets
 # is still stored (that is what the tab is for); the job then fails so the run shows red here too.
 on:
   workflow_dispatch:
+    inputs:
+      source:
+        description: Where the run was started from (Run in Production passes the Admin page's host, e.g. localhost:4321)
+        required: false
+        default: ''
 
 concurrency:
   group: lighthouse
@@ -17,6 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      # The suite builds the site before it measures (the tests' shared setup), and on GitHub (CI=true) the
+      # release-build guard refuses a build without contact-form keys. The same placeholders as ci.yml: nothing is
+      # sent, and the real keys stay in Cloudflare's build settings.
+      PUBLIC_WEB3FORMS_KEY: 00000000-0000-4000-8000-000000000001
+      PUBLIC_WEB3FORMS_KEY_ES: 00000000-0000-4000-8000-000000000002
       # Needed to store the run; without them the measurements still run but nothing is published.
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -31,6 +42,10 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Measure the live site and store the run in R2
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        # The run's source: the host that started it, else (empty) the publisher says "GitHub manual run". Passed as an
+        # environment variable, never pasted into the command. Its target is the measured site's host.
+        env:
+          RESULTS_FROM: ${{ inputs.source }}
         run: npm run test:lighthouse:record
       - name: Measure the live site (not stored; the R2 secrets are not configured)
         if: ${{ env.CLOUDFLARE_API_TOKEN == '' }}

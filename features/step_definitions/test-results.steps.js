@@ -157,9 +157,13 @@ Then(/^the run id for "([^"]+)", commit "([^"]+)", uncommitted changes "([^"]+)"
 
 // --- Publishing ----------------------------------------------------------------------------------------------
 
-async function publish(world, time, commit, source, retain) {
-  return lib.publishResults({ dir: state(world).dir, storage: state(world).bucket, source, meta: { commit, branch: 'main', dirty: false }, now: new Date(time), ...(retain ? { retain } : {}) });
+async function publish(world, time, commit, source, retain, labels = {}) {
+  return lib.publishResults({ dir: state(world).dir, storage: state(world).bucket, source, ...labels, meta: { commit, branch: 'main', dirty: false }, now: new Date(time), ...(retain ? { retain } : {}) });
 }
+
+When(/^I publish the results at "([^"]+)" from commit "([^"]+)" as "([^"]+)", started from "([^"]*)" and run in "([^"]*)"$/, async function (time, commit, source, from, target) {
+  state(this).last = await publish(this, time, commit, source, undefined, { from: from || undefined, target: target || undefined });
+});
 
 When(/^I publish the results at "([^"]+)" from commit "([^"]+)" as "([^"]+)"$/, async function (time, commit, source) {
   state(this).last = await publish(this, time, commit, source);
@@ -439,7 +443,9 @@ Then(/^the failure's reason should mention "([^"]+)"$/, function (fragment) {
 const resultsForm = await import(join(ROOT, 'scripts/lib/results-form.mjs'));
 
 When('I remove the runs {string}', async function (ids) {
+  const started = Date.now();
   state(this).removal = await lib.removeRuns({ storage: state(this).bucket, runIds: ids.split(', ') });
+  state(this).removalMs = Date.now() - started; // see "the removal should have taken less than half as long…"
 });
 
 When('deleting {string} fails in the bucket', function (fragment) {
@@ -524,23 +530,36 @@ Then('the built site should hold nothing under {string}', function (prefix) {
 function ciService(world) {
   const s = state(world);
   if (!s.ciService) {
-    s.ci = { started: 0, nextId: null, failure: null, status: { status: 'queued', conclusion: '' } };
+    s.ci ??= { started: 0, nextId: null, named: true, listed: null, failure: null, status: { status: 'queued', conclusion: '' }, findMs: 60_000 };
+    s.ciStateFile ??= join(s.dir, 'run-in-ci.json'); // the scenario's own: never the real .astro/run-in-ci.json
+    const url = (id) => `https://github.com/o/r/actions/runs/${id}`;
     const ci = {
-      start: async () => {
+      start: async (ref, inputs = {}) => {
         if (s.ci.failure) throw new Error(s.ci.failure);
         s.ci.started++;
-        return { id: s.ci.nextId, url: `https://github.com/o/r/actions/runs/${s.ci.nextId}` };
+        s.ci.refs = [...(s.ci.refs ?? []), ref];
+        s.ci.inputs = [...(s.ci.inputs ?? []), inputs];
+        return s.ci.named ? { id: s.ci.nextId, url: url(s.ci.nextId) } : { id: null, url: null };
       },
-      status: async (id) => ({ ...s.ci.status, url: `https://github.com/o/r/actions/runs/${id}` }),
+      find: async () => (s.ci.listed ? { id: s.ci.listed, url: url(s.ci.listed) } : null),
+      status: async (id) => ({ ...s.ci.status, url: url(id) }),
     };
-    s.ciService = resultsForm.createResultsFormHandler({ storage: s.bucket, ci, ciPollMs: 10 });
+    // GitHub has main and QA-feature_x; this checkout is on the branch the scenario says (QA-feature_x unless told).
+    s.branches ??= { onGitHub: ['QA-feature_x', 'main'], current: 'QA-feature_x' };
+    const branches = { list: async () => s.branches.onGitHub, current: async () => s.branches.current };
+    // Running every test here is stood in for: each start is recorded, and the scenario ends it.
+    s.recorded ??= [];
+    const record = (run) => s.recorded.push(run);
+    s.localStateFile ??= join(s.dir, 'run-locally.json');
+    s.ciService = resultsForm.createResultsFormHandler({ storage: s.bucket, ci, branches, record, localStateFile: s.localStateFile, ciPollMs: 10, ciFindMs: s.ci.findMs, ciStateFile: s.ciStateFile });
   }
   return s.ciService;
 }
 
-async function askCi(world, method, origin = 'http://localhost:4321') {
+async function askCi(world, method, origin, { path = 'tests/run', ref = 'main', host = 'localhost:4321', body } = {}) {
   const handle = ciService(world);
-  const response = await handle(new Request('http://localhost:4321/__results/tests/run', { method, headers: { Origin: origin, 'Content-Type': 'application/json' }, ...(method === 'POST' ? { body: '{}' } : {}) }));
+  const send = body ?? { ref };
+  const response = await handle(new Request(`http://${host}/__results/${path}`, { method, headers: { Origin: origin ?? `http://${host}`, 'Content-Type': 'application/json' }, ...(method === 'POST' ? { body: JSON.stringify(send) } : {}) }));
   state(world).answer = { status: response.status, body: await response.json() };
 }
 
@@ -606,9 +625,208 @@ Then('the CI workflow should not have been started', function () {
 });
 
 Then('the local results service should start CI with {string} and follow it with {string}', function (start, follow) {
-  const [, , , workflow, , ref] = start.split(' ');
-  assert.deepEqual([resultsForm.CI_WORKFLOW, resultsForm.CI_REF], [workflow, ref]);
+  const [, , , workflow] = start.split(' ');
+  assert.equal(resultsForm.CI_WORKFLOW, workflow);
   const source = readFileSync(join(ROOT, 'scripts/lib/results-form.mjs'), 'utf-8');
-  assert.ok(source.includes("gh(['workflow', 'run', CI_WORKFLOW, '--ref', CI_REF])"));
+  assert.ok(source.includes("gh(['workflow', 'run', workflow, '--ref', ref])"));
+  assert.ok(source.includes('ciWithGh = workflowWithGh(CI_WORKFLOW)'));
   assert.ok(source.includes(`gh(['${follow.split(' ').slice(1).join("', '")}', id,`));
+});
+
+Given("GitHub doesn't name the CI run when it starts", function () {
+  ciService(this);
+  state(this).ci.named = false;
+});
+
+Given('GitHub never lists the CI run, and the service looks for it for {int} ms', function (ms) {
+  state(this).ci = { started: 0, nextId: null, named: false, listed: null, failure: null, status: { status: 'queued', conclusion: '' }, findMs: ms };
+});
+
+When('GitHub lists the CI run as {int}', function (id) {
+  state(this).ci.listed = String(id);
+});
+
+When('{int} ms pass', async function (ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+});
+
+When('the dev server restarts', function () {
+  // A new service over the same saved state, as `astro dev` makes after a restart.
+  state(this).ciService = null;
+});
+
+Then('the service should say the CI run is not found yet, still {string}', function (status) {
+  const { run } = state(this).answer.body;
+  assert.deepEqual([run.id, run.status, run.finishedAt], [null, status, null]);
+});
+
+Then('the service should say it is following the CI run {int}, {string}', function (id, status) {
+  const { run } = state(this).answer.body;
+  assert.deepEqual([run.id, run.status, run.finishedAt, run.url], [String(id), status, null, `https://github.com/o/r/actions/runs/${id}`]);
+});
+
+Given('this checkout is on the branch {string}, which is not on GitHub', function (branch) {
+  state(this).branches = { onGitHub: ['QA-feature_x', 'main'], current: branch };
+});
+
+When('the local results service is asked which branches CI can run on', async function () {
+  await askCi(this, 'GET', undefined, { path: 'tests/branches' });
+});
+
+When('the local results service is asked to run every test in CI on the branch {string}', async function (ref) {
+  ciService(this);
+  state(this).ci.nextId = '6000';
+  await askCi(this, 'POST', undefined, { ref });
+});
+
+Then('it should list the branches {string}, with {string} as this checkout\'s, {string}', function (names, current, where) {
+  const { status, body } = state(this).answer;
+  assert.equal(status, 200);
+  assert.deepEqual(body, { branches: names.split(', '), current, currentOnGitHub: where === 'on GitHub' });
+});
+
+Then('the CI run should have been started on the branch {string}', function (ref) {
+  assert.deepEqual(state(this).ci.refs, [ref]);
+  assert.equal(state(this).answer.body.run.ref, ref);
+});
+
+Then('it should list the branches with {string} and this checkout\'s with {string}', function (list, current) {
+  const source = readFileSync(join(ROOT, 'scripts/lib/results-form.mjs'), 'utf-8');
+  const asArgs = (command) => `run('git', [${command.split(' ').slice(1).map((a) => `'${a}'`).join(', ')}]`;
+  assert.ok(source.includes(asArgs(list)), list);
+  assert.ok(source.includes(asArgs(current)), current);
+});
+
+// --- Where a run was started from, and where it ran -------------------------------------------------------------------
+
+Then("the run's summary and its index entry should say source {string} and target {string}", function (source, target) {
+  const summary = json(this, 'results/latest.json');
+  const [entry] = json(this, 'results/index.json').runs;
+  assert.deepEqual([summary.source, summary.target], [source, target]);
+  assert.deepEqual([entry.source, entry.target], [source, target]);
+});
+
+Then("the run's summary and its index entry should say it ran in {string}", function (target) {
+  assert.equal(json(this, 'results/latest.json').target, target);
+  assert.equal(json(this, 'results/index.json').runs[0].target, target);
+});
+
+Then("the newest run's id should end with {string}", function (ending) {
+  assert.ok(json(this, 'results/index.json').runs[0].runId.endsWith(ending));
+});
+
+When('I run the results command {string} with RESULTS_FROM {string} and RESULTS_TARGET {string}', async function (line, from, target) {
+  const saved = { from: process.env.RESULTS_FROM, target: process.env.RESULTS_TARGET };
+  Object.assign(process.env, { RESULTS_FROM: from, RESULTS_TARGET: target });
+  try {
+    await runCommand(this, line);
+  } finally {
+    for (const [name, value] of [['RESULTS_FROM', saved.from], ['RESULTS_TARGET', saved.target]]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+  assert.equal(state(this).command.code, 0, state(this).command.err);
+});
+
+const ciWorkflow = () => yaml.load(readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf-8'));
+
+Then('the CI workflow should take a {string} input when started by hand', function (name) {
+  const input = ciWorkflow().on.workflow_dispatch.inputs[name];
+  assert.ok(input, `ci.yml should take the input "${name}"`);
+  assert.equal(input.required, false);
+});
+
+Then('it should publish with RESULTS_FROM set to that input and RESULTS_TARGET {string}', function (target) {
+  const step = ciWorkflow().jobs.test.steps.find((s) => /results\.mjs publish/.test(s.run ?? ''));
+  assert.equal(step.env.RESULTS_FROM, '${{ inputs.source }}');
+  assert.equal(step.env.RESULTS_TARGET, target);
+  // The input only ever reaches the command as an environment variable, never pasted into it.
+  assert.ok(!step.run.includes('inputs.'), step.run);
+});
+
+When('the local results service at {string} is asked to run every test in CI on the branch {string}', async function (host, ref) {
+  ciService(this);
+  state(this).ci.nextId = '7000';
+  await askCi(this, 'POST', undefined, { ref, host });
+});
+
+When('the local results service at {string} is asked to run every test in the local checkout', async function (host) {
+  await askCi(this, 'POST', undefined, { host, body: { where: 'local' } });
+});
+
+Then('GitHub should have been asked to start the run with the input source {string}', function (host) {
+  assert.deepEqual(state(this).ci.inputs, [{ source: host }]);
+});
+
+Then('the service should say the CI run came from {string} and runs in {string}', function (source, target) {
+  const { run } = state(this).answer.body;
+  assert.deepEqual([run.source, run.target], [source, target]);
+});
+
+Then('the tests should have been recorded locally once, from {string} in {string}', function (from, target) {
+  const { recorded } = state(this);
+  assert.equal(recorded.length, 1);
+  assert.deepEqual([recorded[0].from, recorded[0].target], [from, target]);
+});
+
+Then("the service should say the local run is going, on this checkout's branch {string}", function (ref) {
+  const { status, body } = state(this).answer;
+  assert.equal(status, 202);
+  assert.deepEqual([body.run.ref, body.run.target, body.run.status, body.run.finishedAt], [ref, 'local checkout', 'in_progress', null]);
+});
+
+When('the local run ends with exit code {int} after printing {string}', function (code, line) {
+  const run = state(this).recorded.at(-1);
+  run.onOutput(line);
+  run.onExit(code);
+});
+
+Then('the dev server should keep its Vite cache in {string} and every build in {string}', function (dev, build) {
+  const config = readFileSync(join(ROOT, 'astro.config.mjs'), 'utf-8');
+  assert.ok(config.includes(`cacheDir: process.argv.includes('dev') ? '${dev}' : '${build}'`));
+});
+
+Then(/^a run started with (.+) should say it was started from "([^"]+)"$/, function (environment, source) {
+  const env = {};
+  let machine = 'some-computer';
+  const from = /RESULTS_FROM "([^"]+)"/.exec(environment);
+  if (from) env.RESULTS_FROM = from[1];
+  const event = /GitHub's "([^"]+)" event/.exec(environment);
+  if (event) Object.assign(env, { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: event[1] });
+  const computer = /(?:computer|on) "([^"]+)"/.exec(environment);
+  if (computer) machine = computer[1];
+  assert.equal(lib.startedFrom({ env, machine }), source);
+});
+
+When('the stored runs lose their source and target, as before', async function () {
+  const strip = (run) => ({ ...run, source: run.runId.includes('-ci') ? 'ci' : 'local', target: undefined });
+  const index = json(this, 'results/index.json');
+  for (const entry of index.runs) await lib.putJson(state(this).bucket, `results/runs/${entry.runId}/summary.json`, strip(json(this, `results/runs/${entry.runId}/summary.json`)));
+  await lib.putJson(state(this).bucket, 'results/latest.json', strip(json(this, 'results/latest.json')));
+  await lib.putJson(state(this).bucket, 'results/index.json', { ...index, runs: index.runs.map(strip) });
+});
+
+When(/^I label the stored test runs(, only saying what would change)?$/, async function (dry) {
+  state(this).labelling = await lib.labelStoredRuns({ storage: state(this).bucket, prefix: 'results/', dryRun: Boolean(dry) });
+});
+
+Then('the stored runs should still have no target', function () {
+  assert.ok(json(this, 'results/index.json').runs.every((r) => r.target === undefined));
+  assert.equal(state(this).labelling.labelled.length, 2);
+});
+
+Then('the stored run {string} should say source {string} and target {string}', function (runId, source, target) {
+  const entry = json(this, 'results/index.json').runs.find((r) => r.runId === runId);
+  const summary = json(this, `results/runs/${runId}/summary.json`);
+  for (const run of [entry, summary]) assert.deepEqual([run.source, run.target], [source, target]);
+});
+
+Then('latest.json should say source {string} and target {string}', function (source, target) {
+  const latest = json(this, 'results/latest.json');
+  assert.deepEqual([latest.source, latest.target], [source, target]);
+});
+
+Then('labelling should find every run already labelled', function () {
+  assert.deepEqual([state(this).labelling.labelled.length, state(this).labelling.already], [0, 2]);
 });

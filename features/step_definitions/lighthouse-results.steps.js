@@ -200,15 +200,31 @@ const resultsForm = await import(join(ROOT, 'scripts/lib/results-form.mjs'));
 const LOCAL = 'http://localhost:4321';
 
 /**
- * The scenario's service: this bucket, and a stand-in for running Lighthouse that records each start and lets the
- * scenario print lines and end it. Kept for the scenario, so a measurement it starts can be asked about afterwards.
+ * The scenario's service: this bucket, and a stand-in for GitHub's Lighthouse workflow that records each start's branch
+ * and answers what the scenario says GitHub says (`gh`). GitHub has the branches main and QA-feature_x. The run being
+ * followed is kept in the scenario's own file, never the real .astro/run-in-production.json; "the dev server restarts"
+ * makes a new service over the same file.
  */
-function service(world) {
+function service(world, { restart = false } = {}) {
   const s = state(world);
-  if (!s.service) {
-    s.measured = [];
-    const measure = (run) => s.measured.push(run);
-    s.service = resultsForm.createResultsFormHandler({ storage: bucket(world), measure });
+  if (!s.service || restart) {
+    s.gh ??= { refs: [], status: 'queued', conclusion: '', log: '', logError: null };
+    const url = (id) => `https://github.com/dienarvaez1/photography-site/actions/runs/${id}`;
+    const lighthouse = {
+      start: async (ref) => {
+        s.gh.refs.push(ref);
+        return { id: '9000', url: url('9000') };
+      },
+      find: async () => null,
+      status: async (id) => ({ status: s.gh.status, conclusion: s.gh.conclusion, url: url(id) }),
+      outcome: async () => {
+        if (s.gh.logError) throw new Error(s.gh.logError);
+        return resultsForm.publishedFromLog(s.gh.log);
+      },
+    };
+    const branches = { list: async () => ['QA-feature_x', 'main'], current: async () => 'QA-feature_x' };
+    mkdirSync(s.dir, { recursive: true });
+    s.service = resultsForm.createResultsFormHandler({ storage: bucket(world), lighthouse, branches, lighthousePollMs: 10, lighthouseStateFile: join(s.dir, 'run-in-production.json'), ciStateFile: null });
   }
   return s.service;
 }
@@ -226,6 +242,61 @@ When('the local results service is asked to remove the newest Lighthouse run', a
   assert.deepEqual(state(this).answer, { status: 200, body: { removed: [newest.runId], missing: [], failed: [] } });
 });
 
+When('every delete from the bucket takes {int} ms', function (ms) {
+  const storage = bucket(this);
+  const deleteNow = storage.delete.bind(storage);
+  const deletes = (state(this).deletes = { delayMs: ms, count: 0, active: 0, peak: 0 });
+  storage.delete = async (key) => {
+    deletes.count++;
+    deletes.peak = Math.max(deletes.peak, ++deletes.active);
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    deletes.active--;
+    return deleteNow(key);
+  };
+});
+
+When('the bucket can\'t delete the files of the second Lighthouse run', function () {
+  bucket(this).faults.failDeleteMatching = state(this).lighthouseRuns[1].runId;
+});
+
+When('the local results service is asked to remove every Lighthouse run', async function () {
+  const started = Date.now();
+  await ask(this, 'POST', '/__results/lighthouse/remove', { body: { runs: state(this).lighthouseRuns.map((run) => run.runId) } });
+  state(this).removalMs = Date.now() - started;
+});
+
+const runIdsOf = (world, positions) => positions.map((i) => state(world).lighthouseRuns[i].runId);
+
+Then('the service should report every Lighthouse run removed, nothing missing or failed', function () {
+  const { status, body } = state(this).answer;
+  assert.equal(status, 200);
+  assert.deepEqual({ ...body, removed: [...body.removed].sort() }, { removed: runIdsOf(this, [0, 1, 2]).sort(), missing: [], failed: [] });
+});
+
+Then('the service should report the second Lighthouse run failed and the others removed', function () {
+  const { body } = state(this).answer;
+  assert.deepEqual([...body.removed].sort(), runIdsOf(this, [0, 2]).sort());
+  assert.deepEqual(body.failed.map((f) => f.runId), runIdsOf(this, [1]));
+  assert.match(body.failed[0].error, /simulated delete failure/);
+});
+
+Then(/^no file of (any removed Lighthouse run|the first and third Lighthouse runs) should be left in the bucket$/, function (which) {
+  const runIds = which === 'any removed Lighthouse run' ? runIdsOf(this, [0, 1, 2]) : runIdsOf(this, [0, 2]);
+  for (const runId of runIds) assert.deepEqual(keys(this).filter((k) => k.includes(runId)), [], runId);
+});
+
+Then('the bucket should have been deleting more than {int} file at once, but never more than {int}', function (low, high) {
+  const { peak } = state(this).deletes;
+  assert.equal(results.DELETE_CONCURRENCY, high);
+  assert.ok(peak > low && peak <= high, `at most ${peak} at once`);
+});
+
+Then('the removal should have taken less than half as long as deleting the files one by one', function () {
+  const { count, delayMs } = state(this).deletes;
+  assert.ok(count >= 10, `${count} deletes`);
+  assert.ok(state(this).removalMs < (count * delayMs) / 2, `${state(this).removalMs} ms for ${count} deletes of ${delayMs} ms each`);
+});
+
 Then('the latest Lighthouse summary should be the newest run left', function () {
   assert.equal(stored(this, 'lighthouse-results/latest.json').runId, state(this).lighthouseRuns.at(-2).runId);
 });
@@ -235,64 +306,78 @@ Then("the removed Lighthouse run's files should be gone from the bucket", functi
   assert.deepEqual(keys(this).filter((k) => k.includes(runId)), []);
 });
 
-When('the local results service is asked to run Lighthouse in production', async function () {
-  await ask(this, 'POST', '/__results/lighthouse/run');
+When('the local results service is asked to run Lighthouse in production on the branch {string}', async function (ref) {
+  await ask(this, 'POST', '/__results/lighthouse/run', { body: { ref } });
 });
 
 When('another site asks the local results service to run Lighthouse in production', async function () {
-  await ask(this, 'POST', '/__results/lighthouse/run', { origin: 'https://evil.example' });
+  await ask(this, 'POST', '/__results/lighthouse/run', { origin: 'https://evil.example', body: { ref: 'main' } });
 });
 
 When('the service is asked how the measurement is going', async function () {
   await ask(this, 'GET', '/__results/lighthouse/run');
 });
 
-When('the measurement ends with exit code {int} after printing {string}', function (code, line) {
-  const run = state(this).measured.at(-1);
-  run.onOutput('=== publishing ===');
-  run.onOutput(line);
-  run.onExit(code);
+When('the dev server restarts while the Lighthouse run is going', function () {
+  service(this, { restart: true });
 });
 
-When("the measurement can't start because {string}", function (message) {
-  state(this).measured.at(-1).onExit(null, new Error(message));
+const logSaying = (runId, summary) =>
+  [`lighthouse\tstore\t2026-10-01T18:40:00.3Z ✓ published ${runId}: 6/6 within budget → photography-site-test/lighthouse-results/runs/${runId}/`, `lighthouse\tstore\t2026-10-01T18:40:00.5Z ${summary}`].join('\n');
+
+When(/^GitHub says the Lighthouse run completed with "([^"]+)", its log saying it published "([^"]+)" and "([^"]+)"$/, function (conclusion, runId, summary) {
+  Object.assign(state(this).gh, { status: 'completed', conclusion, log: logSaying(runId, summary), logError: null });
 });
 
-Then('the service should answer 202 with a measurement of the production site that is still running', function () {
+When('GitHub says the Lighthouse run completed with {string}, its log saying nothing was published', function (conclusion) {
+  Object.assign(state(this).gh, { status: 'completed', conclusion, log: 'lighthouse\tmeasure\t2026-10-01T18:40:00Z Error: Chromium could not start', logError: null });
+});
+
+When('GitHub says the Lighthouse run completed with {string}, but its log can\'t be read: {string}', function (conclusion, message) {
+  Object.assign(state(this).gh, { status: 'completed', conclusion, logError: message });
+});
+
+When(/^the Lighthouse run's log can be read, saying it published "([^"]+)" and "([^"]+)"$/, function (runId, summary) {
+  Object.assign(state(this).gh, { log: logSaying(runId, summary), logError: null });
+});
+
+Then('the service should answer 202 with a Lighthouse run on {string} measuring the production site, still going', function (ref) {
   const { status, body } = state(this).answer;
   assert.equal(status, 202);
+  assert.equal(body.run.ref, ref);
   assert.equal(body.run.target, resultsForm.PRODUCTION_URL);
+  assert.equal(body.run.url, 'https://github.com/dienarvaez1/photography-site/actions/runs/9000');
   assert.equal(body.run.finishedAt, null);
+  assert.equal(body.run.runId, null);
   assert.ok(!Number.isNaN(Date.parse(body.run.startedAt)));
 });
 
-Then('Lighthouse should have been started once, against the production site', function () {
-  assert.deepEqual(state(this).measured.map((run) => run.target), [resultsForm.PRODUCTION_URL]);
+Then('the Lighthouse workflow should have been started once, on the branch {string}', function (ref) {
+  assert.deepEqual(state(this).gh.refs, [ref]);
 });
 
-Then('Lighthouse should not have been started', function () {
-  assert.deepEqual(state(this).measured ?? [], []);
+Then('the Lighthouse workflow should not have been started', function () {
+  assert.deepEqual(state(this).gh?.refs ?? [], []);
 });
 
-Then('it should say the measurement is still running', function () {
+Then('it should say the measurement is still going', function () {
   const { status, body } = state(this).answer;
   assert.equal(status, 200);
   assert.equal(body.run.finishedAt, null);
-  assert.equal(body.run.ok, null);
+  assert.equal(body.run.runId, null);
 });
 
-Then(/^it should say the measurement ended (ok|not ok), with "([^"]+)" as its last line$/, function (how, line) {
+Then(/^it should say the measurement ended with "([^"]+)", having published (?:"([^"]+)", with "([^"]+)"|no run)$/, function (conclusion, runId, summary) {
   const { run } = state(this).answer.body;
   assert.ok(run.finishedAt);
-  assert.equal(run.ok, how === 'ok');
-  assert.equal(run.log.at(-1), line);
+  assert.equal(run.status, 'completed');
+  assert.equal(run.conclusion, conclusion);
+  assert.equal(run.runId, runId ?? null);
+  if (runId) assert.equal(run.summary, summary);
 });
 
-Then('it should say the measurement ended not ok, with the error {string}', function (message) {
-  const { run } = state(this).answer.body;
-  assert.ok(run.finishedAt);
-  assert.equal(run.ok, false);
-  assert.equal(run.error, message);
+Then('it should say the error {string}', function (message) {
+  assert.equal(state(this).answer.body.run.error, message);
 });
 
 Then('the service should answer {int} with the error {string} and the measurement already running', function (status, code) {
@@ -315,10 +400,30 @@ Then("the local results service should measure {string}, the site's own address"
   assert.equal(SITE.url.replace(/\/$/, ''), url);
 });
 
-Then('it should run {string} with LIGHTHOUSE_URL set to that address and its own results folder', function (script) {
+Then('it should start {string} with {string}, follow it with {string}, and read its log with {string}', function (file, start, follow, readLog) {
+  assert.equal(resultsForm.LIGHTHOUSE_WORKFLOW, file);
   const source = readFileSync(join(ROOT, 'scripts/lib/results-form.mjs'), 'utf-8');
-  assert.ok(source.includes(`join(ROOT, '${script}')`));
-  assert.match(source, /LIGHTHOUSE_URL: target, TEST_RESULTS_DIR: join\(ROOT, 'test-results', 'on-demand'\)/);
+  assert.equal(start, 'gh workflow run');
+  assert.ok(source.includes("gh(['workflow', 'run', workflow, '--ref', ref])"));
+  assert.equal(follow, 'gh run view');
+  assert.ok(source.includes("gh(['run', 'view', id, '--json', 'status,conclusion,url'])"));
+  assert.equal(readLog, 'gh run view --log');
+  assert.ok(source.includes("run('gh', ['run', 'view', id, '--log']"));
+  assert.ok(source.includes('...workflowWithGh(LIGHTHOUSE_WORKFLOW)'));
+});
+
+Then('the Lighthouse workflow should leave LIGHTHOUSE_URL unset, so the suite measures that address', async function () {
+  assert.equal(JSON.stringify(workflow()).includes('LIGHTHOUSE_URL'), false);
+  const { BASE_URL } = await import(join(ROOT, 'features/support/lighthouse.js'));
+  if (!process.env.LIGHTHOUSE_URL) assert.equal(BASE_URL, resultsForm.PRODUCTION_URL);
+});
+
+When('the service reads this Lighthouse workflow log:', function (log) {
+  state(this).read = resultsForm.publishedFromLog(log);
+});
+
+Then('it should find the published run {string} and the summary {string}', function (runId, summary) {
+  assert.deepEqual(state(this).read, { runId, summary });
 });
 
 const workflow = () => yaml.load(readFileSync(join(ROOT, '.github/workflows/lighthouse.yml'), 'utf-8'));
@@ -341,4 +446,58 @@ Then('it should keep the reports with the run even when pages are over budget', 
   const upload = workflow().jobs.lighthouse.steps.find((step) => step.uses?.startsWith('actions/upload-artifact'));
   assert.equal(upload?.if, '${{ always() }}');
   assert.equal(upload.with.path, 'test-results/lighthouse/');
+});
+
+// --- Where a Lighthouse run was started from, and what it measured ----------------------------------------------------------
+
+When('I publish the Lighthouse run from {string} started from {string} at {string}', async function (source, from, at) {
+  state(this).lighthouse = await lib.publishLighthouse({ dir: lhDir(this), storage: bucket(this), source, from, now: new Date(at), meta: { commit: 'abc1234', branch: 'main', dirty: false } });
+});
+
+Then('the latest Lighthouse summary and its index entry should say source {string} and target {string}', function (source, target) {
+  const s = stored(this, 'lighthouse-results/latest.json');
+  const [entry] = stored(this, 'lighthouse-results/index.json').runs;
+  const summary = stored(this, `lighthouse-results/runs/${entry.runId}/summary.json`);
+  for (const run of [s, entry, summary]) assert.deepEqual([run.source, run.target], [source, target]);
+});
+
+When('the run is stored without a source or target, as before', async function () {
+  const strip = (run) => ({ ...run, source: run.runId.endsWith('-ci') ? 'ci' : 'local', target: undefined });
+  const index = stored(this, 'lighthouse-results/index.json');
+  const { putJson } = results;
+  for (const entry of index.runs) await putJson(bucket(this), `lighthouse-results/runs/${entry.runId}/summary.json`, strip(stored(this, `lighthouse-results/runs/${entry.runId}/summary.json`)));
+  await putJson(bucket(this), 'lighthouse-results/latest.json', strip(stored(this, 'lighthouse-results/latest.json')));
+  await putJson(bucket(this), 'lighthouse-results/index.json', { ...index, runs: index.runs.map(strip) });
+});
+
+When('I label the stored Lighthouse runs', async function () {
+  await results.labelStoredRuns({ storage: bucket(this), prefix: 'lighthouse-results/' });
+});
+
+Then('the Lighthouse workflow should take a {string} input when started by hand, and publish with RESULTS_FROM set to it', function (name) {
+  const wf = workflow();
+  assert.equal(wf.on.workflow_dispatch.inputs[name].required, false);
+  const step = wf.jobs.lighthouse.steps.find((s) => s.run === 'npm run test:lighthouse:record');
+  assert.equal(step.env.RESULTS_FROM, `\${{ inputs.${name} }}`);
+});
+
+When('the local results service at {string} is asked to measure production on the branch {string}', async function (host, ref) {
+  const inputs = (state(this).lighthouseInputs = []);
+  const lighthouse = {
+    start: async (_ref, given = {}) => {
+      inputs.push(given);
+      return { id: '9000', url: 'https://github.com/o/r/actions/runs/9000' };
+    },
+    find: async () => null,
+    status: async () => ({ status: 'queued', conclusion: '' }),
+    outcome: async () => ({ runId: null, summary: null }),
+  };
+  const branches = { list: async () => ['main'], current: async () => 'main' };
+  const handle = resultsForm.createResultsFormHandler({ storage: bucket(this), lighthouse, branches, lighthouseStateFile: null, ciStateFile: null, localStateFile: null });
+  const response = await handle(new Request(`http://${host}/__results/lighthouse/run`, { method: 'POST', headers: { Origin: `http://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ref }) }));
+  assert.equal(response.status, 202, await response.text());
+});
+
+Then('GitHub should have been asked to start the Lighthouse run with the input source {string}', function (host) {
+  assert.deepEqual(state(this).lighthouseInputs, [{ source: host }]);
 });

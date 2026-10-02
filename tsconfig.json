@@ -7,6 +7,7 @@
   "exclude": [
     "dist",
     "dist-prod",
+    ".test-builds",
     // `wrangler types` (npm run generate-types) writes this. Nothing here reads its `Env`/`Cloudflare.Env`
     // types (the Worker's bindings are typed narrowly by src/cloudflare.d.ts instead); its own ambient
     // runtime globals (Response, ReadableStream, Element, ...) collide with the DOM lib types the
