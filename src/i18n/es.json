@@ -218,7 +218,8 @@
         "node": "Node",
         "dirty": "cambios sin confirmar",
         "clean": "limpio",
-        "runId": "Ejecución"
+        "runId": "Ejecución",
+        "target": "Destino"
       },
       "suites": {
         "heading": "Conjuntos",
@@ -287,15 +288,32 @@
       "ci": {
         "button": "Ejecutar en CI",
         "waiting": "Ejecución de CI en curso…",
-        "running": "Ejecutando todas las pruebas de Cucumber en CI sobre {ref}. Tarda unos 20 minutos; sus resultados aparecerán aquí al terminar.",
+        "running": "Ejecutando todas las pruebas en CI sobre {ref}. Tarda unos 20 minutos; los resultados aparecerán aquí.",
         "open": "Abrir la ejecución en GitHub",
         "passed": "La ejecución de CI terminó: todas las pruebas pasaron. Sus resultados aparecen abajo.",
         "ended": "La ejecución de CI terminó: {conclusion}.",
-        "started": "Se inició una ejecución de CI de todas las pruebas sobre {ref}. Pulsa Actualizar cuando termine.",
-        "lost": "El servidor de desarrollo se reinició y perdió la ejecución de CI; puede seguir en marcha en GitHub.",
+        "lost": "El servidor de desarrollo se reinició y perdió la ejecución de CI; puede seguir en GitHub.",
         "failed": "No se pudo iniciar la ejecución de CI: {message}",
         "onlyLocal": "Iniciar una ejecución de CI solo funciona en tu ordenador, con npm run dev (usa tu sesión de GitHub, gh).",
-        "unreachable": "El servicio local de resultados dejó de responder; la ejecución de CI puede seguir en GitHub. ¿Sigue en marcha npm run dev?"
+        "unreachable": "El servicio local de resultados dejó de responder; la ejecución puede seguir en GitHub.",
+        "notFound": "GitHub nunca mostró la ejecución de CI; no hay resultado que esperar. Revisa Actions → CI en GitHub.",
+        "dialog": {
+          "title": "Ejecutar todas las pruebas en CI",
+          "hint": "Lint, tipos y todas las pruebas de Cucumber, en la rama elegida (en GitHub) o en esta copia local.",
+          "branch": "Rama",
+          "thisCheckout": "{branch} (esta copia local)",
+          "notOnGitHub": "{branch} aún no está en GitHub. Súbela primero o elige otra rama.",
+          "start": "Iniciar ejecución de CI",
+          "cancel": "Cancelar",
+          "localCheckout": "copia local en este ordenador ({branch})"
+        },
+        "branchesFailed": "No se pudieron listar las ramas de GitHub: {message}",
+        "local": {
+          "running": "Ejecutando todas las pruebas en la copia local ({ref}). Tarda unos 25 minutos; los resultados aparecerán aquí.",
+          "passed": "La ejecución local terminó: todas las pruebas pasaron.",
+          "ended": "La ejecución local terminó: {message}",
+          "interrupted": "El servidor de desarrollo se reinició durante la ejecución local; dejó de seguirse aquí."
+        }
       }
     },
     "lighthouse": {
@@ -331,7 +349,8 @@
         "branch": "Rama",
         "source": "Origen",
         "dirty": "cambios sin confirmar",
-        "clean": "limpio"
+        "clean": "limpio",
+        "target": "Medido"
       },
       "table": {
         "heading": "Cada página medida",
@@ -366,13 +385,28 @@
       "production": {
         "button": "Ejecutar en producción",
         "running": "Midiendo producción…",
-        "measuring": "Midiendo el sitio en línea ({target}) con Lighthouse en este ordenador. Tarda unos minutos; la ejecución aparecerá aquí al terminar.",
+        "measuring": "Lighthouse está midiendo el sitio en línea ({target}) en GitHub Actions, desde la rama {ref}. Tarda unos 10 minutos; la ejecución aparecerá aquí al terminar.",
+        "open": "Abrir la ejecución en GitHub",
+        "confirming": "Lighthouse terminó y guardó la ejecución {runId}. Esperando a que la API de resultados confirme que la tiene…",
+        "unconfirmed": "Lighthouse guardó la ejecución {runId}, pero la API de resultados aún no la había confirmado tras {minutes} minutos. Pulsa Actualizar para volver a mirar.",
+        "noRunId": "La ejecución de Lighthouse en GitHub terminó, pero su registro no dijo qué ejecución guardó, así que la API de resultados no pudo confirmarla. Pulsa Actualizar para buscarla.",
         "done": "Lighthouse terminó: todas las páginas cumplieron su presupuesto. La ejecución aparece abajo.",
         "ended": "Lighthouse terminó: {message}",
-        "noOutput": "no mostró nada.",
-        "lost": "El servicio local de resultados dejó de responder. ¿Sigue en marcha npm run dev?",
+        "lost": "El servidor de desarrollo se reinició y perdió el seguimiento de la ejecución de Lighthouse; puede que siga en marcha en GitHub.",
+        "unreachable": "El servicio local de resultados dejó de responder, así que ya no se sigue aquí la ejecución de Lighthouse; puede que siga en marcha en GitHub. ¿Sigue en marcha npm run dev?",
+        "notFound": "GitHub nunca mostró la ejecución de Lighthouse que se inició, así que no hay resultado que esperar. Revisa Actions → Lighthouse en GitHub.",
         "failed": "No se pudo iniciar la ejecución de Lighthouse: {message}",
-        "onlyLocal": "Ejecutar Lighthouse en producción solo funciona en tu ordenador, con npm run dev."
+        "onlyLocal": "Ejecutar Lighthouse en producción solo funciona en tu ordenador, con npm run dev (usa tu sesión de GitHub, gh).",
+        "branchesFailed": "No se pudieron listar las ramas de GitHub: {message}",
+        "dialog": {
+          "title": "Medir producción con Lighthouse",
+          "hint": "Ejecuta el flujo de Lighthouse en GitHub Actions con la rama que elijas (sus pruebas y presupuestos), contra el sitio en línea. La rama debe estar en GitHub y tener el flujo de Lighthouse.",
+          "branch": "Rama",
+          "thisCheckout": "{branch} (esta copia local)",
+          "notOnGitHub": "{branch} aún no está en GitHub. Súbela primero o elige otra rama.",
+          "start": "Iniciar ejecución de Lighthouse",
+          "cancel": "Cancelar"
+        }
       }
     },
     "issues": {

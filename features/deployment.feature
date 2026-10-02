@@ -63,6 +63,7 @@ Feature: A deploy cannot silently break the site
     And a CI run started by hand should never cancel a push's run, or the reverse
     And the CI workflow should type-check, run the tests, run the browser tests and audit dependencies
     And the CI workflow's placeholder keys should satisfy the release-build guard
+    And every workflow that builds the site should carry placeholder keys that satisfy the release-build guard
 
   Scenario: CI smoke-checks the live site after Cloudflare has built it
     Then the CI workflow should smoke-check the live site only for pushes to main, after the tests pass and after waiting for Cloudflare

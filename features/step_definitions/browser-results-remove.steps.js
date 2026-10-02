@@ -1,5 +1,6 @@
 import { Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from '../support/lib.js';
 import { startResultsService } from '../support/browser.js';
@@ -85,10 +86,35 @@ Given(/^a Lighthouse run of production (ends with pages over budget|never ends)$
   this.b.resultsService.outcome = how === 'never ends' ? 'never' : 'over budget';
 });
 
+Given(/^the results API only has the new Lighthouse run (\d+) seconds after it is stored$/, function (seconds) {
+  this.b.resultsService.confirm = Number(seconds) * 1000;
+});
+
+Given('the results API never has the new Lighthouse run', function () {
+  this.b.resultsService.confirm = 'never';
+});
+
+Then('the Lighthouse Test Results tab should not say {string}', async function (text) {
+  assert.equal(await panel(this).getByText(text, { exact: false }).count(), 0);
+});
+
+Then('the Lighthouse Test Results tab should link to the run on GitHub', async function () {
+  const link = panel(this).getByRole('link', { name: 'Open the run on GitHub' });
+  await link.waitFor({ state: 'visible', timeout: 8000 });
+  assert.equal(await link.getAttribute('href'), 'https://github.com/dienarvaez1/photography-site/actions/runs/888');
+});
+
+Then('the results API should have been asked for the new Lighthouse run', function () {
+  const [runId] = this.b.results.lighthouseRunIds;
+  assert.ok(this.b.results.requests.some((r) => r.path === `/lighthouse/runs/${runId}`), `GET /lighthouse/runs/${runId}`);
+});
+
 Then('Lighthouse should have measured the production site {int} time(s)', async function (times) {
   const { PRODUCTION_URL } = await import(join(ROOT, 'scripts/lib/results-form.mjs'));
   await settle(200);
-  assert.deepEqual(this.b.resultsService?.measured ?? [], Array(times).fill(PRODUCTION_URL));
+  // Every Run in Production run measures the site's own production address (lighthouse.yml leaves LIGHTHOUSE_URL unset).
+  assert.equal(PRODUCTION_URL, 'https://diego-narvaez-photography.org');
+  assert.equal(this.b.resultsService?.lighthouseRefs.length ?? 0, times);
 });
 
 Then(/^"([^"]+)" should be (available|unavailable)(?: again)? in the (?:Lighthouse )?Test Results tab$/, async function (name, state) {
@@ -147,9 +173,76 @@ Given('the local results service misses the next {int} checks on the CI run', fu
   this.b.resultsService.missChecks = count;
 });
 
-When('the dev server restarts while the CI run is going', async function () {
-  // A restarted service starts with no CI run: it forgot the one it was following.
+When(/^the dev server restarts while the CI run is going( and loses the run it saved)?$/, async function (loses) {
+  // A restarted service reads the CI run it saved and goes on following it; without that file it has none.
   const end = Date.now() + 8000;
   while (!this.b.resultsService.requests.some((r) => r.method === 'POST' && r.path === 'tests/run') && Date.now() < end) await settle(50);
+  if (loses) rmSync(this.b.ciStateFile, { force: true });
   await startResultsService(this);
+});
+
+// --- Run in CI's and Run in Production's branch dialog ------------------------------------------------------------------------------------------
+
+const branchDialog = (world) => page(world).locator('dialog[data-branch-dialog]');
+
+Given('this checkout is on the branch {string}, which is not on GitHub yet', function (branch) {
+  this.b.branches = { onGitHub: ['QA-feature_optimization', 'main'], current: branch };
+});
+
+Then('the branch dialog should offer {string}, with {string} chosen', async function (names, chosen) {
+  const dialog = branchDialog(this);
+  await dialog.waitFor({ state: 'visible', timeout: 8000 });
+  assert.equal(await dialog.evaluate((d) => d.open), true);
+  const select = dialog.getByRole('combobox', { name: /Branch|Rama/ });
+  assert.deepEqual(await select.locator('option').allInnerTexts(), names.split(', '));
+  assert.equal(await select.locator('option:checked').innerText(), chosen);
+  // The dialog is modal and takes the keyboard: the branch list has the focus.
+  assert.equal(await page(this).evaluate(() => document.activeElement?.closest('dialog[data-branch-dialog]') && document.activeElement.tagName), 'SELECT');
+});
+
+When('I choose the branch {string} in the branch dialog', async function (branch) {
+  await branchDialog(this).getByRole('combobox').selectOption(branch);
+});
+
+When('I press {string} in the branch dialog', async function (name) {
+  await branchDialog(this).getByRole('button', { name, exact: true }).click();
+});
+
+Then('the branch dialog should say {string}, with {string} unavailable', async function (text, name) {
+  await branchDialog(this).getByText(text, { exact: false }).waitFor({ state: 'visible', timeout: 8000 });
+  assert.equal(await branchDialog(this).getByRole('button', { name, exact: true }).isDisabled(), true);
+});
+
+Then('{string} should be available in the branch dialog', async function (name) {
+  assert.equal(await branchDialog(this).getByRole('button', { name, exact: true }).isDisabled(), false);
+});
+
+Then('the branch dialog should be closed', async function () {
+  await branchDialog(this).waitFor({ state: 'detached', timeout: 8000 });
+});
+
+Then(/^the (CI|Lighthouse) run should have been started from the tab on the branch "([^"]+)"$/, async function (kind, ref) {
+  await settle(200);
+  assert.deepEqual(kind === 'CI' ? this.b.resultsService.ciRefs : this.b.resultsService.lighthouseRefs, [ref]);
+});
+
+Given('the local run fails with {string}', function (line) {
+  this.b.resultsService.localOutcome = { code: 1, line };
+});
+
+Then("the tests should have run in the local checkout once, started from this page's host", function () {
+  const host = new URL(page(this).url()).host;
+  assert.deepEqual(this.b.resultsService.localRuns, [{ from: host, target: 'local checkout' }]);
+});
+
+Given('the results API also holds a run of commit {string} started from {string} that ran in {string}', async function (commit, from, target) {
+  const { publishRuns } = await import('../support/results-fixtures.js');
+  const offline = [{ feature: 'site.feature', name: 'passed scenario 1', status: 'passed' }];
+  await publishRuns([{ time: '2026-09-25T10:00:00Z', commit, source: 'ci', from, target, offline }], this.b.results.bucket);
+});
+
+Then('the run of commit {string} should be listed as {string}', async function (commit, line) {
+  const item = panel(this).locator('.results-runs li', { hasText: commit }).locator('.run-what');
+  await item.first().waitFor({ state: 'visible', timeout: 8000 });
+  assert.equal(await item.first().innerText(), line);
 });

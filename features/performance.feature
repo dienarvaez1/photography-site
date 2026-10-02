@@ -5,7 +5,7 @@ Feature: The site stays fast
 
   Scenario: Every page stays within its size budget
     When I load every built page
-    Then no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 63 KB, their scripts 58 KB and their styles 27 KB
+    Then no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 65 KB, their scripts 58 KB and their styles 28 KB
 
   Scenario: Every image reserves its space, so the page cannot jump while loading
     When I load every built page

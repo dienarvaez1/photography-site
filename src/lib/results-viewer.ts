@@ -19,7 +19,7 @@ import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, messageR
 
 type Failure = { feature?: string; scenario?: string; step?: string; message?: string; name?: string; detail?: string };
 type Suite = { scenarios?: number; passed: number; failed: number; skipped?: number; steps?: { total: number }; durationMs?: number; features?: { name: string; scenarios: number; passed: number; failed: number }[]; failures?: Failure[]; slowest?: { feature: string; scenario: string; ms: number }[]; checks?: number; baseUrl?: string };
-type Summary = { runId: string; startedAt: string; source: string; commit: string; branch: string; dirty: boolean; node?: string; ok: boolean; totals: Totals; suites: Record<string, Suite> };
+type Summary = { runId: string; startedAt: string; source: string; target?: string; commit: string; branch: string; dirty: boolean; node?: string; ok: boolean; totals: Totals; suites: Record<string, Suite> };
 
 export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   const root = container.querySelector<HTMLElement>('[data-results-root]')!;
@@ -57,11 +57,12 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
   const badge = (ok: boolean) => el('span', { class: `results-badge ${ok ? 'ok' : 'bad'}`, text: m(ok ? 'status.passed' : 'status.failed') });
   const totalsText = (totals: Totals) => describeTotals(totals, { allPassed: m('totals.allPassed', {}), someFailed: m('totals.someFailed', {}) });
   const dl = (rows: [string, Child][]) => el('dl', { class: 'results-meta' }, ...rows.flatMap(([term, value]) => [el('dt', { text: term }), el('dd', {}, value)]));
-  const sourceLine = (s: { commit: string; branch: string; source: string; dirty: boolean }) => `${s.commit}${s.dirty ? ` (${m('detail.dirty')})` : ''} · ${s.branch} · ${s.source}`;
+  // Where it was started from and, when the run says (runs since Run in CI's targets), where it ran: "localhost:4321 → GitHub CI".
+  const sourceLine = (s: { commit: string; branch: string; source: string; target?: string; dirty: boolean }) => `${s.commit}${s.dirty ? ` (${m('detail.dirty')})` : ''} · ${s.branch} · ${s.source}${s.target ? ` → ${s.target}` : ''}`;
 
   // --- The list: latest.json and index.json ---------------------------------------------------------------------
 
-  type IndexEntry = { runId: string; startedAt: string; source: string; commit: string; branch: string; dirty: boolean; ok: boolean; totals: Totals; failures?: { suite: string; name: string }[] };
+  type IndexEntry = { runId: string; startedAt: string; source: string; target?: string; commit: string; branch: string; dirty: boolean; ok: boolean; totals: Totals; failures?: { suite: string; name: string }[] };
 
   function runLink(entry: IndexEntry) {
     // `data-astro-reload`: see the comment on `backBar` above — same reasoning applies here.
@@ -103,17 +104,22 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
     root.querySelector<HTMLButtonElement>('[data-remove-bar] button:not(:disabled)')?.focus();
   }
 
-  /** Run in CI: start the CI workflow on GitHub, follow it until GitHub says it is done, then read the list again. */
+  /** Run in CI: ask which branch, start the CI workflow there, follow it until GitHub says it is done, then read the list again. */
   async function runInCi() {
-    ciRunning = true;
-    drawList();
     const { runCiAndFollow } = await removalModule();
-    const ended = await runCiAndFollow(m, (said) => {
-      notice = said;
-      if (!panel.hidden) drawList();
-    });
+    const ended = await runCiAndFollow(
+      m,
+      (said) => {
+        notice = said;
+        if (!panel.hidden) drawList();
+      },
+      () => {
+        ciRunning = true; // a branch was chosen: the button waits from here
+        drawList();
+      }
+    );
     ciRunning = false;
-    notice = ended.notice;
+    notice = ended.notice ?? notice;
     if (!ended.started) {
       drawList();
       root.querySelector<HTMLButtonElement>('[data-action="run-tests-ci"]')?.focus();
@@ -268,6 +274,7 @@ export function mountResultsViewer(container: HTMLElement, panel: HTMLElement) {
         [m('detail.runId'), summary.runId],
         [m('detail.started'), formatDate(summary.startedAt, locale)],
         [m('detail.source'), summary.source],
+        [m('detail.target'), summary.target ?? '–'],
         [m('detail.commit'), `${summary.commit} (${m(summary.dirty ? 'detail.dirty' : 'detail.clean')})`],
         [m('detail.branch'), summary.branch],
         [m('detail.node'), summary.node ?? '–'],

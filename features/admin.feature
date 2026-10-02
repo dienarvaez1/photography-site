@@ -49,6 +49,18 @@ Feature: Admin page smoke test
       | /admin/    |
       | /es/admin/ |
 
+  Scenario Outline: Outside production (the dev server, and the tests' build) every tab shows its buttons
+    When I load the built page "<route>"
+    Then no tab should hide its buttons
+
+    Examples:
+      | route      |
+      | /admin/    |
+      | /es/admin/ |
+
+  Scenario: In production the buttons inside four of the tabs are hidden by the built styles
+    Then the built styles should hide every button inside a tab marked to hide its buttons
+
   Scenario: The tabs sit in a row, not a column
     Then the tab list should be laid out horizontally in the built styles
 

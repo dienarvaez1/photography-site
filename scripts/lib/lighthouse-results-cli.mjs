@@ -1,6 +1,6 @@
 // Command line for the Lighthouse results store, as a function so tests can drive it with a fake bucket.
 import { parseArgs } from 'node:util';
-import { directoryExists } from './results.mjs';
+import { directoryExists, startedFrom, targetFromEnv } from './results.mjs';
 import { DEFAULT_RETENTION, LIGHTHOUSE_PREFIX, RESULTS_BUCKET, listLighthouseRuns, publishLighthouse, pruneLighthouse, showLighthouseRun } from './lighthouse-results.mjs';
 
 export const HELP = `Lighthouse results in R2 — bucket ${RESULTS_BUCKET}, under ${LIGHTHOUSE_PREFIX}
@@ -8,7 +8,7 @@ export const HELP = `Lighthouse results in R2 — bucket ${RESULTS_BUCKET}, unde
   npm run test:lighthouse:record [-- --no-publish]
       Measures the live site (npm run test:lighthouse), then publishes the run.
 
-  npm run lighthouse-results:publish [-- --source local|ci]
+  npm run lighthouse-results:publish [-- --source local|ci] [--from <where started>] [--target <host measured>]
       Uploads test-results/lighthouse/ (the index page, every page's report and summary.json) as one run,
       and adds it to the index the Admin page's Lighthouse Test Results tab reads.
 
@@ -28,10 +28,13 @@ export async function run(args, { dir, storage, log = console.log, error = conso
   try {
     switch (command) {
       case 'publish': {
-        const { values } = parseArgs({ args: rest, options: { source: { type: 'string' }, retain: { type: 'string' } } });
+        const { values } = parseArgs({ args: rest, options: { source: { type: 'string' }, from: { type: 'string' }, target: { type: 'string' }, retain: { type: 'string' } } });
         if (!(await directoryExists(dir))) throw new Error(`No Lighthouse results folder at ${dir}. Run \`npm run test:lighthouse\` first.`);
         const { runId, summary, pruned } = await publishLighthouse({
           dir, storage, meta, now, source: values.source ?? (process.env.CI ? 'ci' : 'local'),
+          // Where it was started from (as for test runs: RESULTS_FROM, the GitHub event, or this computer) and what it
+          // measured (--target / RESULTS_TARGET, else the measured site's host).
+          from: values.from ?? startedFrom(), target: values.target ?? targetFromEnv(),
           retain: values.retain ? Number(values.retain) : DEFAULT_RETENTION, log,
         });
         log(`${mark(summary.ok)} published ${runId}: ${summary.totals.withinBudget}/${summary.totals.measurements} within budget → ${RESULTS_BUCKET}/${LIGHTHOUSE_PREFIX}runs/${runId}/`);

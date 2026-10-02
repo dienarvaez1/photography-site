@@ -183,6 +183,11 @@ Then('the Admin page should know these photos by title: {string}', function (lis
   for (const [id, photo] of Object.entries(known)) assert.ok(photo.thumb.src.startsWith(`${PHOTOS_BASE_URL}/photos/${id}/`));
 });
 
+Then('the Admin page should hide the buttons inside exactly these tabs: {string}', function (list) {
+  const hiding = this.response.doc.querySelectorAll('[role="tabpanel"][data-buttons-hidden]').map((panel) => panel.id.replace(/^panel-/, ''));
+  assert.deepEqual(hiding.sort(), list.split(', ').sort());
+});
+
 // --- What is built ---------------------------------------------------------------------------------------------------------------------
 
 Then('the production build should hold static pages for {string} in both languages', function (list) {

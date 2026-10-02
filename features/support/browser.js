@@ -1,4 +1,5 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { After, AfterAll, Before, Status, setDefaultTimeout } from '@cucumber/cucumber';
 import sharp from 'sharp';
@@ -91,8 +92,11 @@ Before({ tags: '@browser' }, function () {
     photoService: null,
     // Category Maintenance's local service — same shape, same reasoning.
     categoryService: null,
-    // Remove Results' local service — the same again.
+    // Remove Results' local service — the same again — and the file where it saves the CI run it follows.
     resultsService: null,
+    ciStateFile: null,
+    localStateFile: null,
+    branches: null,
     traceRequests: 0,
     // When each request for the visitor's location (/cdn-cgi/trace) arrived here, and requests that failed in the
     // browser: what a failed language-redirect scenario reports, to say why (issue #12).
@@ -231,33 +235,93 @@ function servePhotoService(req, res, next) {
  * deployed site, which has none.
  */
 export async function startResultsService(world) {
-  // Run in Production never measures anything: running Lighthouse is stood in for. Each start is recorded with its
-  // target; after `after` ms it ends with `outcome` (a scenario may change it first): `ok` publishes a new run into the
-  // fake bucket (as the real script does) and exits 0, `over budget` publishes one and exits 1, `never` keeps running.
-  const service = { requests: [], measured: [], outcome: 'ok', after: 500, newRun: { time: '2026-09-30T10:00:00Z', commit: 'ddddddd', phone: 93, laptop: 99 } };
-  const measure = (run) => {
-    service.measured.push(run.target);
-    if (service.outcome === 'never') return;
-    setTimeout(async () => {
-      run.onOutput('=== publishing to photography-site-test ===');
-      if (service.outcome === 'over budget') service.newRun = { ...service.newRun, phone: 40 };
-      await addLighthouseRuns(world, [service.newRun]);
-      run.onOutput(service.outcome === 'ok' ? '✓ every page within budget' : '✗ some pages over budget (see test-results/lighthouse/index.html)');
-      run.onExit(service.outcome === 'ok' ? 0 : 1);
-    }, service.after);
+  // Run in Production never reaches GitHub or measures anything: the Lighthouse workflow is stood in for. Each start is
+  // recorded with its branch (`lighthouseRefs`) and names run 888; GitHub says it is in progress until `after` ms have
+  // passed, then completed with `outcome` (a scenario may change it first): `ok` publishes a new run into the fake bucket
+  // (as the real workflow does) and succeeds, `over budget` publishes one and fails, `never` stays in progress. Its log
+  // then has the publisher's own "published <run id>:" line and the summary line. `confirm` is when the results API has
+  // the new run's files: 'at once', after that many ms, or 'never' (they are held back from the bucket until then).
+  const service = { requests: [], lighthouseRefs: [], outcome: 'ok', after: 500, confirm: 'at once', newRun: { time: '2026-09-30T10:00:00Z', commit: 'ddddddd', phone: 93, laptop: 99 } };
+  const holdBack = (runId) => {
+    const { objects } = world.b.results.bucket;
+    const held = [...objects].filter(([key]) => key.startsWith(`lighthouse-results/runs/${runId}/`));
+    for (const [key] of held) objects.delete(key);
+    if (typeof service.confirm === 'number') setTimeout(() => held.forEach(([key, value]) => objects.set(key, value)), service.confirm);
+  };
+  const LIGHTHOUSE_RUN = { id: '888', url: 'https://github.com/dienarvaez1/photography-site/actions/runs/888' };
+  let lighthouseNow = { done: false, log: '' };
+  const lighthouse = {
+    start: async (ref) => {
+      service.lighthouseRefs.push(ref);
+      lighthouseNow = { done: false, log: '' };
+      const current = lighthouseNow;
+      if (service.outcome !== 'never') {
+        setTimeout(async () => {
+          if (service.outcome === 'over budget') service.newRun = { ...service.newRun, phone: 40 };
+          await addLighthouseRuns(world, [service.newRun]);
+          const [runId] = world.b.results.lighthouseRunIds;
+          if (service.confirm !== 'at once') holdBack(runId);
+          const mark = service.outcome === 'ok' ? '✓' : '✗';
+          const step = 'lighthouse\tMeasure the live site and store the run in R2\t2026-09-30T10:09:00.0000000Z ';
+          current.log = [
+            `${step}=== publishing to photography-site-test ===`,
+            `${step}${mark} published ${runId}: 2/3 within budget → photography-site-test/lighthouse-results/runs/${runId}/`,
+            `${step}${service.outcome === 'ok' ? '✓ every page within budget' : '✗ some pages over budget (see test-results/lighthouse/index.html)'}`,
+          ].join('\n');
+          current.done = true;
+        }, service.after);
+      }
+      return LIGHTHOUSE_RUN;
+    },
+    find: async () => LIGHTHOUSE_RUN,
+    status: async () => ({ status: lighthouseNow.done ? 'completed' : 'in_progress', conclusion: lighthouseNow.done ? (service.outcome === 'ok' ? 'success' : 'failure') : '', url: LIGHTHOUSE_RUN.url }),
+    outcome: async () => publishedFromLog(lighthouseNow.log),
   };
   // Run in CI never reaches GitHub either: starting names run 777 (counted in `ciStarted`), and GitHub's answers about
   // it come from `ciAnswers`, one per question (the last repeats); `ciFailure` makes starting fail. Asked every 200 ms.
-  Object.assign(service, { ciStarted: 0, ciFailure: null, ciAnswers: [{ status: 'in_progress', conclusion: '' }, { status: 'completed', conclusion: 'success' }] });
+  // Branches: GitHub has QA-feature_optimization and main, and this checkout is on QA-feature_optimization, unless a
+  // scenario says otherwise (`world.b.branches`, kept across a restart). `ciRefs` lists the branch of each start.
+  world.b.branches ??= { onGitHub: ['QA-feature_optimization', 'main'], current: 'QA-feature_optimization' };
+  const branches = { list: async () => world.b.branches.onGitHub, current: async () => world.b.branches.current };
+  Object.assign(service, { ciRefs: [], ciStarted: 0, ciFailure: null, ciAnswers: [{ status: 'in_progress', conclusion: '' }, { status: 'completed', conclusion: 'success' }] });
   const ci = {
-    start: async () => {
+    start: async (ref) => {
       if (service.ciFailure) throw new Error(service.ciFailure);
       service.ciStarted++;
+      service.ciRefs.push(ref);
       return { id: '777', url: 'https://github.com/dienarvaez1/photography-site/actions/runs/777' };
     },
+    find: async () => ({ id: '777', url: 'https://github.com/dienarvaez1/photography-site/actions/runs/777' }),
     status: async () => ({ ...(service.ciAnswers.length > 1 ? service.ciAnswers.shift() : service.ciAnswers[0]), url: 'https://github.com/dienarvaez1/photography-site/actions/runs/777' }),
   };
-  service.middleware = await resultsFormMiddleware({ storage: world.b.results.bucket, measure, ci, ciPollMs: 200 });
+  // The run being followed is saved in the scenario's own file (kept across a restart within the scenario), never in
+  // the real .astro/run-in-ci.json.
+  world.b.ciStateFile ??= join(mkdtempSync(join(tmpdir(), 'run-in-ci-')), 'run-in-ci.json');
+  world.b.lighthouseStateFile ??= join(mkdtempSync(join(tmpdir(), 'run-in-production-')), 'run-in-production.json');
+  world.b.localStateFile ??= join(mkdtempSync(join(tmpdir(), 'run-locally-')), 'run-locally.json');
+  // Running every test in the local checkout is stood in for: each start is recorded (`localRuns`, with where it came
+  // from and ran) and ends after 300 ms with `localOutcome` (exit code 0 unless a scenario says otherwise).
+  Object.assign(service, { localRuns: [], localOutcome: { code: 0, line: '✓ all suites passed and published' } });
+  const record = (run) => {
+    service.localRuns.push({ from: run.from, target: run.target });
+    setTimeout(() => {
+      run.onOutput(service.localOutcome.line);
+      run.onExit(service.localOutcome.code);
+    }, 300);
+  };
+  const { publishedFromLog } = await import(join(ROOT, 'scripts/lib/results-form.mjs'));
+  service.middleware = await resultsFormMiddleware({
+    storage: world.b.results.bucket,
+    ci,
+    lighthouse,
+    branches,
+    record,
+    localStateFile: world.b.localStateFile,
+    ciPollMs: 200,
+    ciStateFile: world.b.ciStateFile,
+    lighthousePollMs: 200,
+    lighthouseStateFile: world.b.lighthouseStateFile,
+  });
   world.b.resultsService = service;
 }
 

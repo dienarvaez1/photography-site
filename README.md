@@ -26,6 +26,7 @@ paid backend.
 | `npm run deploy:unchecked`      | Build and deploy without the checks (emergencies only)              |
 | `npm run test:record`           | Run both suites with reporters, then store the results in R2 (see Test results) |
 | `npm run results:publish`       | Upload `test-results/` to R2 as one run (also `results:list`, `results:show`, `results:trend`, `results:prune`, or `npm run results -- help`) |
+| `npm run results:label`         | Give every run already in R2 (test and Lighthouse results) a `source` and `target` (`-- --dry-run` to only look) |
 | `npm run results-api:dev`       | Run the results API locally at `localhost:8788` (see Admin page)    |
 | `npm run results-api:deploy`    | Deploy the results API Worker (see Admin page)                      |
 | `npm run smoke`                 | Check the live site (or `-- <url>`); `-- --wait` retries for 2 minutes |
@@ -59,7 +60,9 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against thirty-four areas. The
+tests bake in sample photos instead), then checks that built output against thirty-five areas. Each run builds into
+its own folder (`.test-builds/run-<process id>/`, removed when the run ends), never `dist/`, so two runs at once (an
+offline run while the browser suite is going) can't rebuild the site under each other. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
@@ -178,8 +181,8 @@ against every page in both English and Spanish**; expected text is read from
   `results/`, never cached), the index written last so it never names a missing file, retention and
   pruning, removing chosen runs on demand (off the index first, `latest.json` moved to the next run or gone with
   the last, missing ids and failed deletes reported) and the local service behind it (localhost and its own page
-  only, run ids only, at most 100, dev server only), Run in CI (`gh workflow run ci.yml --ref main`, followed until GitHub
-  says it is done, one at a time, GitHub's refusal passed on, other sites refused), flaky-scenario trends, the command line, the runner's plan, and the GitHub workflow steps.
+  only, run ids only, at most 100, dev server only), Run in CI (the branches on GitHub and this checkout's, `gh workflow run ci.yml --ref <branch>` only for a
+  branch GitHub has, followed until GitHub says it is done, one at a time, GitHub's refusal passed on, other sites refused), flaky-scenario trends, the command line, the runner's plan, and the GitHub workflow steps.
 - **`build-info.feature`** — which build the footer names, tried on throwaway git repositories: the short hash
   before any tag, the tag for a tagged release, the short hash again once past it, `-dirty` (never a tag) with
   uncommitted changes, "unknown" without git, a name given in the environment; every page's footer ends with this
@@ -194,11 +197,17 @@ against every page in both English and Spanish**; expected text is read from
   page, commit, every page and device, totals); an over-budget run not ok, and the index naming the page; runs newest
   first with their median performance per device; the index written last; nothing usable refused before any upload;
   retention; Remove Results through the local results service (the next run becoming the latest, nothing under
-  `results/` touched); Run in Production (measuring the site's own production address on this computer, reporting a
-  measurement while it runs and how it ended with its own last line, one at a time, other sites refused, the
-  recording script run with `LIGHTHOUSE_URL` in its own results folder) and the on-demand workflow (started by hand only, Chromium, stores the run only when
+  `results/` touched); Run in Production (starting `lighthouse.yml` on GitHub on the chosen branch, following it until GitHub says it
+  completed, the run it published and how the pages did read from its log (asked for again when GitHub doesn't have
+  it yet), only branches on GitHub, one at a time, followed across a dev server restart, other sites refused, the
+  site's own production address measured) and the on-demand workflow (started by hand only, Chromium, stores the run only when
   the R2 secrets exist, reports kept with the run); the test results' own publisher leaving the Lighthouse folder alone;
   the command line; and the Admin tab's logic (its addresses, which links it follows, how scores and timings read).
+- **`r2-api-storage.feature`** — how the Admin page's results service reaches R2 for Remove Results (a stand-in for
+  Cloudflare's API): one request per object at its address in the bucket, with wrangler's token; the credentials asked
+  of wrangler once, and as soon as Remove Results is pressed; reading, a missing object read as nothing, writing with
+  its content type and caching; an expired token refreshed once; other refusals naming the object; and every call
+  going through wrangler as before when there are no credentials.
 - **`lighthouse-api.feature`** — the results API's Lighthouse routes, called through the real handler over runs
   published by the real publisher: index (newest first), latest, one run with a signed link per file (15 minutes);
   every route but the signed files needs the admin token (none, wrong, not set up); malformed ids and unknown routes
@@ -368,7 +377,9 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   the way back and the Back button, an unknown run, no runs yet, Spanish, and the accessibility audit and no sideways
   scrolling on laptop and phone; and Remove Results and Run in Production: both saying they only work on your computer
   on the deployed site, deleting the ticked runs after a confirmation naming them (the next run becoming the latest,
-  the test results untouched), Cancel, measuring production with the button waiting until the new run is listed, a
+  the test results untouched), Cancel, Run in Production's branch dialog (main chosen, another branch on request,
+  Cancel starting nothing), measuring production on GitHub with the button waiting until the new run is listed, not
+  done until the results API confirms the new run (and saying so when it never does, after 2 minutes), a
   run over budget explained in its own words, a second press following the run already measuring, Run in Production
   before the first run, Spanish, and the accessibility audit on laptop and phone.
 - **`github-issues.feature`** (browser) — the GitHub Issues tab against the real results API code and a stand-in for
@@ -835,12 +846,13 @@ confirm both arrive in your inbox.
 
 `.github/workflows/ci.yml` runs on every push and pull request, and when started by hand (the Admin page's Test
 Results tab, Actions → CI → Run workflow, or `gh workflow run ci.yml --ref main`): type-check, `npm test`, the browser
-tests, and `npm audit`. A run started by hand has its own concurrency group, so it never cancels a push's run. On pushes to `main` it then waits five minutes for Cloudflare's build and
+tests, and `npm audit`. A run started by hand has its own concurrency group, so it never cancels a push's run, and
+takes an optional `source` input (where it was started from), which the stored results record (`GitHub` otherwise). On pushes to `main` it then waits five minutes for Cloudflare's build and
 smoke-checks the live site. `.github/workflows/smoke.yml` runs the same smoke check every six hours
 and on demand (Actions → Live smoke check → Run workflow); a failure emails the repo owner.
 `.github/workflows/lighthouse.yml` measures the live site with the Lighthouse suite and stores the run in R2 (when the
 `CLOUDFLARE_*` secrets are set). It runs only when started: from Actions → Lighthouse → Run workflow, or with
-`gh workflow run lighthouse.yml` (the Admin page's Run in Production measures from your computer instead). CI uses
+`gh workflow run lighthouse.yml`, or from the Admin page's Run in Production (which asks which branch to run it on). CI uses
 placeholder Web3Forms keys (the tests never send anything; the real keys stay in Cloudflare).
 
 ## Security headers
@@ -926,11 +938,33 @@ your Cloudflare login, answers only on localhost and only its own page. On the d
 only works on your computer. `npm run results -- prune --keep N` still trims the oldest runs from the command line.
 
 **Run in CI** (after Remove Results) runs every Cucumber test in CI: lint, type-check, the offline suite and the
-browser suite, the same `test` job as a push (`.github/workflows/ci.yml`, started on `main`; the live smoke check is for
-pushes only). It goes through the local results service too (`POST /__results/tests/run`, which runs
-`gh workflow run ci.yml --ref main` with your GitHub CLI login). The button waits (*CI run in progress…*) while the tab
+browser suite, the same `test` job as a push (`.github/workflows/ci.yml`; the live smoke check is for pushes only). Before anything starts, a dialog asks which
+branch to run it on: the branches on GitHub (`git ls-remote --heads origin`, nothing fetched), with the branch this
+checkout is on chosen. A checkout branch that isn't on GitHub yet is still listed and chosen, but says it must be
+pushed first, and Start waits until another branch is chosen. Cancel or Escape starts nothing. The last choice,
+**local checkout on this computer**, runs every test here instead (`scripts/run-tests.mjs`, the same as
+`npm run test:record`, in `test-results/on-demand-tests/`), and the tab follows it the same way (about 25 minutes; a
+dev server restart cuts it off, and it is then reported as interrupted). Builds keep their own Vite cache
+(`node_modules/.vite-build`), so a run like this, or any test run, never disturbs the running dev server.
+
+Every run in R2, test results and Lighthouse alike, records where it was **started from** (`source`) and where it
+**ran**, or which site it tested (`target`), in its `summary.json`, its index entry and `latest.json`; both tabs show
+them (`localhost:4321 → GitHub CI`). The source is the Admin page's host for Run in CI and Run in Production (passed to
+GitHub as the workflow's `source` input; a branch whose workflow doesn't take it yet is started without it); on GitHub
+otherwise, the event that started the workflow (`GitHub push`, `GitHub pull request`, `GitHub schedule`, `GitHub manual
+run`); from a terminal, this computer's name (`MBP-M3.local (terminal)`). The target is `GitHub CI` or `local
+checkout` for the test suites, the live site's host for a run of only the smoke check, and the measured site's host
+for Lighthouse (`diego-narvaez-photography.org`). `--from` / `--target` (or `RESULTS_FROM` / `RESULTS_TARGET`) on
+`results:publish` and `lighthouse-results:publish` set them by hand. `npm run results:label` (`-- --dry-run` to only
+look) gives runs stored before this the same fields, from what they can still tell: their kind (`GitHub` or `this
+computer (terminal)`) and the site they tested. A run's id still ends with its kind, `-ci` or `-local`. It goes through the local results service too (`GET /__results/tests/branches`, then
+`POST /__results/tests/run` with `{"ref": "<branch>"}`, which runs `gh workflow run ci.yml --ref <branch>` with your
+GitHub CLI login; only a branch GitHub has is accepted). The button waits (*CI run in progress…*) while the tab
 asks `GET /__results/tests/run` every 30 seconds (each answer is one `gh run view`), links to the run on GitHub, says
-how it ended (passed, or GitHub's conclusion: failure, cancelled…) and reads the list again: CI stores the run's
+how it ended (passed, or GitHub's conclusion: failure, cancelled…) and reads the list again. It is done only when
+GitHub says the run completed: a run GitHub didn't name when it was started is looked for in its list of manual runs
+until it shows up (one never listed within 10 minutes is reported as such), and the run being followed is saved in
+`.astro/run-in-ci.json`, so a dev server restart goes on following it: CI stores the run's
 results in R2 (when the `CLOUDFLARE_*` secrets are set), so it shows up here. One run at a time from here; pressing
 again while one goes follows it. GitHub can only start a workflow by hand once that trigger is on `main`, so Run in CI
 works after this change is merged; until then it shows GitHub's refusal.
@@ -966,14 +1000,20 @@ publishes the new routes.
 
 **Remove Results** works here exactly as on the Test Results tab (checkboxes, the counting bar, a confirmation naming
 every run; `POST /__results/lighthouse/remove`), and only touches `lighthouse-results/`. **Run in Production**
-measures the production site (`SITE.url`, never your dev server) with the Lighthouse suite, on demand, from your
-computer: `POST /__results/lighthouse/run` runs `scripts/run-lighthouse.mjs` (the same as
-`npm run test:lighthouse:record`) with `LIGHTHOUSE_URL` set to production, in its own folder
-(`test-results/on-demand/`), and publishes the run to R2 with your Cloudflare login. The button waits
-(*Measuring production…*) while the tab asks `GET /__results/lighthouse/run` every few seconds; when it ends the tab
-says how it went (every page within budget, or the run's own last line: pages over budget, or why it couldn't be
-published) and lists the new run. One measurement runs at a time; pressing again while one runs follows it. It takes
-several minutes, and nothing else on the page waits for it. Both buttons use the dev server's local results service,
+measures the production site (`SITE.url`, never your dev server) with the Lighthouse suite, on demand, on GitHub
+Actions. It first asks which branch to run on: a dialog listing the branches on GitHub (`GET /__results/branches`),
+with **main** chosen; Cancel or Escape starts nothing. `POST /__results/lighthouse/run` with that branch then starts
+`lighthouse.yml` there with your gh login (`gh workflow run lighthouse.yml --ref <branch>`; the branch must be on
+GitHub and have the workflow), which runs `npm run test:lighthouse:record` and publishes the run to R2. The button
+waits (*Measuring production…*) while the tab asks `GET /__results/lighthouse/run` every 15 seconds, and the service
+asks GitHub (`gh run view`) until it says the run completed; the service then reads the run's log
+(`gh run view --log`) for the publisher's own "published <run id>:" line and its summary line. The button keeps
+waiting until the results API confirms it has that run (`GET /lighthouse/runs/<run id>`, every 2 seconds, for up to 2
+minutes; past that the tab says it was never confirmed). Only then does the tab say how it went (every page within
+budget, or the summary: pages over budget), with a link to the run on GitHub, and list the new run. A run that
+published nothing says how GitHub says it ended. One runs at a time; pressing again while one is going follows it, and
+a restarted dev server goes on following it (`.astro/run-in-production.json`). It takes about 10 minutes, and nothing
+else on the page waits for it. Both buttons use the dev server's local results service,
 so on the deployed site they say they only work on your computer.
 
 ### GitHub Issues tab
@@ -1273,7 +1313,7 @@ width and height so the page can't jump while loading; the header logos are righ
 icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
 28 KB, styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
 page's client-side category switcher and every page's report of its own visit to the access log; the Admin pages,
-which carry six tabs of tools and are opened only by you, may have 63 KB of HTML, 58 KB of scripts and 27 KB of styles, with the
+which carry six tabs of tools and are opened only by you, may have 65 KB of HTML, 58 KB of scripts and 28 KB of styles, with the
 Lighthouse, GitHub Issues and Access Info tabs' code loaded only when they are opened). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 

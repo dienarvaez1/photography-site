@@ -420,6 +420,55 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
 
   # --- Run in CI -------------------------------------------------------------------------------------------------------------
 
+  Scenario: Run in CI first asks which branch, defaulting to the one this checkout is on, and starts nothing until asked
+    Given the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    Then the branch dialog should offer "QA-feature_optimization (this checkout), main, local checkout on this computer (QA-feature_optimization)", with "QA-feature_optimization (this checkout)" chosen
+    And the CI workflow should have been started 0 times
+    And the page should pass the automated accessibility audit
+    When I press "Start CI run" in the branch dialog
+    Then the branch dialog should be closed
+    And the CI run should have been started from the tab on the branch "QA-feature_optimization"
+    And the Test Results tab should say "Running every Cucumber test in CI on QA-feature_optimization."
+
+  Scenario: Another branch can be chosen in the dialog
+    Given the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    And I choose the branch "main" in the branch dialog
+    And I press "Start CI run" in the branch dialog
+    Then the CI run should have been started from the tab on the branch "main"
+    And the Test Results tab should say "Running every Cucumber test in CI on main."
+
+  Scenario: Cancel or Escape in the branch dialog starts nothing
+    Given the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    And I press "Cancel" in the branch dialog
+    Then the branch dialog should be closed
+    And "Run in CI" should be available in the Test Results tab
+    When I press "Run in CI" in the Test Results tab
+    And I press the key "Escape"
+    Then the branch dialog should be closed
+    And the CI workflow should have been started 0 times
+
+  Scenario: A checkout on a branch that isn't on GitHub is still the default, but must be pushed before CI can run it
+    Given this checkout is on the branch "QA-not-pushed", which is not on GitHub yet
+    And the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    Then the branch dialog should offer "QA-not-pushed (this checkout), QA-feature_optimization, main, local checkout on this computer (QA-not-pushed)", with "QA-not-pushed (this checkout)" chosen
+    And the branch dialog should say "QA-not-pushed is not on GitHub yet. Push it first, or choose another branch.", with "Start CI run" unavailable
+    When I choose the branch "main" in the branch dialog
+    Then "Start CI run" should be available in the branch dialog
+    When I press "Start CI run" in the branch dialog
+    Then the CI run should have been started from the tab on the branch "main"
+
   Scenario: Remove Results comes first above the list, then Run in CI
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
@@ -438,7 +487,8 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I press "Run in CI" in the Test Results tab
-    Then the Test Results tab should say "Running every Cucumber test in CI on main."
+    And I press "Start CI run" in the branch dialog
+    Then the Test Results tab should say "Running every Cucumber test in CI on QA-feature_optimization."
     And the Test Results tab should link to the CI run
     And "CI run in progress…" should be unavailable in the Test Results tab
     And the Test Results tab should come to say "The CI run is done: every test passed."
@@ -452,6 +502,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I press "Run in CI" in the Test Results tab
+    And I press "Start CI run" in the branch dialog
     Then the Test Results tab should come to say "The CI run ended: failure."
     And the Test Results tab should link to the CI run
 
@@ -461,9 +512,11 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I press "Run in CI" in the Test Results tab
+    And I press "Start CI run" in the branch dialog
     And I reload the page
     And I press "Run in CI" in the Test Results tab
-    Then the Test Results tab should say "Running every Cucumber test in CI on main."
+    And I press "Start CI run" in the branch dialog
+    Then the Test Results tab should say "Running every Cucumber test in CI on QA-feature_optimization."
     And "CI run in progress…" should be unavailable in the Test Results tab
     And the CI workflow should have been started 1 time
 
@@ -473,6 +526,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I press "Run in CI" in the Test Results tab
+    And I press "Start CI run" in the branch dialog
     Then the Test Results tab should say "The CI run could not be started: HTTP 422: Workflow does not have 'workflow_dispatch' trigger"
     And "Run in CI" should be available in the Test Results tab
 
@@ -484,7 +538,8 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     Then the Test Results tab's buttons above the list should be "Run in CI"
     And the page should pass the automated accessibility audit
     When I press "Run in CI" in the Test Results tab
-    Then the Test Results tab should say "Running every Cucumber test in CI on main."
+    And I press "Start CI run" in the branch dialog
+    Then the Test Results tab should say "Running every Cucumber test in CI on QA-feature_optimization."
     And the page should pass the automated accessibility audit
 
   Scenario: Run in CI speaks Spanish
@@ -492,7 +547,8 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     When I open "/es/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I press "Ejecutar en CI" in the Test Results tab
-    Then the Test Results tab should say "Ejecutando todas las pruebas de Cucumber en CI sobre main."
+    And I press "Iniciar ejecución de CI" in the branch dialog
+    Then the Test Results tab should say "Ejecutando todas las pruebas en CI sobre QA-feature_optimization."
 
   Scenario: A few unanswered checks (the dev server restarting) don't stop the tab following the CI run
     Given the local results service is running
@@ -500,15 +556,56 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I press "Run in CI" in the Test Results tab
+    And I press "Start CI run" in the branch dialog
     Then the Test Results tab should come to say "The CI run is done: every test passed."
 
-  Scenario: A dev server restart that forgets the CI run says so, and links to the run on GitHub
+  Scenario: A dev server restart goes on following the CI run until GitHub says it is done
     Given the local results service is running
     And the CI run is never done
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
     And I press "Run in CI" in the Test Results tab
+    And I press "Start CI run" in the branch dialog
     And the dev server restarts while the CI run is going
+    Then the Test Results tab should come to say "The CI run is done: every test passed."
+
+  Scenario: A dev server restart that loses the CI run says so, and links to the run on GitHub
+    Given the local results service is running
+    And the CI run is never done
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    And I press "Start CI run" in the branch dialog
+    And the dev server restarts while the CI run is going and loses the run it saved
     Then the Test Results tab should come to say "The dev server restarted and lost track of the CI run; it may still be going on GitHub."
     And the Test Results tab should link to the CI run
     And "Run in CI" should be available again in the Test Results tab
+
+  Scenario: Run in CI can run every test in the local checkout instead, and says how it went
+    Given the local results service is running
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    And I choose the branch ":local" in the branch dialog
+    Then "Start CI run" should be available in the branch dialog
+    When I press "Start CI run" in the branch dialog
+    Then the Test Results tab should say "Running every Cucumber test in the local checkout (QA-feature_optimization) on this computer."
+    And the Test Results tab should come to say "The local run is done: every test passed."
+    And the tests should have run in the local checkout once, started from this page's host
+    And the CI workflow should have been started 0 times
+
+  Scenario: A local run that fails says so in its own words
+    Given the local results service is running
+    And the local run fails with "✗ browser suite failed"
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    And I press "Run in CI" in the Test Results tab
+    And I choose the branch ":local" in the branch dialog
+    And I press "Start CI run" in the branch dialog
+    Then the Test Results tab should come to say "The local run ended: ✗ browser suite failed"
+
+  Scenario: A run's line and details say where it was started from and where it ran
+    Given the results API also holds a run of commit "eeeeeee" started from "localhost:4321" that ran in "GitHub CI"
+    When I open "/admin/#test-results"
+    And I sign in with the token "browser-test-admin-token"
+    Then the run of commit "eeeeeee" should be listed as "eeeeeee · main · localhost:4321 → GitHub CI"

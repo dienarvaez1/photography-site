@@ -26,6 +26,13 @@ const tabs = [
   { id: 'github-issues', label: t('admin.tabs.githubIssues') },
 ];
 
+// In production these four tabs only show what is there: every button inside them (Remove Results, Run in CI/Production,
+// the photo and category actions, Show more) is hidden. They stay under `astro dev`, where their local services
+// (/__photos, /__categories, /__results) exist, and in the tests' snapshot build, which drives them against those services.
+// Decided when the site is built, so the preview of a production build (`npm run preview`) hides them too.
+const ADMIN_BUTTONS_TABS = new Set(['test-results', 'lighthouse-results', 'pics-viewer', 'category-maintenance']);
+const showAdminButtons = import.meta.env.DEV || import.meta.env.PHOTOS_SNAPSHOT;
+
 // The viewer's texts travel to the browser as data (an attribute, since the policy allows no inline scripts), in the page's language.
 const adminMessages = (locale === 'es' ? es : en).admin;
 const resultsMessages = adminMessages.results;
@@ -122,7 +129,7 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
       </div>
 
       {tabs.map((tab, index) => (
-        <div class="tabpanel" role="tabpanel" id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`} tabindex="0" hidden={index !== 0}>
+        <div class="tabpanel" role="tabpanel" id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`} tabindex="0" hidden={index !== 0} data-buttons-hidden={!showAdminButtons && ADMIN_BUTTONS_TABS.has(tab.id) ? '' : undefined}>
           <h2>{tab.label}</h2>
           {tab.id === 'test-results' ? (
             <div class="results" data-results data-api={RESULTS_API_URL} data-locale={locale} data-messages={JSON.stringify(resultsMessages)}>
@@ -485,6 +492,8 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .results-button.danger { background: var(--bad); color: #1a0505; border-color: var(--bad); }
   .results-button.danger:hover:not(:disabled) { filter: brightness(1.08); }
   .results-button[aria-pressed='true'] { border-color: var(--accent); }
+  /* Production: the tabs marked above show no buttons at all (the viewers still build them; they are just never shown). */
+  [data-buttons-hidden] button { display: none !important; }
   .pics-remove-bar { display: grid; gap: var(--space-1); margin: 0 0 var(--space-1); padding: var(--space-1) var(--space-2); border: 1px solid var(--bad); border-radius: var(--radius); background: var(--bg-elevated); }
   .pics-remove-count { margin: 0; color: var(--fg); }
   .pics-remove-warning { margin: 0; color: var(--fg); font-weight: 600; }
@@ -502,6 +511,14 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .results-remove-toolbar { justify-content: flex-start; }
   .results-runs.choosing li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-1); }
   .run-check { width: 1.4rem; height: 1.4rem; accent-color: var(--bad); cursor: pointer; }
+  /* Run in CI's branch dialog (src/lib/results-remove.ts): opened above everything, in the page's own colors. */
+  .ci-branch-dialog { max-width: min(32rem, calc(100vw - 2rem)); padding: var(--space-2); border: 1px solid var(--border, currentColor); border-radius: var(--radius); background: var(--bg-elevated); color: var(--fg); }
+  .ci-branch-dialog::backdrop { background: rgb(0 0 0 / 0.55); }
+  .ci-branch-dialog form { display: grid; gap: var(--space-1); }
+  .ci-branch-dialog h3 { margin: 0; }
+  .ci-branch-select { font: inherit; padding: 0.4rem; max-width: 100%; }
+  .ci-branch-warning:empty { display: none; }
+  .ci-branch-warning { margin: 0; color: var(--fg); font-weight: 600; }
   .pic.selected .pic-link { border-color: var(--bad); }
   /* Editing a category or the home background is not destructive: their checkboxes and selected-row
      border use the ordinary accent color instead of the Remove Photos bar's warning red. */

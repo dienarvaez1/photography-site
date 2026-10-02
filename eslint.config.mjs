@@ -31,6 +31,7 @@ export default defineConfig(
     ignores: [
       '**/dist/',
       '**/dist-prod/',
+      '**/.test-builds/', // each test run's own builds of the site (features/support/lib.js BUILD_DIR)
       '**/.astro/',
       '**/.wrangler/', // wrangler's own build cache (e.g. workers/results-api/.wrangler/tmp/): bundled output, not source
       '**/.photo-entries/',

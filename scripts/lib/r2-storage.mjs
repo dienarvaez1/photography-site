@@ -1,5 +1,7 @@
 // Real storage backend: Cloudflare R2 via the already-authenticated wrangler
-// CLI (no API keys to manage), plus plain HTTPS for reading the public bucket.
+// CLI (no API keys to manage), plus plain HTTPS for reading the public bucket. For
+// many objects at once, createApiBucketStorage makes the same API requests itself
+// with wrangler's login, instead of starting wrangler for each object.
 // R2 has no "list" in wrangler, so nothing here lists — the .md files are the
 // source of truth for which objects should exist.
 import { execFile } from 'node:child_process';
@@ -72,6 +74,94 @@ function privateBucket(bucket) {
     },
     async delete(key) {
       await wrangler(['r2', 'object', 'delete', target(key), '--remote']);
+    },
+  };
+}
+
+const CLOUDFLARE_API = 'https://api.cloudflare.com/client/v4';
+
+/** wrangler's --json output, without anything it printed before it. */
+const parseJsonOutput = (stdout) => JSON.parse(stdout.slice(stdout.indexOf('{')));
+
+/**
+ * The owner's Cloudflare credentials, as wrangler has them: its current token (`wrangler auth token`, which refreshes
+ * an expired OAuth login) and the account (CLOUDFLARE_ACCOUNT_ID, else the login's only account, from `wrangler whoami`).
+ * Two wrangler calls, at the same time.
+ */
+export async function wranglerCredentials() {
+  const fromEnv = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const [auth, who] = await Promise.all([wrangler(['auth', 'token', '--json']), fromEnv ? null : wrangler(['whoami', '--json'])]);
+  const { token } = parseJsonOutput(auth.stdout);
+  if (!token) throw new Error('wrangler has no token: run `npx wrangler login`.');
+  if (fromEnv) return { token, accountId: fromEnv };
+  const { accounts = [] } = parseJsonOutput(who.stdout);
+  if (accounts.length !== 1) throw new Error(`The wrangler login has ${accounts.length} accounts: set CLOUDFLARE_ACCOUNT_ID to choose one.`);
+  return { token, accountId: accounts[0].id };
+}
+
+/**
+ * A private bucket through Cloudflare's R2 API directly (the same requests `wrangler r2 object …` makes), for work that
+ * touches many objects at once — the Admin page's Remove Results. Each wrangler call is a new process that takes about
+ * a second to start; a request here takes a fraction of that. The credentials are asked of wrangler once
+ * (`credentials`), and again only when Cloudflare refuses them (401: an OAuth token expired). When they can't be had at
+ * all, every call goes through wrangler as before (`fallback`). Same interface as privateBucket.
+ */
+export function createApiBucketStorage(bucket, { credentials = wranglerCredentials, fetchImpl = fetch, fallback = privateBucket(bucket), log = () => {} } = {}) {
+  let pending = null;
+  const credentialsNow = (fresh = false) => {
+    if (!pending || fresh) {
+      pending = credentials().catch((error) => {
+        pending = null;
+        throw error;
+      });
+    }
+    return pending;
+  };
+  const objectUrl = (accountId, key) => `${CLOUDFLARE_API}/accounts/${accountId}/r2/buckets/${bucket}/objects/${key.split('/').map(encodeURIComponent).join('/')}`;
+
+  /** The API's answer, or null when there are no credentials (the call then goes through wrangler). */
+  async function request(method, key, { headers = {}, body } = {}) {
+    let creds;
+    try {
+      creds = await credentialsNow();
+    } catch (error) {
+      log(`R2 API unavailable (${error.message}); using wrangler`);
+      return null;
+    }
+    for (let retried = false; ; retried = true) {
+      const response = await fetchImpl(objectUrl(creds.accountId, key), { method, body, headers: { ...headers, Authorization: `Bearer ${creds.token}` } });
+      if (response.status !== 401 || retried) return response;
+      creds = await credentialsNow(true); // the token expired: wrangler refreshes it
+    }
+  }
+  const failure = async (what, key, response) => {
+    const said = await response.text().catch(() => '');
+    return new Error(`R2 ${what} ${bucket}/${key} failed: ${response.status} ${response.statusText}${said ? ` — ${said.slice(0, 300)}` : ''}`);
+  };
+
+  return {
+    /** Gets the credentials ready ahead of the first real call (e.g. while runs are being chosen); never fails. */
+    warm() {
+      credentialsNow().catch(() => {});
+    },
+    async put(key, file, contentType, cacheControl) {
+      const response = await request('PUT', key, { body: await readFile(file), headers: { 'content-type': contentType, 'cache-control': cacheControl, 'cf-r2-data-catalog-check': 'true' } });
+      if (!response) return fallback.put(key, file, contentType, cacheControl);
+      if (!response.ok) throw await failure('put', key, response);
+    },
+    /** Downloads an object; null when it doesn't exist. */
+    async get(key) {
+      const response = await request('GET', key);
+      if (!response) return fallback.get(key);
+      if (response.status === 404) return null;
+      if (!response.ok) throw await failure('get', key, response);
+      return Buffer.from(await response.arrayBuffer());
+    },
+    /** Deletes an object; one that isn't there is already deleted. */
+    async delete(key) {
+      const response = await request('DELETE', key, { headers: { 'cf-r2-data-catalog-check': 'true' } });
+      if (!response) return fallback.delete(key);
+      if (!response.ok && response.status !== 404) throw await failure('delete', key, response);
     },
   };
 }

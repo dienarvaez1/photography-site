@@ -20,8 +20,8 @@ import {
 import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, messageReader, parseJson, remembered, type Child, type Messages, type Notice, leaveToGate, noticeNode } from './admin-common';
 
 type Totals = { measurements: number; withinBudget: number; overBudget: number };
-type Summary = { runId: string; startedAt: string; source: string; commit: string; branch: string; dirty: boolean; baseUrl: string; runsPerPage: number; ok: boolean; totals: Totals; results: Measurement[] };
-type IndexEntry = { runId: string; startedAt: string; source: string; commit: string; branch: string; dirty: boolean; baseUrl: string; ok: boolean; totals: Totals; performance?: Record<string, number> };
+type Summary = { runId: string; startedAt: string; source: string; target?: string; commit: string; branch: string; dirty: boolean; baseUrl: string; runsPerPage: number; ok: boolean; totals: Totals; results: Measurement[] };
+type IndexEntry = { runId: string; startedAt: string; source: string; target?: string; commit: string; branch: string; dirty: boolean; baseUrl: string; ok: boolean; totals: Totals; performance?: Record<string, number> };
 
 export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement) {
   const root = container.querySelector<HTMLElement>('[data-lighthouse-root]')!;
@@ -51,7 +51,8 @@ export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement
   const badge = (ok: boolean) => el('span', { class: `results-badge ${ok ? 'ok' : 'bad'}`, text: m(ok ? 'lighthouse.status.pass' : 'lighthouse.status.fail') });
   const totalsText = (t: Totals) => m('lighthouse.totals', { within: t.withinBudget, total: t.measurements });
   const device = (id: string) => m(`lighthouse.devices.${id}`) || id;
-  const sourceLine = (s: { commit: string; branch: string; source: string; dirty: boolean }) => `${s.commit}${s.dirty ? ` (${m('lighthouse.detail.dirty')})` : ''} · ${s.branch} · ${s.source}`;
+  // Where it was started from and, when the run says, which host it measured: "localhost:4321 → diego-narvaez-photography.org".
+  const sourceLine = (s: { commit: string; branch: string; source: string; target?: string; dirty: boolean }) => `${s.commit}${s.dirty ? ` (${m('lighthouse.detail.dirty')})` : ''} · ${s.branch} · ${s.source}${s.target ? ` → ${s.target}` : ''}`;
   const dl = (rows: [string, Child][]) => el('dl', { class: 'results-meta' }, ...rows.flatMap(([term, value]) => [el('dt', { text: term }), el('dd', {}, value)]));
 
   function externalLink(text: string, href: string) {
@@ -93,12 +94,12 @@ export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement
   }
 
   // Remove Results and Run in Production (results-remove.ts, loaded when either button is first pressed; Remove
-  // Results is the same as the Test Results tab's). The list is kept, so ticking a checkbox draws it again without
-  // asking the API; `notice` is what the last removal or measurement said.
+  // Results is the same as the Test Results tab's, Run in Production works like its Run in CI). The list is kept, so
+  // ticking a checkbox draws it again without asking the API; `notice` is what the last removal or measurement said.
   let removal: import('./results-remove').RunRemoval | null = null;
   let notice: Notice | null = null;
   let listed: { latest: Summary | null; runs: IndexEntry[] } | null = null;
-  let measuring = false; // a Run in Production measurement is under way: its button waits
+  let measuring = false; // a Run in Production run is under way (a branch was chosen): its button waits
   const removalModule = () => import('./results-remove');
 
   async function startRemoving() {
@@ -121,27 +122,62 @@ export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement
     root.querySelector<HTMLButtonElement>('[data-remove-bar] button:not(:disabled)')?.focus();
   }
 
-  /** Run in Production: measure the live site on this computer, follow it, then show the new run. */
+  /**
+   * After a measurement: asks the results API (the host this tab reads from) for the run it published until it answers
+   * with it. Resolves to 'confirmed', 'timeout' when it never did within CONFIRM_TIMEOUT_MS, or the API's refusal.
+   * "Not found" (not there yet) and "unreachable" (a blip) are waited out.
+   */
+  async function confirmRun(runId: string, pollMs: number, timeoutMs: number): Promise<'confirmed' | 'timeout' | ApiError> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      try {
+        await api(`/lighthouse/runs/${encodeURIComponent(runId)}`);
+        return 'confirmed';
+      } catch (error) {
+        if (!(error instanceof ApiError)) return new ApiError('generic');
+        if (error.kind !== 'notFound' && error.kind !== 'unreachable') return error;
+      }
+      if (Date.now() + pollMs > deadline) return 'timeout';
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+    }
+  }
+
+  /**
+   * Run in Production: ask which branch (main unless another is chosen), start the Lighthouse workflow there on GitHub,
+   * follow it until GitHub says it completed, then wait for the results API to have the run it published, and show it.
+   * The button waits the whole time, from the moment a branch is chosen.
+   */
   async function runInProduction() {
-    measuring = true;
-    drawList();
-    const { startProductionRun, productionRunNow, measurementNotice, MEASURE_POLL_MS } = await removalModule();
-    const started = await startProductionRun(m);
-    if ('text' in started) {
-      [notice, measuring] = [started, false];
+    const { runWorkflowAndFollow, lighthouseRunNotice, LIGHTHOUSE_KIND, CONFIRM_POLL_MS, CONFIRM_TIMEOUT_MS } = await removalModule();
+    const update = (said: Notice) => {
+      notice = said;
+      if (!panel.hidden) drawList();
+    };
+    const ended = await runWorkflowAndFollow<import('./results-remove').LighthouseRun>(m, LIGHTHOUSE_KIND, (run) => lighthouseRunNotice(m, run), update, () => {
+      measuring = true;
       drawList();
-      root.querySelector<HTMLButtonElement>('[data-action="run-lighthouse-production"]')?.focus();
+    });
+    const { run } = ended;
+    if (!run) {
+      [notice, measuring] = [ended.notice ?? notice, false];
+      drawList();
+      if (!ended.started) root.querySelector<HTMLButtonElement>('[data-action="run-lighthouse-production"]')?.focus();
       return;
     }
-    notice = measurementNotice(m, started);
-    drawList();
-    let now: import('./results-remove').Measurement | null = started;
-    while (now && !now.finishedAt) {
-      await new Promise((resolve) => setTimeout(resolve, MEASURE_POLL_MS));
-      now = await productionRunNow();
+    const link = run.url ? { href: run.url, linkText: m('lighthouse.production.open') } : {};
+    if (run.runId) {
+      // Published: not done until the results API serves the run (only then can the list below show it).
+      update({ text: m('lighthouse.production.confirming', { runId: run.runId }), alert: false, ...link });
+      const confirmed = await confirmRun(run.runId, CONFIRM_POLL_MS, CONFIRM_TIMEOUT_MS);
+      notice =
+        confirmed === 'confirmed' ? lighthouseRunNotice(m, run)
+        : confirmed === 'timeout' ? { text: m('lighthouse.production.unconfirmed', { runId: run.runId, minutes: Math.round(CONFIRM_TIMEOUT_MS / 60_000) }), alert: true, ...link }
+        : { text: errorMessage(m, confirmed), alert: true };
+    } else {
+      // Nothing published: how it ended says why. A run that ended well without naming its run can't be confirmed.
+      notice = run.conclusion === 'success' ? { text: m('lighthouse.production.noRunId'), alert: true, ...link } : lighthouseRunNotice(m, run);
     }
     measuring = false;
-    notice = now ? measurementNotice(m, now) : { text: m('lighthouse.production.lost'), alert: true };
     displayed = null; // the new run is in the store now: read the list again
     if (!panel.hidden) void render();
   }
@@ -264,6 +300,7 @@ export function mountLighthouseViewer(container: HTMLElement, panel: HTMLElement
         [m('lighthouse.detail.commit'), `${summary.commit} (${m(summary.dirty ? 'lighthouse.detail.dirty' : 'lighthouse.detail.clean')})`],
         [m('lighthouse.detail.branch'), summary.branch],
         [m('lighthouse.detail.source'), summary.source],
+        [m('lighthouse.detail.target'), summary.target ?? '–'],
       ]),
       resultsTable(summary, links),
       missedList(summary),

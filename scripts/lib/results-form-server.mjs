@@ -29,9 +29,11 @@ export function resultsForm() {
     name: 'results-form',
     hooks: {
       'astro:server:setup': async ({ server }) => {
-        const { createBucketStorage } = await import('./r2-storage.mjs');
+        const { createApiBucketStorage } = await import('./r2-storage.mjs');
         const { RESULTS_BUCKET } = await import('./results.mjs');
-        server.middlewares.use(await resultsFormMiddleware({ storage: createBucketStorage(RESULTS_BUCKET), log: (line) => console.error(line) }));
+        const log = (line) => console.error(line);
+        // Straight to R2's API with wrangler's login: Remove Results deletes many files, and a wrangler process per file was slow.
+        server.middlewares.use(await resultsFormMiddleware({ storage: createApiBucketStorage(RESULTS_BUCKET, { log }), log }));
       },
     },
   };

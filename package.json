@@ -48,7 +48,8 @@
     "results-api:dev": "wrangler dev -c workers/results-api/wrangler.jsonc --port 8788 --persist-to .wrangler/state",
     "results-api:deploy": "wrangler deploy -c workers/results-api/wrangler.jsonc",
     "access:geo-backfill": "node scripts/access-geo.mjs",
-    "map:build": "node scripts/build-world-map.mjs"
+    "map:build": "node scripts/build-world-map.mjs",
+    "results:label": "node scripts/label-runs.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.2",

@@ -16,7 +16,7 @@
 // uploaded) is how runs are found.
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { basename, extname, join, relative } from 'node:path';
 
 export const RESULTS_BUCKET = 'photography-site-test';
@@ -148,6 +148,44 @@ export async function getJson(storage, key) {
   return body ? JSON.parse(body.toString('utf-8')) : null;
 }
 
+/**
+ * How many objects are deleted at once. Against R2 every delete is its own `wrangler r2 object delete` (about a second
+ * each, mostly wrangler starting up) and a run has a file per report, so deleting a few runs' files one by one took
+ * minutes; a handful at a time takes seconds, well within Cloudflare's API limits.
+ */
+export const DELETE_CONCURRENCY = 8;
+
+/**
+ * Deletes every file of these runs (each `{ runId, files }`), up to `concurrency` deletes at a time across all of them.
+ * Every file is tried, even after one fails. Resolves to the runs whose files were all deleted (in the order given, each
+ * logged as `<verb> <run id>`) and those that weren't, with the first error for each: { done: [runId], failed: [{ runId, error }] }.
+ */
+export async function deleteRunFiles(storage, runs, { concurrency = DELETE_CONCURRENCY, log = () => {}, verb = 'removed' } = {}) {
+  const jobs = runs.flatMap((run) => (run.files ?? []).map((key) => ({ runId: run.runId, key })));
+  const errors = new Map();
+  let next = 0;
+  const worker = async () => {
+    while (next < jobs.length) {
+      const { runId, key } = jobs[next++];
+      try {
+        await storage.delete(key);
+      } catch (error) {
+        if (!errors.has(runId)) errors.set(runId, error.message);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, worker));
+  const done = runs.map((run) => run.runId).filter((runId) => !errors.has(runId));
+  for (const runId of done) log(`${verb} ${runId}`);
+  return { done, failed: [...errors].map(([runId, error]) => ({ runId, error })) };
+}
+
+/** deleteRunFiles for pruning, where a file that can't be deleted is an error (the first one is thrown, after every file was tried). */
+export async function pruneRunFiles(storage, runs, log, verb) {
+  const { failed } = await deleteRunFiles(storage, runs, { log, verb });
+  if (failed.length) throw new Error(failed[0].error);
+}
+
 const indexKey = `${RESULTS_PREFIX}index.json`;
 const latestKey = `${RESULTS_PREFIX}latest.json`;
 const runKey = (runId, file) => `${RESULTS_PREFIX}runs/${runId}/${file}`;
@@ -160,12 +198,55 @@ export async function readIndex(storage) {
 // --- Publishing ------------------------------------------------------------------------------------------
 
 /**
+ * Where a run says it came from and ran, by its kind, unless told (`from`, `target`): a CI run started by a push or pull
+ * request came from GitHub; one started from the Admin page's Run in CI says that page's host (localhost:4321). A run on
+ * this computer ran in the local checkout.
+ */
+export const RUN_LABELS = {
+  ci: { source: 'GitHub', target: 'GitHub CI' },
+  local: { source: 'local', target: 'local checkout' },
+};
+/** A source or target label as stored: plain text, one line, short. */
+const LABEL = /^[\w .:/()-]{1,80}$/;
+export const isLabel = (text) => typeof text === 'string' && LABEL.test(text);
+
+/** What GitHub calls the events that start a workflow, said plainly. */
+const GITHUB_EVENTS = { push: 'push', pull_request: 'pull request', schedule: 'schedule', workflow_dispatch: 'manual run' };
+
+/**
+ * Where a run is being started from, for its `source`: RESULTS_FROM when set (Run in CI / Run in Production pass the
+ * Admin page's host, localhost:4321), else on GitHub the event that started the workflow ("GitHub push", "GitHub
+ * pull request", "GitHub schedule", "GitHub manual run"), else this computer's name, from a terminal.
+ */
+export function startedFrom({ env = process.env, machine = hostname() } = {}) {
+  if (isLabel(env.RESULTS_FROM)) return env.RESULTS_FROM;
+  if (env.GITHUB_ACTIONS === 'true') return `GitHub ${GITHUB_EVENTS[env.GITHUB_EVENT_NAME] ?? env.GITHUB_EVENT_NAME ?? 'Actions'}`;
+  return `${machine.replace(/[^\w.-]/g, '-').slice(0, 60) || 'this computer'} (terminal)`;
+}
+
+/** Where a run says it ran, when it is told (RESULTS_TARGET); otherwise the publisher works it out. */
+export const targetFromEnv = ({ env = process.env } = {}) => (isLabel(env.RESULTS_TARGET) ? env.RESULTS_TARGET : undefined);
+
+/** A site's host, for a run that tested or measured it ("https://example.org/" → "example.org"). */
+export function hostOf(url) {
+  try {
+    return new URL(url).host || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Uploads a results folder as one run. Order matters: every file first, then summary.json, then
  * latest.json, and the index last, so the index never names something that isn't there. Runs beyond
  * `retain` are then dropped from the index and their objects deleted.
+ * `source` is the run's kind ('local' or 'ci'), which ends its id; the summary and the index say `source` (where it was
+ * started from: `from`, else RUN_LABELS) and `target` (where it ran: `target`, else RUN_LABELS).
  * Returns { runId, summary, pruned: [runId] }.
  */
-export async function publishResults({ dir, storage, source = 'local', meta = gitInfo(), now = new Date(), retain = DEFAULT_RETENTION, log = () => {} }) {
+export async function publishResults({ dir, storage, source = 'local', from, target, meta = gitInfo(), now = new Date(), retain = DEFAULT_RETENTION, log = () => {} }) {
+  const labels = RUN_LABELS[source] ?? { source, target: source };
+  const startedFromLabel = isLabel(from) ? from : labels.source;
   let names;
   try {
     // Not lighthouse/: a Lighthouse run is published on its own, to lighthouse-results/ (lighthouse-results.mjs).
@@ -184,6 +265,9 @@ export async function publishResults({ dir, storage, source = 'local', meta = gi
     }
     suites[suite] = suite === 'smoke' ? summarizeSmoke(report) : summarizeCucumber(report);
   }
+  // Where it ran: as told, else a run of only the smoke check tested the live site (its host), else by its kind.
+  const onlySmoke = Object.keys(suites).length === 1 && suites.smoke;
+  const ranIn = isLabel(target) ? target : (onlySmoke && hostOf(suites.smoke.baseUrl)) || labels.target;
   if (!Object.keys(suites).length) {
     throw new Error(`No test results found in ${dir} (expected ${Object.values(SUITES).join(', ')}). Run \`npm run test:record\` first.`);
   }
@@ -206,7 +290,8 @@ export async function publishResults({ dir, storage, source = 'local', meta = gi
   const summary = {
     runId,
     startedAt: now.toISOString(),
-    source,
+    source: startedFromLabel,
+    target: ranIn,
     commit: meta.commit,
     branch: meta.branch,
     dirty: meta.dirty,
@@ -222,7 +307,8 @@ export async function publishResults({ dir, storage, source = 'local', meta = gi
   const entry = {
     runId,
     startedAt: summary.startedAt,
-    source,
+    source: startedFromLabel,
+    target: ranIn,
     commit: meta.commit,
     branch: meta.branch,
     dirty: meta.dirty,
@@ -237,10 +323,7 @@ export async function publishResults({ dir, storage, source = 'local', meta = gi
   await putJson(storage, indexKey, { updatedAt: summary.startedAt, runs: kept });
   log(`  updated ${indexKey} (${kept.length} runs)`);
 
-  for (const old of dropped) {
-    for (const key of old.files ?? []) await storage.delete(key);
-    log(`  pruned ${old.runId}`);
-  }
+  await pruneRunFiles(storage, dropped, log, '  pruned');
   return { runId, summary, pruned: dropped.map((r) => r.runId) };
 }
 
@@ -285,16 +368,14 @@ export async function pruneResults({ storage, keep = DEFAULT_RETENTION, log = ()
   const dropped = index.runs.slice(keep);
   if (!dropped.length) return { pruned: [] };
   await putJson(storage, indexKey, { updatedAt: index.updatedAt, runs: kept });
-  for (const old of dropped) {
-    for (const key of old.files ?? []) await storage.delete(key);
-    log(`pruned ${old.runId}`);
-  }
+  await pruneRunFiles(storage, dropped, log, 'pruned');
   return { pruned: dropped.map((r) => r.runId) };
 }
 
 /**
- * Removes these runs, by id: from the index first (so it never names a run whose files are gone), then from latest.json
- * when the newest run is among them (it becomes the newest run left, or goes when none is), then each run's files.
+ * Removes these runs, by id: from the index and, when the newest run is among them, from latest.json (it becomes the
+ * newest run left, or goes when none is) — both first, so neither ever names a run whose files are gone — then every
+ * run's files, several at a time (deleteRunFiles).
  * Ids not in the index are reported as `missing` and change nothing. A run whose files can't all be deleted is out of
  * the index anyway and is reported in `failed`; running the removal again for it is safe.
  * `prefix` picks the store: the test results (`results/`) or the Lighthouse results (`lighthouse-results/`), which
@@ -305,33 +386,29 @@ export async function removeRuns({ storage, runIds, prefix = RESULTS_PREFIX, log
   const latestKey = `${prefix}latest.json`;
   const runKey = (runId, file) => `${prefix}runs/${runId}/${file}`;
   const wanted = new Set(runIds);
-  const index = (await getJson(storage, indexKey)) ?? { updatedAt: null, runs: [] };
+  // Each storage call is a round trip (a wrangler process against R2): what doesn't depend on another goes at once.
+  const [index, latest] = await Promise.all([getJson(storage, indexKey).then((found) => found ?? { updatedAt: null, runs: [] }), getJson(storage, latestKey)]);
   const gone = index.runs.filter((r) => wanted.has(r.runId));
   const missing = [...wanted].filter((id) => !gone.some((r) => r.runId === id));
   if (!gone.length) return { removed: [], missing, failed: [] };
 
   const kept = index.runs.filter((r) => !wanted.has(r.runId));
-  await putJson(storage, indexKey, { updatedAt: index.updatedAt, runs: kept });
-  log(`updated ${indexKey} (${kept.length} runs)`);
-
-  const latest = await getJson(storage, latestKey);
-  if (!latest || wanted.has(latest.runId)) {
+  const updateIndex = async () => {
+    await putJson(storage, indexKey, { updatedAt: index.updatedAt, runs: kept });
+    log(`updated ${indexKey} (${kept.length} runs)`);
+  };
+  const updateLatest = async () => {
+    if (latest && !wanted.has(latest.runId)) return;
     const newest = kept[0] ? await getJson(storage, runKey(kept[0].runId, 'summary.json')) : null;
     if (newest) await putJson(storage, latestKey, newest);
     else await storage.delete(latestKey);
     log(newest ? `${latestKey} is now ${newest.runId}` : `removed ${latestKey} (no runs left)`);
-  }
+  };
+  // Both before any file goes, so neither ever names a run whose files are gone.
+  await Promise.all([updateIndex(), updateLatest()]);
 
-  const failed = [];
-  for (const run of gone) {
-    try {
-      for (const key of run.files ?? []) await storage.delete(key);
-      log(`removed ${run.runId}`);
-    } catch (error) {
-      failed.push({ runId: run.runId, error: error.message });
-    }
-  }
-  return { removed: gone.map((r) => r.runId).filter((id) => !failed.some((f) => f.runId === id)), missing, failed };
+  const { done, failed } = await deleteRunFiles(storage, gone, { log });
+  return { removed: done, missing, failed };
 }
 
 export async function directoryExists(dir) {
@@ -340,4 +417,51 @@ export async function directoryExists(dir) {
   } catch {
     return false;
   }
+}
+
+// --- Labelling stored runs ----------------------------------------------------------------------------------------------
+
+/** What an old run's kind says about where it came from, when nothing more is known (backfill only). */
+const BACKFILL_SOURCE = { ci: 'GitHub', local: 'this computer (terminal)' };
+
+/** A run's kind from its id ("…-ci", "…-local", either maybe followed by "-2"), else null. */
+const kindOf = (runId) => /-(ci|local)(?:-\d+)?$/.exec(runId)?.[1] ?? null;
+
+/** Does this stored run (summary or index entry) already say, meaningfully, where it came from and ran? */
+const labelled = (run) => isLabel(run.source) && isLabel(run.target) && !['ci', 'local'].includes(run.source);
+
+/**
+ * Gives every run stored under `prefix` (results/ or lighthouse-results/) a meaningful `source` and `target`, in its
+ * summary.json, its index entry and latest.json, for runs published before they were recorded. What a run can still
+ * tell: its kind (its id), the site its smoke check tested, or the site Lighthouse measured. Runs already labelled are
+ * left alone. Summaries first, then latest.json, the index last. With `dryRun`, only reports what it would change.
+ * Returns { labelled: [{ runId, source, target }], already: count }.
+ */
+export async function labelStoredRuns({ storage, prefix, dryRun = false, log = () => {} }) {
+  const indexKey = `${prefix}index.json`;
+  const latestKey = `${prefix}latest.json`;
+  const index = (await getJson(storage, indexKey)) ?? { updatedAt: null, runs: [] };
+  const todo = index.runs.filter((entry) => !labelled(entry));
+  const changes = [];
+  for (const entry of todo) {
+    const summary = await getJson(storage, `${prefix}runs/${entry.runId}/summary.json`);
+    const kind = kindOf(entry.runId);
+    const source = isLabel(entry.source) && !['ci', 'local'].includes(entry.source) ? entry.source : (BACKFILL_SOURCE[kind] ?? 'unknown');
+    const smokeOnly = summary?.suites && Object.keys(summary.suites).length === 1 && summary.suites.smoke;
+    const measured = hostOf(summary?.baseUrl ?? entry.baseUrl);
+    const target = isLabel(entry.target) ? entry.target : measured || (smokeOnly && hostOf(summary.suites.smoke.baseUrl)) || RUN_LABELS[kind]?.target || 'unknown';
+    changes.push({ entry, summary, source, target });
+    log(`${dryRun ? 'would label' : 'labelled'} ${entry.runId}: ${source} → ${target}`);
+  }
+  if (!dryRun && changes.length) {
+    for (const { entry, summary, source, target } of changes) {
+      if (summary) await putJson(storage, `${prefix}runs/${entry.runId}/summary.json`, { ...summary, source, target });
+      Object.assign(entry, { source, target });
+    }
+    const latest = await getJson(storage, latestKey);
+    const changed = latest && changes.find((c) => c.entry.runId === latest.runId);
+    if (changed) await putJson(storage, latestKey, { ...latest, source: changed.source, target: changed.target });
+    await putJson(storage, indexKey, index);
+  }
+  return { labelled: changes.map(({ entry, source, target }) => ({ runId: entry.runId, source, target })), already: index.runs.length - todo.length };
 }

@@ -136,3 +136,16 @@ Then('the scripts of the built page {string} should contain the idle sign-out', 
   assert.match(scripts, /visibilitychange/);
   assert.match(scripts, /admin-timed-out/);
 });
+
+// The production side (which tabs are marked) is in site-render.feature: only the production build marks them.
+Then('no tab should hide its buttons', function () {
+  assert.equal(root(this).querySelectorAll('[role="tabpanel"]').length, 6);
+  assert.equal(root(this).querySelectorAll('[data-buttons-hidden]').length, 0);
+});
+
+Then('the built styles should hide every button inside a tab marked to hide its buttons', function () {
+  const dir = join(DIST_DIR, '_astro');
+  const css = readdirSync(dir).filter((f) => f.endsWith('.css')).map((f) => readFileSync(join(dir, f), 'utf-8')).join('\n');
+  const inline = readFileSync(join(DIST_DIR, 'admin/index.html'), 'utf-8');
+  assert.match(css + inline, /\[data-buttons-hidden\] button\s*\{\s*display:\s*none\s*!important/);
+});

@@ -12,7 +12,7 @@
 // summary.json, then latest.json, and the index last, so the index never names something that isn't there.
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DEFAULT_RETENTION, NO_CACHE, RESULTS_BUCKET, contentType, filesUnder, getJson, gitInfo, makeRunId, putJson } from './results.mjs';
+import { DEFAULT_RETENTION, NO_CACHE, RESULTS_BUCKET, RUN_LABELS, contentType, filesUnder, getJson, gitInfo, hostOf, isLabel, makeRunId, pruneRunFiles, putJson } from './results.mjs';
 
 export { RESULTS_BUCKET, DEFAULT_RETENTION };
 export const LIGHTHOUSE_PREFIX = 'lighthouse-results/';
@@ -40,7 +40,10 @@ function performanceByDevice(results) {
  * Uploads a Lighthouse results folder as one run. Returns { runId, summary, pruned: [runId] }. Runs beyond `retain` are
  * dropped from the index and their files deleted.
  */
-export async function publishLighthouse({ dir, storage, source = 'local', meta = gitInfo(), now = new Date(), retain = DEFAULT_RETENTION, log = () => {} }) {
+// `source` is the run's kind ('local' or 'ci'), which ends its id. The summary and the index say `source` (where it was
+// started from: `from`, else by its kind, as for test runs) and `target` (what it measured: `target`, else the measured
+// site's host, e.g. diego-narvaez-photography.org).
+export async function publishLighthouse({ dir, storage, source = 'local', from, target, meta = gitInfo(), now = new Date(), retain = DEFAULT_RETENTION, log = () => {} }) {
   let names;
   try {
     names = await filesUnder(dir);
@@ -70,10 +73,13 @@ export async function publishLighthouse({ dir, storage, source = 'local', meta =
     log(`  uploaded ${runKey(runId, name)}`);
   }
 
+  const startedFromLabel = isLabel(from) ? from : (RUN_LABELS[source] ?? { source }).source;
+  const measuredHost = isLabel(target) ? target : hostOf(measured.baseUrl) ?? measured.baseUrl;
   const summary = {
     runId,
     startedAt: measured.measuredAt ?? now.toISOString(),
-    source,
+    source: startedFromLabel,
+    target: measuredHost,
     commit: meta.commit,
     branch: meta.branch,
     dirty: meta.dirty,
@@ -90,7 +96,8 @@ export async function publishLighthouse({ dir, storage, source = 'local', meta =
   const entry = {
     runId,
     startedAt: summary.startedAt,
-    source,
+    source: startedFromLabel,
+    target: measuredHost,
     commit: meta.commit,
     branch: meta.branch,
     dirty: meta.dirty,
@@ -106,10 +113,7 @@ export async function publishLighthouse({ dir, storage, source = 'local', meta =
   await putJson(storage, indexKey, { updatedAt: summary.startedAt, runs: kept });
   log(`  updated ${indexKey} (${kept.length} runs)`);
 
-  for (const old of dropped) {
-    for (const key of old.files ?? []) await storage.delete(key);
-    log(`  pruned ${old.runId}`);
-  }
+  await pruneRunFiles(storage, dropped, log, '  pruned');
   return { runId, summary, pruned: dropped.map((r) => r.runId) };
 }
 
@@ -129,9 +133,6 @@ export async function pruneLighthouse({ storage, keep = DEFAULT_RETENTION, log =
   const dropped = index.runs.slice(keep);
   if (!dropped.length) return { pruned: [] };
   await putJson(storage, indexKey, { updatedAt: index.updatedAt, runs: kept });
-  for (const old of dropped) {
-    for (const key of old.files ?? []) await storage.delete(key);
-    log(`pruned ${old.runId}`);
-  }
+  await pruneRunFiles(storage, dropped, log, 'pruned');
   return { pruned: dropped.map((r) => r.runId) };
 }
