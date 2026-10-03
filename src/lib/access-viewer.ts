@@ -1,8 +1,11 @@
-// The Admin page's Access Info viewer: who opened which page and which photo, one UTC day at a time, read from the
+// The Admin page's Access Info viewer: who opened which page and which photo, over a range of UTC days chosen in a
+// calendar (day-range-calendar.ts; today by default), read from the
 // site's access log (src/config/access-log.ts) through the results API, behind the same admin token as the other tabs.
 // Built like the GitHub Issues viewer (issues-viewer.ts); everything from the API is put on the page as text.
 import type { AccessDay, AccessEntry } from '../config/access-log';
-import { byCountry, dayLabel, pieSlices, summarize, type Count, type CountryCount } from './access-view';
+import { byCountry, byIp, daysBetween, pieSlices, summarize, todayUtc, type Count, type CountryCount, type DayRange } from './access-view';
+import { mountDayRangePicker } from './day-range-calendar';
+import { pager, type PagerTexts } from './pager';
 import { pieChart } from './pie-chart';
 import { worldMapChart } from './world-map';
 import { resolveApiUrl } from './results-view';
@@ -23,7 +26,7 @@ export function mountAccessViewer(container: HTMLElement, panel: HTMLElement) {
   const m = messageReader(messages);
 
   let token = remembered.get();
-  let wantedDay: string | null = null; // null: the newest day there is
+  let range: DayRange = { from: todayUtc(), to: todayUtc() }; // the days shown: today, until another range is chosen
   let generation = 0; // a newer render makes older, slower answers stale
   let displayed = false;
 
@@ -36,20 +39,25 @@ export function mountAccessViewer(container: HTMLElement, panel: HTMLElement) {
   const renderGate = (problem?: unknown) => leaveToGate(root, problem);
 
   const photoName = (id: string) => photos[id]?.title ?? id;
+  const pagerTexts: PagerTexts = {
+    previous: m('access.pager.previous'),
+    next: m('access.pager.next'),
+    status: (first, last, total) => m('access.pager.status', { first, last, total }),
+  };
 
-  function toolbar(days: DayInfo[], day: string) {
-    const select = el('select', { attrs: { id: 'access-day', name: 'day' } },
-      ...days.map((info) => {
-        const option = el('option', { text: dayLabel(info.day), attrs: { value: info.day } });
-        if (info.day === day) option.selected = true;
-        return option;
-      }));
-    select.addEventListener('change', () => {
-      wantedDay = select.value;
-      void render();
+  /** The day picker: a button naming the chosen days, opening a calendar where the days with visits are marked. */
+  function toolbar(days: DayInfo[]) {
+    const picker = mountDayRangePicker({
+      m,
+      locale,
+      range,
+      logged: new Set(days.map((info) => info.day.slice(0, 10))),
+      onChoose: (chosen) => {
+        range = chosen;
+        void render();
+      },
     });
-    return el('div', { class: 'pics-summary access-toolbar' },
-      el('div', { class: 'access-day' }, el('label', { text: m('access.day'), attrs: { for: 'access-day' } }), select));
+    return el('div', { class: 'pics-summary access-toolbar' }, picker);
   }
 
   /**
@@ -99,6 +107,8 @@ export function mountAccessViewer(container: HTMLElement, panel: HTMLElement) {
       topCities: m('access.map.topCities'),
       cityCount: (n) => m(`access.map.cityCount.${form(n)}`, { count: n }),
       noCities: m('access.map.noCities'),
+      pager: pagerTexts,
+      pagerLabel: m('access.map.heading'),
     });
     return el('div', { class: 'access-map' },
       el('table', { class: 'access-map-table' },
@@ -109,36 +119,68 @@ export function mountAccessViewer(container: HTMLElement, panel: HTMLElement) {
         el('tbody', {}, el('tr', {}, el('td', {}, chart)))));
   }
 
+  /**
+   * The day by visitor address, under the map, in a table of its own with the same light gray lines: its title (with how
+   * many addresses) over one row per address, most visits first: the address, where it is, page visits, photos opened.
+   */
+  function ipBlock(entries: AccessEntry[]) {
+    const ips = byIp(entries);
+    const head = ['ip', 'location', 'views', 'photos'].map((key) => el('th', { text: m(`access.ips.${key}`), attrs: { scope: 'col' } }));
+    const row = (r: (typeof ips)[number]) =>
+      el('tr', {},
+        el('th', { class: 'access-ip', text: r.ip, attrs: { scope: 'row' } }),
+        el('td', { text: [r.city, r.country].filter(Boolean).join(', ') || m('access.ips.unknown') }),
+        el('td', { class: 'access-num', text: String(r.views) }),
+        el('td', { class: 'access-num', text: String(r.photos) }));
+    // 50 addresses at a time, with arrows for the rest.
+    const body = el('tbody', {});
+    const nav = pager(ips.length, (start, end) => body.replaceChildren(...ips.slice(start, end).map(row)), pagerTexts, m('access.ips.heading'));
+    return el('div', { class: 'access-ips' },
+      el('div', { class: 'access-ips-wrap', attrs: { tabindex: '0', role: 'region', 'aria-label': m('access.ips.heading') } },
+        el('table', { class: 'access-map-table access-ip-table' },
+          el('caption', { class: 'visually-hidden', text: m('access.ips.heading') }),
+          el('thead', {},
+            el('tr', {}, el('th', { attrs: { scope: 'colgroup', colspan: '4' } },
+              el('span', { class: 'access-group-title', text: m('access.ips.heading') }),
+              el('span', { class: 'access-group-total', text: `${m('access.ips.count')}: ${ips.length}` }))),
+            el('tr', {}, ...head)),
+          body)),
+      nav);
+  }
+
   function summaryBlock(entries: AccessEntry[]) {
     const s = summarize(entries);
     // The pies share the whole day out, so they rank every group, not just the ten listed.
     const all = summarize(entries, Infinity);
+    // Page visits and photos opened are in their columns' titles; how many addresses, in the IP table's title.
     return el('div', { class: 'access-summary' },
-      // Page visits and photos opened are in their columns' titles below; only what spans both stays here.
-      el('dl', { class: 'results-meta' },
-        el('dt', { text: m('access.summary.visitors') }), el('dd', { text: String(s.visitors) })),
       el('div', { class: 'access-groups-wrap', attrs: { tabindex: '0', role: 'region', 'aria-label': m('access.caption') } },
         groupsTable([
           { kind: 'pages', total: s.views, all: all.pages, name: (key) => key },
           { kind: 'photos', total: s.photos, all: all.topPhotos, name: photoName },
         ])),
-      // The world map follows the pies.
-      mapBlock(entries));
+      // On a phone the pies' legends are hidden: a tap on a slice tells its numbers instead (styles in admin.astro).
+      el('p', { class: 'pie-touch-hint', text: m('access.tapHint') }),
+      // The world map follows the pies, and the addresses follow the map.
+      mapBlock(entries),
+      ipBlock(entries));
   }
 
+  /** The chosen days, added up: each day the log has in the range is read (all at once), then shown as one. */
   async function renderDay(run: number) {
     const list = await apiGet<DayList>(apiUrl, token, '/access');
     if (run !== generation) return;
-    if (!list.days.length) {
-      displayed = true;
-      return show(el('p', { class: 'results-empty', text: m('access.empty') }));
+    const wanted = new Set(daysBetween(range));
+    const days = list.days.filter((info) => wanted.has(info.day.slice(0, 10)));
+    // Read six days at a time: a year is a few hundred requests, which shouldn't all go at once.
+    const logs: AccessDay[] = [];
+    for (let i = 0; i < days.length; i += 6) {
+      logs.push(...(await Promise.all(days.slice(i, i + 6).map((info) => apiGet<AccessDay>(apiUrl, token, `/access/${encodeURIComponent(info.day)}`)))));
+      if (run !== generation) return;
     }
-    const day = list.days.some((info) => info.day === wantedDay) ? wantedDay! : list.days[0].day;
-    const log = await apiGet<AccessDay>(apiUrl, token, `/access/${encodeURIComponent(day)}`);
-    if (run !== generation) return;
-    const entries = Array.isArray(log.entries) ? log.entries : [];
+    const entries = logs.flatMap((log) => (Array.isArray(log.entries) ? log.entries : []));
     displayed = true;
-    show(toolbar(list.days, day), summaryBlock(entries));
+    show(toolbar(list.days), entries.length ? summaryBlock(entries) : el('p', { class: 'results-empty', text: m(list.days.length ? 'access.noVisits' : 'access.empty') }));
   }
 
   async function render() {

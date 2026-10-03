@@ -537,7 +537,7 @@ Then('the Portfolio dropdown should be visible with every visible category link'
 
 const accessibleName = (world) => page(world).evaluate(() => {
   const el = document.activeElement;
-  return (el.getAttribute('aria-label') || el.textContent.replace(/\s+/g, ' ').trim() || el.querySelector('img')?.alt || '').trim();
+  return (el.getAttribute('aria-label') || el.textContent.replace(/\s+/g, ' ').trim() || el.querySelector('img[alt]:not([alt=""])')?.alt || '').trim();
 });
 
 Then('tabbing through the page should reach these in order:', async function (table) {
@@ -925,12 +925,12 @@ Then('the category card images should have loaded a size between {int} and {int}
   }
 });
 
-const logoBoxes = (world) => page(world).evaluate(() => Object.fromEntries(['.brand-logo', '.aperture-logo'].map((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return [sel, { x: r.x, width: r.width, height: r.height }]; })));
+const logoBoxes = (world) => page(world).evaluate(() => Object.fromEntries(['.brand-logo'].map((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return [sel, { x: r.x, width: r.width, height: r.height }]; })));
 
 When('I open {string} and measure the header logos before they have loaded', async function (path) {
   await goto(this, path, 'domcontentloaded');
   this.b.logosBefore = await logoBoxes(this);
-  const loaded = await page(this).evaluate(() => [...document.querySelectorAll('.brand-logo, .aperture-logo')].every((img) => img.complete));
+  const loaded = await page(this).evaluate(() => [...document.querySelectorAll('.brand-logo')].every((img) => img.complete));
   assert.equal(loaded, false, 'the logos had already loaded, so this measured nothing');
 });
 

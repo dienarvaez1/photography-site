@@ -186,3 +186,15 @@ Feature: The photo lightbox's control box
     Then every photo's gallery link should lead to its own category
     When I choose "Oldest first" from the sort control
     Then every photo's gallery link should lead to its own category
+
+  Scenario: On a phone, full screen shows the photo edge to edge and turns the screen to suit it
+    Given the visitor uses a phone
+    And the phone notes when the page asks to turn its screen
+    When I open "/work/all/"
+    And I tap photo number 1 and wait for it to load
+    And I tap the lightbox's full screen button
+    Then the photo should fill the width of the screen, with no title or counter over the page
+    And the page should have asked to turn the screen to "landscape"
+    When I tap the lightbox's full screen button
+    Then the title and counter should be back, the photo framed as before
+    And the page should have let the screen turn freely again

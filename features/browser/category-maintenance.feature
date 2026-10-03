@@ -72,6 +72,18 @@ Feature: The Admin page's Category Maintenance tab adds, edits and removes categ
     And I submit the new category form
     Then the new category form should show an error mentioning "nature"
 
+  Scenario Outline: <button> shows its edit in red, like every edit on the Admin page
+    When I open "/admin/#category-maintenance"
+    And I sign in to Category Maintenance with the token "browser-test-admin-token"
+    And I <open>
+    Then the edit mode should be shown in red
+
+    Examples:
+      | button            | open                                                     |
+      | Add Category      | open the Add Category form                               |
+      | Edit Categories   | click the Category Maintenance "Edit Categories" button  |
+      | Remove Categories | click the Category Maintenance "Remove Categories" button |
+
   Scenario: Hiding a category through Edit Categories marks it Hidden
     When I open "/admin/#category-maintenance"
     And I sign in to Category Maintenance with the token "browser-test-admin-token"

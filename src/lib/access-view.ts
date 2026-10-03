@@ -63,9 +63,6 @@ export function pieSlices(ranking: Count<string>[], named = PIE_NAMED): Slice[] 
   return slices;
 }
 
-/** `2026-10-01T00:00:00.000Z` → `2026-10-01`, for the day picker. */
-export const dayLabel = (day: string) => day.slice(0, 10);
-
 /** A country's share of the day: its page visits and photos opened, and its cities by both together, most first. */
 export type CountryCount = { country: string; views: number; photos: number; total: number; cities: Count<string>[] };
 
@@ -100,6 +97,28 @@ export function byCountry(entries: AccessEntry[]): { countries: CountryCount[]; 
   return { countries, unplaced };
 }
 
+export type IpCount = { ip: string; views: number; photos: number; total: number; city?: string; country?: string };
+
+/**
+ * The day by visitor address (`ip`), most visits first (ties by address), each with its page visits and photos opened,
+ * and where its latest entry placed it (`geo`; an address may move between lookups, the newest wins).
+ */
+export function byIp(entries: AccessEntry[]): IpCount[] {
+  const counts = new Map<string, IpCount & { latest: string }>();
+  for (const entry of entries) {
+    if (!entry.ip) continue;
+    const count = counts.get(entry.ip) ?? { ip: entry.ip, views: 0, photos: 0, total: 0, latest: '' };
+    if (entry.event === 'photo') count.photos++;
+    else count.views++;
+    count.total++;
+    if (entry.geo && entry.time >= count.latest) Object.assign(count, { latest: entry.time, city: entry.geo.city, country: entry.geo.country });
+    counts.set(entry.ip, count);
+  }
+  return [...counts.values()]
+    .map(({ latest: _latest, ...count }) => count)
+    .sort((a, b) => b.total - a.total || a.ip.localeCompare(b.ip));
+}
+
 /**
  * The map's color bands for a day whose busiest country has `max` visits: up to five, from 1 to `max`, each band's upper
  * bound growing geometrically (so a few busy countries don't wash every other one into the first band). Returns each
@@ -117,3 +136,76 @@ export function bands(max: number, count = 5): [number, number][] {
 
 /** Which band (0-based) a count falls in, or -1 for none (0 visits). */
 export const bandOf = (n: number, ranges: [number, number][]) => (n < 1 ? -1 : ranges.findIndex(([, to]) => n <= to));
+
+// --- The calendar's days (day-range-calendar.ts) -------------------------------------------------------------------------
+// UTC days, like the access log's files ("2026-10-01").
+
+/** The longest range one choice may span: a year (the Current Year preset), each day read a few at a time. */
+export const MAX_RANGE_DAYS = 366;
+
+export type DayRange = { from: string; to: string };
+
+const DAY_MS = 86_400_000;
+export const toDate = (day: string) => new Date(`${day}T00:00:00Z`);
+export const toDay = (date: Date) => date.toISOString().slice(0, 10);
+export const addDays = (day: string, n: number) => toDay(new Date(toDate(day).getTime() + n * DAY_MS));
+
+/** Today's UTC day ("2026-10-02"). */
+export const todayUtc = () => toDay(new Date());
+
+/** Every day from `from` to `to`, both included. */
+export function daysBetween({ from, to }: DayRange): string[] {
+  const days: string[] = [];
+  for (let day = from; day <= to; day = addDays(day, 1)) days.push(day);
+  return days;
+}
+
+/** The range two clicks make: in order, and no longer than MAX_RANGE_DAYS (the end moves in to fit). */
+export function rangeOf(a: string, b: string): DayRange {
+  const [from, to] = a <= b ? [a, b] : [b, a];
+  const longest = addDays(from, MAX_RANGE_DAYS - 1);
+  return { from, to: to > longest ? longest : to };
+}
+
+/** The calendar's ready-made ranges, by name. */
+export const PRESETS = ['today', 'lastWeek', 'currentWeek', 'lastMonth', 'currentMonth', 'currentYear'] as const;
+export type Preset = (typeof PRESETS)[number];
+
+/**
+ * A ready-made range for `today` (a UTC day). Weeks start on Monday, as the calendar's do. The current ones end today;
+ * the last ones are whole (last week Monday to Sunday, last month its first to its last day).
+ */
+export function presetRange(preset: Preset, today: string): DayRange {
+  const monday = addDays(today, -((toDate(today).getUTCDay() + 6) % 7));
+  const firstOfMonth = `${today.slice(0, 7)}-01`;
+  switch (preset) {
+    case 'today':
+      return { from: today, to: today };
+    case 'currentWeek':
+      return { from: monday, to: today };
+    case 'lastWeek':
+      return { from: addDays(monday, -7), to: addDays(monday, -1) };
+    case 'currentMonth':
+      return { from: firstOfMonth, to: today };
+    case 'lastMonth': {
+      const lastDay = addDays(firstOfMonth, -1);
+      return { from: `${lastDay.slice(0, 7)}-01`, to: lastDay };
+    }
+    case 'currentYear':
+      return { from: `${today.slice(0, 4)}-01-01`, to: today };
+  }
+}
+
+// --- Long lists, 50 at a time ----------------------------------------------------------------------------------------------
+
+/** How many rows a long list (the IP addresses, the countries) shows at once. */
+export const PAGE_SIZE = 50;
+
+/** Page `page` (from 0) of `total` rows: the slice to show, 1-based for the "1–50 of 230" line, and whether there's more. */
+export function pageOf(total: number, page: number, size = PAGE_SIZE) {
+  const pages = Math.max(1, Math.ceil(total / size));
+  const at = Math.min(Math.max(0, page), pages - 1);
+  const start = at * size;
+  const end = Math.min(total, start + size);
+  return { page: at, pages, start, end, first: total ? start + 1 : 0, last: end, hasPrevious: at > 0, hasNext: at < pages - 1 };
+}

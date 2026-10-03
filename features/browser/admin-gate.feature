@@ -59,3 +59,18 @@ Feature: The Admin page shows nothing but the token box until the admin token is
     And I sign in with the token "browser-test-admin-token"
     Then the token box should say "The results service can't check tokens yet: deploy it again with npm run results-api:deploy."
     And the page should offer only the admin token box and its button
+
+  Scenario Outline: The token page is centred on a <device>, and the signed-in page is not
+    Given the visitor uses a <device>
+    And the results API holds the admin token "browser-test-admin-token" and these published runs:
+      | time                 | commit  | offline results | browser results | smoke | artifacts |
+      | 2026-09-21T10:00:00Z | ccccccc | 3 passed        |                 |       |           |
+    When I open "/admin/"
+    Then the token box should be centred across the page, between the header and the footer, with "ADMIN" and the title flush with its left edge
+    When I sign in with the token "browser-test-admin-token"
+    Then the title should be back at the left of the page
+
+    Examples:
+      | device |
+      | laptop |
+      | phone  |

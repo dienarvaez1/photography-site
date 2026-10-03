@@ -119,3 +119,34 @@ Feature: The navigation works on phones and with the keyboard
     When I open "/"
     Then the build should sit at the right edge of the footer, inside the screen
 
+
+  Scenario Outline: The top menu stays on one line beside the full logo at <width> pixels, on <page>
+    Given I am signed in to the Admin page
+    When I open "<page>"
+    And the window is <width> pixels wide
+    Then the top menu should show every item on one line, <gap> apart, clear of the logo, with the logo at full size
+
+    Examples:
+      | page       | width | gap      |
+      | /es/       | 901   | 1.5rem   |
+      | /es/admin/ | 901   | 1.5rem   |
+      | /admin/    | 1000  | 1.5rem   |
+      | /es/admin/ | 1280  | 1.5rem   |
+
+  Scenario: At 900 pixels and narrower the menu folds behind the menu button
+    When I open "/es/admin/"
+    And the window is 900 pixels wide
+    Then the menu button should show instead of the top menu
+
+  Scenario Outline: The folded menu holds still under a mouse at <width> pixels: full width, and hovering a row never moves the rows
+    When I open "<page>"
+    And the window is <width> pixels wide
+    And I open the mobile menu
+    Then the menu should span the whole width of the window
+    And resting the mouse anywhere on each of its rows should keep that row highlighted, with no row moving
+
+    Examples:
+      | page       | width |
+      | /          | 600   |
+      | /es/       | 900   |
+      | /es/admin/ | 760   |

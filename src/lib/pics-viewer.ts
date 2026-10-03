@@ -6,7 +6,7 @@
 // returns numbers and text. Everything from the API is put on the page as text.
 import { AUTH_EVENT, REFRESH_EVENT, ApiError, apiGet, el, errorMessage, icon, messageReader, parseJson, remembered, type Child, type Messages, leaveToGate } from './admin-common';
 import type { FormCategory } from './photo-form';
-import type { HeroBackgroundBar, HeroBackgroundResult } from './photo-hero';
+import type { HeroBackgroundBar, HeroBackgroundOutcome } from './photo-hero';
 import type { RemovalBar, RemoveResult } from './photo-remove';
 import type { RecategorizeBar, RecategorizeResult } from './photo-recategorize';
 import { serviceAvailable } from './photo-service';
@@ -189,10 +189,9 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     }
     mode = kind;
     selected.clear();
-    // Home Background starts with its current members already ticked — the admin can see at a glance
-    // what's set and Remove from background right away, rather than having to reconstruct the current
-    // set by eye from the badges first. Edit Photos and Remove Photos start empty on purpose (an
-    // explicit choice every time), so this is Home Background's own case, not the general rule.
+    // Home Background's switches start as things are: its current members switched on, everything else off, so
+    // what is set shows at a glance and Save changes saves only what was flipped. Edit Photos and Remove Photos
+    // start with nothing ticked on purpose (an explicit choice every time).
     if (kind === 'hero' && listing) {
       for (const row of listing.rows) if (row.heroBackground) selected.add(row.id);
       // The same "never hide an already-ticked row" rule renderList() applies on every fresh look:
@@ -262,20 +261,23 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
 
   /** The hero-background change is over (or failed): say what happened (set, cleared, already-there, or the
    *  request itself failing), and look at the list again — every changed photo now shows its new badge. */
-  function heroBackgroundDone(value: boolean, outcome: HeroBackgroundResult[] | Error) {
+  function heroBackgroundDone(outcome: HeroBackgroundOutcome | Error) {
     settingHero = false;
     mode = 'none';
     selected.clear();
     if (outcome instanceof Error) {
       notice = { text: m('pics.background.requestFailed', { message: outcome.message || m('pics.background.unreachable') }), alert: true };
     } else {
-      const changed = outcome.filter((r) => r.changed);
-      const unchanged = outcome.length - changed.length;
+      const set = outcome.set.filter((r) => r.changed);
+      const cleared = outcome.cleared.filter((r) => r.changed);
+      const unchanged = outcome.set.length + outcome.cleared.length - set.length - cleared.length;
       // Same reasoning as recategorizeDone: the page's own server-rendered `known` is the only place this
       // badge comes from, so a changed photo needs patching there to show its new state without a reload.
-      for (const { id } of changed) if (known[id]) known[id] = { ...known[id], heroBackground: value };
+      for (const { id } of set) if (known[id]) known[id] = { ...known[id], heroBackground: true };
+      for (const { id } of cleared) if (known[id]) known[id] = { ...known[id], heroBackground: false };
       const parts = [
-        changed.length ? m(changed.length === 1 ? (value ? 'pics.background.doneOne' : 'pics.background.clearedOne') : value ? 'pics.background.done' : 'pics.background.cleared', { count: changed.length }) : '',
+        set.length ? m(set.length === 1 ? 'pics.background.doneOne' : 'pics.background.done', { count: set.length }) : '',
+        cleared.length ? m(cleared.length === 1 ? 'pics.background.clearedOne' : 'pics.background.cleared', { count: cleared.length }) : '',
         unchanged ? m(unchanged === 1 ? 'pics.background.unchangedOne' : 'pics.background.unchanged', { count: unchanged }) : '',
       ];
       notice = { text: parts.filter(Boolean).join(' '), alert: false };
@@ -313,13 +315,16 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
     // Home Background only for a photo the site actually lists (there is no category to move, or entry to
     // flag, otherwise).
     if (mode === 'remove' || ((mode === 'edit' || mode === 'hero') && row.categorySlug !== null)) {
-      const box = el('input', { class: 'pic-check', attrs: { type: 'checkbox', 'data-id': row.id, 'aria-label': m(`pics.${modeKey[mode]}.select`, { title: `${row.title ?? row.id} (${row.id})` }) } });
+      // Home Background's is an on/off switch (is this photo in the background?); the others a checkbox (choose it).
+      const isSwitch = mode === 'hero';
+      const box = el('input', { class: isSwitch ? 'pic-check pic-switch' : 'pic-check', attrs: { type: 'checkbox', 'data-id': row.id, 'aria-label': m(`pics.${modeKey[mode]}.select`, { title: `${row.title ?? row.id} (${row.id})` }), ...(isSwitch ? { role: 'switch' } : {}) } });
       box.checked = selected.has(row.id);
-      item.classList.toggle('selected', box.checked);
+      const mark = () => (isSwitch ? item.classList.toggle('changed', box.checked !== Boolean(row.heroBackground)) : item.classList.toggle('selected', box.checked));
+      mark();
       box.addEventListener('change', () => {
         if (box.checked) selected.add(row.id);
         else selected.delete(row.id);
-        item.classList.toggle('selected', box.checked);
+        mark();
         bar?.update();
       });
       item.prepend(el('label', { class: 'pic-select' }, box));
@@ -439,20 +444,11 @@ export function mountPicsViewer(container: HTMLElement, panel: HTMLElement) {
                 m,
                 rows,
                 selected,
-                shown: () => shownCount,
-                onSelectAll: (all) => {
-                  selected.clear();
-                  if (all) for (const row of rows.slice(0, shownCount)) if (row.categorySlug !== null) selected.add(row.id);
-                  for (const box of root.querySelectorAll<HTMLInputElement>('.pic-check')) {
-                    box.checked = selected.has(box.dataset.id ?? '');
-                    box.closest('.pic')?.classList.toggle('selected', box.checked);
-                  }
-                  bar?.update();
-                },
                 onCancel: stopMode,
-                perform: (photos, value) => {
+                // The ones switched on, then the ones switched off: two requests to the same service, one after the other.
+                perform: async ({ set, clear }) => {
                   settingHero = true;
-                  return heroBg!.setHeroBackground(photos, value);
+                  return { set: set.length ? await heroBg!.setHeroBackground(set, true) : [], cleared: clear.length ? await heroBg!.setHeroBackground(clear, false) : [] };
                 },
                 onDone: heroBackgroundDone,
               })

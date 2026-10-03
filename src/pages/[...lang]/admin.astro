@@ -92,17 +92,18 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
 ---
 
 <!-- Not for search engines, and not in the sitemap. It is public: put Cloudflare Access in front of it before it shows real data. -->
-<BaseLayout title={t('admin.title')} description={t('admin.description')} noindex reloadNavLinks>
+<BaseLayout title={t('admin.title')} description={t('admin.description')} noindex reloadNavLinks noPageEditor>
+  <!-- Refresh and Sign out, in the top menu right after Contact and styled like it. Shown by script only while signed in;
+       they act on whichever tab is showing. -->
+  <div slot="nav-actions" class="nav-actions" role="group" aria-label={t('admin.actionsLabel')} data-admin-actions hidden>
+    <button type="button" class="nav-action" data-action="refresh">{t('admin.results.refresh')}</button>
+    <button type="button" class="nav-action" data-action="sign-out">{t('admin.results.signOut')}</button>
+  </div>
   <section class="wrap admin">
     <div class="admin-head">
       <div>
         <p class="eyebrow">{t('admin.eyebrow')}</p>
         <h1>{t('admin.heading')}</h1>
-      </div>
-      <!-- Shown by script only while signed in; they act on whichever tab is showing. -->
-      <div class="admin-actions" role="group" aria-label={t('admin.actionsLabel')} data-admin-actions hidden>
-        <button type="button" class="results-button" data-action="refresh">{t('admin.results.refresh')}</button>
-        <button type="button" class="results-button" data-action="sign-out">{t('admin.results.signOut')}</button>
       </div>
     </div>
 
@@ -201,14 +202,19 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   }
 
   .admin-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-1) var(--space-2); }
-  .admin-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-left: auto; }
-  .admin-actions[hidden] { display: none; }
+  /* Refresh and Sign out in the top menu after Contact (Header.astro's nav-actions slot), styled like its links. */
+  .nav-actions { display: contents; }
+  .nav-actions[hidden] { display: none; }
+  .nav-action { min-height: 44px; padding: 0; background: none; border: 0; color: var(--fg-muted); font: inherit; font-size: 1rem; cursor: pointer; }
+  .nav-action:hover, .nav-action:focus-visible { color: var(--fg); }
+  @media (hover: hover) { .nav-action:hover { background: var(--hover-face); box-shadow: var(--hover-bar); } }
+  @media (hover: hover) and (min-width: 901px) { .nav-action:hover { padding: 0 0.4rem; margin: 0 -0.4rem; border-radius: var(--radius); } }
+  @media (max-width: 900px) { .nav-action { width: 100%; padding: var(--space-2) var(--space-3); border-top: 1px solid var(--border); text-align: left; } }
   .admin h1 {
     font-size: clamp(1.8rem, 4vw, 2.6rem);
   }
 
-  /* All six tabs fit one row on a laptop. On a phone they can't: the row scrolls sideways on its own (never the page),
-     each tab keeps its label on one line, and the selected tab is scrolled into view (see the tabs script below).
+  /* All six tabs fit one row on a laptop. On a phone they stack, three over three (below), so all six show at once.
      Folder tabs with a light gray border; the selected one opens onto its panel, marked by the accent along its top. */
   .tablist {
     --tab-line: #c9c8c1;
@@ -236,11 +242,23 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
     font: inherit;
     font-size: 0.95rem;
     cursor: pointer;
-    transition: color 0.2s ease, background-color 0.2s ease;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   }
 
   .tab:hover {
     color: var(--fg);
+  }
+
+  /* The tab about to be chosen stands out: a gold-tinted face, a gold border and a gold bar along its bottom (the chosen
+     tab's bar is on top, its face dark, so the two never look alike). Only where there is a pointer that hovers: on a
+     touch screen a tapped tab would otherwise stay "hovered". */
+  @media (hover: hover) {
+    .tab:hover:not([aria-selected='true']) {
+      background: var(--hover-face);
+      border-color: var(--accent);
+      box-shadow: inset 0 -3px 0 var(--accent);
+      color: var(--fg);
+    }
   }
 
   .tab:focus-visible {
@@ -248,9 +266,26 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
     outline-offset: -4px;
   }
 
+  /* A phone: two rows of three, in order (Access Info, Test Results, Lighthouse over Pics Viewer, Categories, GitHub), every
+     tab its own box (folder tabs on two rows would run into each other) and a long label wrapping inside it. */
   @media (max-width: 640px) {
+    .tablist {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      padding-bottom: var(--space-1);
+      overflow: visible;
+    }
     .tab {
-      padding-inline: 0.65rem;
+      padding: 0.45rem 0.4rem;
+      border-bottom: 1px solid var(--tab-line);
+      border-radius: 6px;
+      white-space: normal;
+      text-align: center;
+      line-height: 1.2;
+      font-size: 0.85rem;
+    }
+    .tab[aria-selected='true']::after {
+      display: none;
     }
   }
 
@@ -305,9 +340,26 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .results-intro, .results-hint, .results-count, .results-loading { color: var(--fg-muted); }
   .results-gate { display: grid; gap: var(--space-1); max-width: 26rem; }
   .admin-gate { margin-top: var(--space-3); }
+  /* Buttons that edit or submit, on every tab: the Access Info controls' size (--control-text, global.css); the font is inherited. */
+  :is(.pics-actions, .pics-edit-bar, .pics-remove-bar, .photo-form, .results-gate, .category-list.edit, .results-remove-toolbar, .ci-branch-dialog) button { font-size: var(--control-text); }
+  /* Before signing in the page is just the token box: one column as wide as the form, centred across and between the
+     header and the footer, with "ADMIN" and the "Admin" title flush with the form's left edge. */
+  .admin:has(> .admin-gate:not([hidden])) { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100svh - 20rem); }
+  .admin:has(> .admin-gate:not([hidden])) > * { width: min(26rem, 100%); }
   .results-gate input { min-height: 44px; padding: 0.5rem 0.75rem; background: var(--bg-elevated); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; }
   .results-button { min-height: 44px; padding: 0.5rem 1rem; background: none; color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; cursor: pointer; }
   .results-button:hover { border-color: var(--accent); }
+  /* The shared hover highlight (global.css), as on the tabs: Admin buttons, the calendar's field, days and arrows. */
+  @media (hover: hover) {
+    .results-button:not(:disabled):not(.danger):not(.primary):hover,
+    .access-range-toggle:hover,
+    .access-quick:hover { background: var(--hover-face); box-shadow: var(--hover-bar); border-color: var(--accent); }
+    .results-button.primary:not(:disabled):hover { background: var(--hover-face); color: var(--fg); box-shadow: var(--hover-bar); border-color: var(--accent); }
+    /* A delete button takes the same face, but keeps its red border and a red ring: still plainly a warning. */
+    .results-button.danger:not(:disabled):hover { background: var(--hover-face); color: var(--fg); border-color: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 55%, transparent); filter: none; }
+    .access-calendar-day:not(:disabled):not(.chosen):hover,
+    .access-calendar-nav:not(:disabled):hover { background: var(--hover-face); border-color: var(--accent); }
+  }
   .results-button:disabled { opacity: 0.45; cursor: not-allowed; }
   .results-button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
   .results-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); justify-content: flex-end; margin-bottom: var(--space-2); }
@@ -358,8 +410,53 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .issues-toolbar { margin-bottom: var(--space-2); }
   .issues-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; }
   /* Access Info: a day picker and filters, the day's totals and top lists, then every entry in a table. */
-  .access-day { display: flex; align-items: center; gap: 0.5rem; }
-  .access-day select { min-height: 44px; padding: 0.4rem 0.6rem; background: var(--bg-elevated); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; }
+  /* The day range picker (src/lib/day-range-calendar.ts), after the Astro UXDS date picker: an input-style field with
+     the days as YYYY-MM-DD and a calendar icon, a Quick range dropdown beside it, and a compact month calendar (month and
+     year dropdowns between arrows, the neighbouring months' days dimmed). A bottom sheet with 44px targets on a phone. */
+  .access-range { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+  .access-range-controls { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .access-range-label { font-size: var(--access-table-text); }
+  .access-range-toggle, .access-quick { min-height: 38px; padding: 0.3rem 0.6rem; background: var(--bg-elevated); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; font-size: var(--access-table-text); }
+  .access-range-toggle { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .access-range-toggle:hover, .access-range-toggle[aria-expanded='true'] { border-color: var(--accent); }
+  .access-range-icon { width: 1.05rem; height: 1.05rem; color: var(--fg-muted); }
+  .access-calendar { position: absolute; top: calc(100% + 0.3rem); left: 0; z-index: 5; width: 16.5rem; padding: 0.5rem; background: var(--bg-elevated); border: 1px solid var(--field-border); border-radius: var(--radius); box-shadow: 0 6px 24px rgb(0 0 0 / 0.25); }
+  .access-calendar[hidden] { display: none; }
+  .access-calendar button { touch-action: manipulation; }
+  .access-calendar-head { display: flex; align-items: center; gap: 0.25rem; }
+  .access-calendar-selects { display: flex; flex: 1; gap: 0.25rem; }
+  .access-calendar-select { flex: 1; min-width: 0; min-height: 28px; padding: 0.1rem 0.25rem; background: var(--bg); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; font-size: var(--access-table-text); }
+  .access-calendar-nav { min-width: 28px; min-height: 28px; padding: 0; background: none; color: var(--fg); border: 1px solid transparent; border-radius: var(--radius); font-size: 1.1rem; line-height: 1; cursor: pointer; }
+  .access-calendar-nav:hover:not(:disabled) { border-color: var(--accent); }
+  .access-calendar-nav:disabled { opacity: 0.35; cursor: default; }
+  .access-calendar-grid { width: 100%; margin-top: 0.3rem; border-collapse: collapse; text-align: center; table-layout: fixed; }
+  .access-calendar-grid th { padding: 0.1rem 0; color: var(--fg-muted); font-size: var(--access-table-text); font-weight: 600; text-transform: capitalize; }
+  .access-calendar-grid td { padding: 1px; }
+  .access-calendar-day { width: 100%; min-height: 28px; padding: 0; background: none; color: var(--fg); border: 1px solid transparent; border-radius: var(--radius); font: inherit; font-size: var(--access-table-text); font-variant-numeric: tabular-nums; cursor: pointer; }
+  .access-calendar-day:focus-visible { border-color: var(--accent); }
+  .access-calendar-day.outside { color: var(--fg-muted); }
+  .access-calendar-day:disabled { opacity: 0.35; cursor: default; }
+  .access-calendar-day.logged { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .access-calendar-day.chosen { background: var(--accent); color: var(--bg); }
+  .access-calendar-day[aria-current='date'] { border-color: var(--fg-muted); }
+  .access-calendar-hint { margin: 0.25rem 0 0; color: var(--fg-muted); font-size: var(--access-table-text); line-height: 1.3; }
+  .access-calendar-foot { display: flex; justify-content: flex-end; margin-top: 0.25rem; }
+  .access-calendar-close { min-height: 28px; padding: 0.05rem 0.65rem; font-size: var(--access-table-text); }
+  /* A phone: a bottom sheet across the screen, clear of the iPhone home indicator, scrolling on its own; every target at
+     least 44px (Apple's and Google's touch minimum). */
+  @media (max-width: 600px) {
+    /* The field and the dropdowns stay at 16px on a phone: iOS zooms the page into a form field any smaller. */
+    .access-range-toggle, .access-quick { min-height: 44px; font-size: 1rem; }
+    .access-calendar { position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 85dvh; overflow-y: auto; overscroll-behavior: contain; padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; box-shadow: 0 -8px 32px rgb(0 0 0 / 0.4); }
+    .access-calendar-select { min-height: 44px; font-size: 1rem; }
+    .access-calendar-nav { min-width: 44px; min-height: 44px; }
+    .access-calendar-day { min-height: 44px; }
+    .access-calendar-close { min-height: 44px; flex: 1; }
+  }
+  /* Long lists (IP addresses, countries): 50 at a time, src/lib/pager.ts. */
+  .pager { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: var(--space-2); }
+  .pager-arrow { min-width: 44px; min-height: 44px; font-size: 1.2rem; }
+  .pager-status { color: var(--fg-muted); font-variant-numeric: tabular-nums; }
   /* The two groups in one table with light gray lines: titles, then each pie with its legend, then the counts. */
   .access-groups-wrap { margin-top: var(--space-2); overflow-x: auto; position: relative; }
   .access-groups { --grid-line: #c9c8c1; width: 100%; min-width: 34rem; table-layout: fixed; border-collapse: collapse; border: 1px solid var(--grid-line); }
@@ -368,8 +465,9 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .access-group-title { display: block; font-family: var(--font-display, inherit); font-size: 1.15rem; }
   .access-group-total { display: block; margin-top: 0.2rem; color: var(--fg-muted); font-size: 0.9rem; font-weight: 400; font-variant-numeric: tabular-nums; }
   .access-groups .pie-figure { margin: 0; }
-  .access-ranked { margin: 0; padding-left: 1.4rem; }
-  .access-ranked li { display: flex; justify-content: space-between; gap: var(--space-1); }
+  /* The Access Info tables' contents (the pies' legends, the countries, the IP addresses) share one smaller size; their
+     titles keep the tables' size. */
+  [data-access] { --access-table-text: 0.82rem; }
   .access-name { overflow-wrap: anywhere; }
   .access-times { color: var(--fg-muted); font-variant-numeric: tabular-nums; }
   /* Each list's pie (src/lib/pie-chart.ts): the dark steps of the dataviz reference palette's first four categorical
@@ -388,11 +486,23 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .pie-slot-4 { fill: var(--pie-4); background: var(--pie-4); }
   .pie-slot-5 { fill: var(--pie-5); background: var(--pie-5); }
   .pie-other { fill: var(--pie-other); background: var(--pie-other); }
-  .pie-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; font-size: 0.9rem; }
+  .pie-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; font-size: var(--access-table-text); }
   .pie-legend li { display: grid; grid-template-columns: 0.75rem minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; }
   .pie-legend-label { overflow-wrap: break-word; min-width: 0; }
   .pie-legend-value { color: var(--fg-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .pie-swatch { width: 0.75rem; height: 0.75rem; border-radius: 2px; }
+  .pie-touch-hint { display: none; }
+  /* A phone: the two pies side by side, smaller, with no sideways scrolling; each legend hidden from sight (still read
+     out, and every slice is named) since a tap on a slice shows its numbers in the tooltip. */
+  @media (max-width: 600px) {
+    .access-groups-wrap { overflow: visible; }
+    .access-groups { min-width: 0; }
+    .access-groups th, .access-groups td { padding: var(--space-1); }
+    .pie-plot { width: min(9rem, 100%); }
+    .pie-legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .pie-tooltip { min-width: 8rem; max-width: 11rem; font-size: 0.8rem; }
+    .pie-touch-hint { display: block; margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: 0.8rem; text-align: center; }
+  }
   /* The world map (src/lib/world-map.ts): one blue, darkest for the fewest visits to lightest for the most (the dataviz
      reference palette's blue steps 600 → 300, validated as an ordered scale against --bg); no visits, a quiet gray. */
   /* The map's own table: the same light gray lines as the pies' one, one column (it shrinks with the page, no scroll). */
@@ -400,6 +510,14 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .access-map-table { --grid-line: #c9c8c1; width: 100%; border-collapse: collapse; border: 1px solid var(--grid-line); }
   .access-map-table th, .access-map-table td { padding: var(--space-2); border: 1px solid var(--grid-line); vertical-align: top; text-align: left; }
   .access-map-table th { font-weight: 600; }
+  /* Visits by IP address, under the map: same lines; scrolls sideways on its own on a narrow screen. */
+  .access-ips { margin-top: var(--space-3); }
+  .access-ips-wrap { overflow-x: auto; }
+  .access-ip-table tbody th { font-weight: 400; font-family: var(--font-mono, ui-monospace, monospace); overflow-wrap: anywhere; }
+  .access-ip-table .access-num { text-align: right; font-variant-numeric: tabular-nums; }
+  /* Smaller rows and column headers (the title above them keeps the tables' size), with tighter cells to match. */
+  .access-ip-table tbody, .access-ip-table thead tr + tr th { font-size: var(--access-table-text); }
+  .access-ip-table tbody th, .access-ip-table tbody td, .access-ip-table thead tr + tr th { padding: 0.35rem 0.6rem; }
   .map-figure { margin: 0; }
   .map-plot { position: relative; }
   .world-map { display: block; width: 100%; height: auto; }
@@ -412,15 +530,20 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .map-band-4 { fill: #6da7ec; background: #6da7ec; }
   .map-band-5 { fill: #9ec5f4; background: #9ec5f4; }
   .map-none { fill: #2a2926; background: #2a2926; }
-  .map-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: var(--space-1) 0; font-size: 0.85rem; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+  .map-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: var(--space-1) 0; font-size: var(--access-table-text); color: var(--fg-muted); font-variant-numeric: tabular-nums; }
   .map-legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
   /* One list down the page, most accessed first (byCountry's order): each country's counts beside its name. */
-  .map-list { max-width: 32rem; margin: 0; }
+  /* Flush left, under the legend: no indent, and each row's hover highlight reaches out past the names by its own
+     padding, so the names line up with the legend's first band. */
+  /* Two aligned columns: the names, then their counts about 1rem after the longest name (each row spans both, so it
+     still highlights as one). */
+  .map-list { display: grid; grid-template-columns: max-content max-content; column-gap: 1rem; width: fit-content; max-width: 100%; margin: 0; padding-left: 0; list-style: none; }
+  .map-list > li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; column-gap: 1rem; row-gap: 0; }
   /* A blank line before and after the list of countries, setting it apart from the legend above and the note below. */
-  .map-list-box { position: relative; margin-block: 1lh; }
+  .map-list-box { position: relative; margin-block: 1lh; font-size: var(--access-table-text); }
   /* The note about visits without a country closes the cell: no blank line after it. */
-  .map-unplaced { margin-bottom: 0; }
-  .map-list li { cursor: default; border-radius: 4px; padding: 0.1rem 0.3rem; }
+  .map-unplaced { margin-bottom: 0; font-size: var(--access-table-text); }
+  .map-list li { cursor: default; border-radius: 4px; padding: 0.1rem 0.3rem; margin-inline: -0.3rem; }
   .map-list li:hover, .map-list li:focus-visible { background: var(--bg-elevated); outline: 1px solid var(--border); }
   .pie-tooltip.map-city-tooltip { width: max-content; min-width: 16rem; max-width: min(26rem, 100%); }
   .map-city-list { margin: 0.25rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.15rem; }
@@ -473,7 +596,7 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .pic-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; margin: 0; }
   .pic-facts dt { color: var(--fg-muted); }
   .pic-facts dd { margin: 0; overflow-wrap: anywhere; }
-  .photo-form { margin: var(--space-2) 0 var(--space-3); padding: var(--space-2) var(--space-3); background: var(--bg-elevated); border: 1px solid var(--accent); border-radius: var(--radius); }
+  .photo-form { margin: var(--space-2) 0 var(--space-3); padding: var(--space-2) var(--space-3); }
   .photo-form { overflow-wrap: anywhere; } /* the written path is one long word */
   .photo-form h3 { margin-top: 0; }
   .photo-form > .results-hint { margin-bottom: var(--space-2); }
@@ -491,27 +614,35 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .photo-form-entry { margin: 0; padding: var(--space-1) var(--space-2); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; font-size: 0.85rem; }
   .photo-form-done:focus { outline: none; }
   .results-button.danger { background: var(--bad); color: #1a0505; border-color: var(--bad); }
-  .results-button.danger:hover:not(:disabled) { filter: brightness(1.08); }
   .results-button[aria-pressed='true'] { border-color: var(--accent); }
   /* Production: the tabs marked above show no buttons at all (the viewers still build them; they are just never shown). */
   [data-buttons-hidden] button { display: none !important; }
-  .pics-remove-bar { display: grid; gap: var(--space-1); margin: 0 0 var(--space-1); padding: var(--space-1) var(--space-2); border: 1px solid var(--bad); border-radius: var(--radius); background: var(--bg-elevated); }
+  /* Edit mode is red on every tab, as on the site's own pages (the page editor): the bar of the edit under way, the
+     button that started it, the forms, the fields, checkboxes, switches and chosen rows (the rules below). */
+  .admin { --edit-red: #e5484d; }
+  .pics-remove-bar, .pics-edit-bar { display: grid; gap: var(--space-1); margin: 0 0 var(--space-1); padding: var(--space-1) var(--space-2); }
+  .pics-remove-bar, .pics-edit-bar, .photo-form { border: 1px solid var(--edit-red); border-radius: var(--radius); background: var(--bg-elevated); box-shadow: 0 0 0 3px #e5484d59; }
+  :is(.pics-edit-bar, .pics-remove-bar, .photo-form, .category-list.edit) .results-button, .pics-actions [aria-pressed='true'] { border-color: var(--edit-red); }
+  /* Filled: a deeper red, so white text on it stays readable (4.5:1 and more). */
+  :is(.pics-edit-bar, .pics-remove-bar, .photo-form, .category-list.edit) .primary { background: #c62a2f; border-color: #c62a2f; color: #fff; }
+  :is(.photo-form, .category-list.edit, .pics-edit-controls) :is(input, select) { border-color: var(--edit-red); }
+  .admin :is(.pics-edit-bar, .pics-remove-bar, .photo-form, .category-list.edit) .results-button:not(:disabled):not(.danger):hover, .admin .pics-actions .results-button[aria-pressed='true']:not(:disabled):hover { background: #e5484d4d; box-shadow: inset 0 -3px 0 var(--edit-red); border-color: var(--edit-red); }
   .pics-remove-count { margin: 0; color: var(--fg); }
   .pics-remove-warning { margin: 0; color: var(--fg); font-weight: 600; }
   .pics-remove-warning:focus { outline: none; }
   .pics-remove-named { margin: 0; padding-left: 1.25rem; color: var(--fg-muted); overflow-wrap: anywhere; }
   .pics-remove-buttons { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-  .pics-edit-bar { display: grid; gap: var(--space-1); margin: 0 0 var(--space-1); padding: var(--space-1) var(--space-2); border: 1px solid var(--accent); border-radius: var(--radius); background: var(--bg-elevated); }
   .pics-edit-count { margin: 0; color: var(--fg); }
   .pics-edit-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
   .pics-edit-controls select { min-height: 44px; padding: 0.4rem 0.6rem; background: var(--bg); color: var(--fg); border: 1px solid var(--field-border); border-radius: var(--radius); font: inherit; }
   .pics-list.selecting .pic { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; column-gap: 0.25rem; }
+  .pics-list.hero .pic { grid-template-columns: 3.5rem minmax(0, 1fr); }
   .pic-select { display: grid; place-items: center; width: 44px; min-height: 44px; cursor: pointer; }
-  .pic-check { width: 1.4rem; height: 1.4rem; accent-color: var(--bad); cursor: pointer; }
+  .pic-check { width: 1.4rem; height: 1.4rem; accent-color: var(--edit-red); cursor: pointer; }
   /* Remove Results (Test Results tab): the same bar as Remove Photos, and a checkbox beside each run while choosing. */
   .results-remove-toolbar { justify-content: flex-start; }
   .results-runs.choosing li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-1); }
-  .run-check { width: 1.4rem; height: 1.4rem; accent-color: var(--bad); cursor: pointer; }
+  .run-check { width: 1.4rem; height: 1.4rem; accent-color: var(--edit-red); cursor: pointer; }
   /* Run in CI's branch dialog (src/lib/results-remove.ts): opened above everything, in the page's own colors. */
   .ci-branch-dialog { max-width: min(32rem, calc(100vw - 2rem)); padding: var(--space-2); border: 1px solid var(--border, currentColor); border-radius: var(--radius); background: var(--bg-elevated); color: var(--fg); }
   .ci-branch-dialog::backdrop { background: rgb(0 0 0 / 0.55); }
@@ -520,11 +651,14 @@ const categoryRows = CATEGORIES.map(({ slug, hidden }) => ({
   .ci-branch-select { font: inherit; padding: 0.4rem; max-width: 100%; }
   .ci-branch-warning:empty { display: none; }
   .ci-branch-warning { margin: 0; color: var(--fg); font-weight: 600; }
-  .pic.selected .pic-link { border-color: var(--bad); }
-  /* Editing a category or the home background is not destructive: their checkboxes and selected-row
-     border use the ordinary accent color instead of the Remove Photos bar's warning red. */
-  .pics-list.edit .pic-check, .pics-list.hero .pic-check { accent-color: var(--accent); }
-  .pics-list.edit .pic.selected .pic-link, .pics-list.hero .pic.selected .pic-link { border-color: var(--accent); }
+  .pic.selected .pic-link, .pic.changed .pic-link, .category-list.edit .category-row-body { border-color: var(--edit-red); }
+  /* Home Background: an on/off switch, and a dashed frame on a row changed but not yet saved (both red: edit mode, below). */
+  .pic-switch { appearance: none; position: relative; width: 2.75rem; height: 1.5rem; margin: 0; border-radius: 1rem; background: var(--border); transition: background 0.15s; }
+  .pic-switch::before { content: ''; position: absolute; top: 0.2rem; left: 0.2rem; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: var(--fg); transition: transform 0.15s; }
+  .pic-switch:checked { background: var(--edit-red); }
+  .pic-switch:checked::before { transform: translateX(1.25rem); }
+  .pic-switch:focus-visible { outline: 2px solid var(--edit-red); outline-offset: 2px; }
+  .pic.changed .pic-link { border-style: dashed; }
   .pics-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1) var(--space-2); margin-top: var(--space-2); }
   .pics-shown { margin: 0; color: var(--fg-muted); }
   .pics-shown:focus { outline: none; }

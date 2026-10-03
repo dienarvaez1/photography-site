@@ -19,6 +19,13 @@
   --field-border: #7c7871;
   --accent: #d9c9a3;
   --accent-fg: #0a0a09;
+  /* The hover highlight every button, tab and button-like link shares (where a pointer can hover): a gold-tinted face,
+     a gold border, and a gold bar along the bottom, or a gold ring for round or filled ones. */
+  /* One solid color everywhere: what About and Contact show over the header's dark background (rgb 11 12 13), so a
+     highlighted button looks the same whatever sits behind it. */
+  --hover-face: color-mix(in srgb, var(--accent) 22%, rgb(11 12 13));
+  --hover-bar: inset 0 -3px 0 var(--accent);
+  --hover-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent);
   --max-width: 1400px;
   --space-0: 0.25rem;
   --space-1: 0.5rem;
@@ -30,6 +37,15 @@
   --radius: 4px;
   --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
   color-scheme: dark;
+  /* Buttons that edit or submit (Admin, the page editor, the contact form) wear the Access Info controls' size: smaller on
+     a laptop, the full 16px on a phone (the size its form fields keep, so a tap never zooms the page). */
+  --control-text: 0.82rem;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --control-text: 1rem;
+  }
 }
 
 * {
@@ -142,11 +158,24 @@ img {
   text-decoration: none;
   font-size: 0.9rem;
   letter-spacing: 0.03em;
-  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
 .btn:hover {
   border-color: var(--accent);
+}
+
+@media (hover: hover) {
+  .btn:not(.btn-primary):hover {
+    background: var(--hover-face);
+    box-shadow: var(--hover-bar);
+  }
+  .btn-primary:hover {
+    opacity: 1;
+    background: var(--hover-face);
+    color: var(--fg);
+    box-shadow: var(--hover-bar);
+  }
 }
 
 .btn-primary {

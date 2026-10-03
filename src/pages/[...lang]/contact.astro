@@ -40,8 +40,8 @@ const web3formsLink =
 <BaseLayout title={t('contact.title')} description={t('contact.description', { author: SITE.author })}>
   <section class="wrap contact">
     <p class="eyebrow">{t('contact.eyebrow')}</p>
-    <h1>{t('contact.heading')}</h1>
-    <p set:html={t('contact.intro', { email: emailLink })} />
+    <h1 data-edit-key="contact.heading">{t('contact.heading')}</h1>
+    <p data-edit-key="contact.intro" set:html={t('contact.intro', { email: emailLink })} />
 
     {accessKey ? (
       <form
@@ -133,7 +133,11 @@ const web3formsLink =
     font: inherit;
   }
 
+  /* The Access Info controls' font and size, like every button that submits (--control-text, global.css). */
   .contact-form button {
+    font-family: inherit;
+    font-size: var(--control-text);
+    letter-spacing: normal;
     align-self: flex-start;
     margin-top: var(--space-1);
     cursor: pointer;

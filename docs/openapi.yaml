@@ -82,6 +82,12 @@ tags:
       and edits the site's own source files (`src/config/categories.json` and the category text in
       `src/i18n/*.json`), which still need a commit and a deploy to reach the live site. Same localhost and
       own-page rules as the photo service.
+  - name: Page editor
+    description: |
+      Editing a page's headings and descriptions in place (`src/lib/page-editor.ts`), saved in English and Spanish:
+      the Results API's `POST /translate` (Workers AI) gives the other language, then `astro dev`'s page text service
+      (`scripts/lib/page-text-form.mjs`) writes both into `src/i18n/*.json`. Same localhost, own-page and dev-box rules
+      as the category service; a change still needs a commit and a deploy to reach the live site.
 
 paths:
   # ---------------------------------------------------------------------------------------------------------------
@@ -476,6 +482,55 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: not-dev-box, message: Removing runs is only allowed on the dev box (SITE_ENV=development). }
+        '503': { $ref: '#/components/responses/NotConfigured' }
+  /translate:
+    post:
+      tags: [Results API, Page editor]
+      operationId: translateTexts
+      summary: Translate the page editor's text into the site's other language
+      description: |
+        Cloudflare Workers AI (the Worker's `AI` binding) translates each text, English to Spanish or Spanish to
+        English. Writes nothing. Every `{placeholder}` must come back exactly, and text is plain (no `<` or `>`) both
+        ways; otherwise the answer is refused (502 `translation-failed`) rather than saved broken.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to, texts]
+              properties:
+                from: { type: string, enum: [en, es] }
+                to: { type: string, enum: [en, es] }
+                texts:
+                  type: object
+                  minProperties: 1
+                  maxProperties: 12
+                  additionalProperties: { type: string, minLength: 1, maxLength: 4000 }
+            example: { from: en, to: es, texts: { about.heading: Real moments. Beautiful places. } }
+      responses:
+        '200':
+          description: Each text, translated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [texts]
+                properties:
+                  texts: { type: object, additionalProperties: { type: string } }
+              example: { texts: { about.heading: Momentos reales. Lugares hermosos. } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500':
+          description: The Worker has no AI binding (`error` is `misconfigured`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '502':
+          description: The translation service failed, or its answer lost a placeholder or wasn't plain text (`error` is `translation-failed`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '503': { $ref: '#/components/responses/NotConfigured' }
   /lighthouse/runs/{runId}:
     get:
@@ -1133,6 +1188,57 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: in-use, message: '2 photos still use "nature". Move or remove them first.' }
+  /__page-text/status:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    get:
+      tags: [Page editor]
+      operationId: readPageTexts
+      summary: A page's editable headings and descriptions, in both languages
+      security: []
+      parameters:
+        - name: keys
+          in: query
+          required: true
+          description: Up to 12 editable text keys, comma-separated (e.g. `about.heading,about.intro`). A paragraph list comes back as one text with blank lines between paragraphs.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Each text, in English and Spanish.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [texts]
+                properties:
+                  texts: { type: object, additionalProperties: { type: object, required: [en, es], properties: { en: { type: string }, es: { type: string } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/NotLocal' }
+  /__page-text/save:
+    servers: [{ url: http://localhost:4321, description: astro dev only }]
+    post:
+      tags: [Page editor]
+      operationId: savePageTexts
+      summary: Save headings and descriptions in both languages (src/i18n/en.json and es.json)
+      description: |
+        Only the editable headings and descriptions can be written, both languages at once, plain text, keeping the
+        current English text's `{placeholders}`. Only where `SITE_ENV` is `development` (403 `not-dev-box` otherwise).
+      security: []
+      parameters: [{ $ref: '#/components/parameters/Origin' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [texts]
+              properties:
+                texts: { type: object, additionalProperties: { type: object, required: [en, es], properties: { en: { type: string }, es: { type: string } } } }
+            example: { texts: { about.heading: { en: Honest moments., es: Momentos honestos. } } }
+      responses:
+        '200':
+          description: What was saved, in the same shape as the status answer.
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/NotLocal' }
 
 security:
   - adminToken: []

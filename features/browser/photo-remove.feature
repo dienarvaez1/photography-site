@@ -32,6 +32,7 @@ Feature: The Admin page's Remove Photos button deletes the photos ticked in the 
     And the removal bar should say "0 selected"
     And the removal bar should offer "Select all", "Delete selected" (disabled) and "Cancel"
     And the "Remove Photos" button should be pressed
+    And the edit mode should be shown in red, with the "Remove Photos" button marked red
     And the results API should have been asked only for the list and each shown file's details
     And the photo service should have been asked only: "GET status"
 

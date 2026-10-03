@@ -220,6 +220,56 @@ Feature: The access log records who opened which page and which photo, one file 
       | 2026-10-01T12:00:00.000Z | 192.0.2.9   | /    | view  |                  |          |               |
     Then by country the day should be "Mexico 2+0, United States 1+1, Belgium 1+0", with 1 unplaced
 
+  Scenario: A day adds up by IP address, most visits first, each placed where its latest entry was
+    Given a day with these entries, by country:
+      | time                     | ip          | page | event | photo            | category | city     | country       |
+      | 2026-10-01T09:00:00.000Z | 203.0.113.7 | /    | view  |                  |          | Portland | United States |
+      | 2026-10-01T09:01:00.000Z | 203.0.113.7 | /    | photo | 4b3761b8ee641a7d | nature   | Seattle  | United States |
+      | 2026-10-01T09:02:00.000Z | 203.0.113.7 | /    | view  |                  |          |          |               |
+      | 2026-10-01T10:00:00.000Z | 2001:db8::1 | /es/ | view  |                  |          |          | Mexico        |
+      | 2026-10-01T11:00:00.000Z | 192.0.2.4   | /    | view  |                  |          |          |               |
+      | 2026-10-01T11:00:09.000Z | 192.0.2.4   | /    | photo | 899aa0a81d293d01 | nature   |          |               |
+    Then by IP address the day should be "203.0.113.7 2+1 Seattle, United States; 192.0.2.4 1+1 -; 2001:db8::1 1+0 Mexico"
+
+  Scenario Outline: Two days chosen in the calendar make a range, in order, at most a year long
+    Then choosing "<first>" then "<second>" should give the days from "<from>" to "<to>", <count> in all
+
+    Examples:
+      | first      | second     | from       | to         | count |
+      | 2026-10-01 | 2026-10-01 | 2026-10-01 | 2026-10-01 | 1     |
+      | 2026-10-03 | 2026-09-30 | 2026-09-30 | 2026-10-03 | 4     |
+      | 2026-09-28 | 2026-10-02 | 2026-09-28 | 2026-10-02 | 5     |
+      | 2026-08-01 | 2026-10-01 | 2026-08-01 | 2026-10-01 | 62    |
+      | 2025-01-01 | 2026-10-01 | 2025-01-01 | 2026-01-01 | 366   |
+
+  Scenario Outline: The calendar's ready-made ranges, with weeks starting on Monday
+    Then on "<today>" the "<preset>" range should run from "<from>" to "<to>"
+
+    Examples:
+      | today      | preset       | from       | to         |
+      | 2026-10-02 | today        | 2026-10-02 | 2026-10-02 |
+      | 2026-10-02 | currentWeek  | 2026-09-28 | 2026-10-02 |
+      | 2026-10-02 | lastWeek     | 2026-09-21 | 2026-09-27 |
+      | 2026-10-02 | currentMonth | 2026-10-01 | 2026-10-02 |
+      | 2026-10-02 | lastMonth    | 2026-09-01 | 2026-09-30 |
+      | 2026-10-02 | currentYear  | 2026-01-01 | 2026-10-02 |
+      | 2026-01-05 | currentWeek  | 2026-01-05 | 2026-01-05 |
+      | 2026-01-05 | lastWeek     | 2025-12-29 | 2026-01-04 |
+      | 2026-01-05 | lastMonth    | 2025-12-01 | 2025-12-31 |
+      | 2028-03-01 | lastMonth    | 2028-02-01 | 2028-02-29 |
+
+  Scenario Outline: A long list shows 50 rows at a time
+    Then page <page> of <total> rows should show rows <first> to <last>, with a previous page "<previous>" and a next page "<next>"
+
+    Examples:
+      | page | total | first | last | previous | next |
+      | 0    | 30    | 1     | 30   | no       | no   |
+      | 0    | 50    | 1     | 50   | no       | no   |
+      | 0    | 122   | 1     | 50   | no       | yes  |
+      | 1    | 122   | 51    | 100  | yes      | yes  |
+      | 2    | 122   | 101   | 122  | yes      | no   |
+      | 9    | 122   | 101   | 122  | yes      | no   |
+
   Scenario Outline: The map's color bands grow geometrically up to the busiest country, never empty or repeated
     Then the bands for a busiest country of <max> should be "<bands>"
 

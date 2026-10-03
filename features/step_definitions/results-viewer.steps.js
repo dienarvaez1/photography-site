@@ -122,16 +122,18 @@ Then('the built page {string} should tell visitors without JavaScript that the v
   assert.match(message.text, new RegExp(loadMessages('en').admin.results.needsJs.slice(0, 30)));
 });
 
-Then('the built page {string} should have {string} and {string} buttons in the header beside its title, hidden until script shows them, and none inside the tabs', function (page, refresh, signOut) {
+Then('the built page {string} should have {string} and {string} buttons in the top menu after Contact, hidden until script shows them, and none inside the tabs', function (page, refresh, signOut) {
   const { root } = readBuiltPage(page);
-  const head = root.querySelector('.admin-head');
-  assert.ok(head?.querySelector('h1'), 'the header holds the title');
-  const actions = head.querySelector('[data-admin-actions]');
-  assert.ok(actions, 'and the buttons');
+  const nav = root.querySelector('#primary-nav');
+  const actions = nav?.querySelector('[data-admin-actions]');
+  assert.ok(actions, 'the buttons are in the top menu');
+  const contact = nav.querySelectorAll('a').at(-1);
+  assert.ok(nav.innerHTML.indexOf(contact.outerHTML) < nav.innerHTML.indexOf(actions.outerHTML), 'after the last link, Contact');
   assert.ok(actions.hasAttribute('hidden'), 'hidden until script shows them');
   assert.deepEqual(actions.querySelectorAll('button').map((b) => b.text.trim()), [refresh, signOut]);
   assert.equal(actions.getAttribute('role'), 'group');
   assert.ok(actions.getAttribute('aria-label'));
+  assert.equal(root.querySelector('.admin-head [data-admin-actions]'), null, 'no longer beside the title');
   for (const panel of root.querySelectorAll('[role="tabpanel"]')) assert.equal(panel.querySelectorAll('button').length, 0, 'no button is built into a panel');
 });
 

@@ -20,6 +20,8 @@
 		// The site's access log, for the Access Info tab (read only: the site's own Worker writes it).
 		{ "binding": "ACCESS", "bucket_name": "photography-site-access" }
 	],
+	// Workers AI, for POST /translate (the page editor's English ↔ Spanish; translate.mjs). Billed per use, with a free daily allowance.
+	"ai": { "binding": "AI", "remote": true },
 	"vars": {
 		"ALLOWED_ORIGINS": "https://photography-site.diego-narvaez.workers.dev,https://diego-narvaez-photography.org,http://localhost:4321",
 		"GITHUB_REPO": "dienarvaez1/photography-site",

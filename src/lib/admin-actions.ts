@@ -1,4 +1,4 @@
-// The Refresh and Sign out buttons at the top of the Admin page, across from its title. They serve whichever
+// The Refresh and Sign out buttons in the top menu on the Admin page, right after Contact. They serve whichever
 // tab is showing: Refresh asks that tab's viewer to reload, Sign out forgets the admin token (which every
 // viewer follows). They are only shown while there is a token to sign out of.
 import { AUTH_EVENT, REFRESH_EVENT, remembered } from './admin-common';

@@ -1,8 +1,8 @@
 @browser
-Feature: The Admin page's Home Background button sets or clears the photos ticked in the Pics Viewer as the home page's hero background
+Feature: The Admin page's Home Background button switches photos in or out of the home page's hero background, saved at once
   As the site owner
-  I want to tick one or several photos in the Pics Viewer and choose whether the home page's monochrome hero
-  background shows them
+  I want an on/off switch on each photo in the Pics Viewer, showing whether the home page's monochrome hero
+  background uses it, and one button to save whatever I switched
   So that I can pick the home page's background from any category, without touching a command line
 
   The Pics Viewer reads the real results API code over a fake originals bucket; the change is done by the real
@@ -24,39 +24,42 @@ Feature: The Admin page's Home Background button sets or clears the photos ticke
       | ffffffffffffffff | no          |
     And the local photo service is running
 
-  # --- The checkboxes and the bar ---------------------------------------------------------------------------------------------------
+  # --- The switches and the bar -----------------------------------------------------------------------------------------------------
 
-  Scenario: Home Background puts a checkbox only on photos the site actually lists, and a bar above the list
+  Scenario: Home Background puts an on/off switch only on photos the site actually lists, and a bar above the list
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    Then the Pics Viewer should show a checkbox on each of its 3 listed photos, none ticked
-    And the photo "ffffffffffffffff" should have no checkbox
-    And the home background bar should say "0 selected"
-    And the "Set as background" button of the home background bar should be disabled
-    And the "Remove from background" button of the home background bar should be disabled
+    Then the Pics Viewer should show an on/off switch on each of its 3 listed photos, all off
+    And the photo "ffffffffffffffff" should have no switch
+    And the home background bar should say "Switch a photo on to show it in the home background, or off to take it out."
+    And the home background bar should offer only the buttons "Save changes, Cancel"
+    And the "Save changes" button of the home background bar should be disabled
     And the "Home Background" button should be pressed
+    And the edit mode should be shown in red, with the "Home Background" button marked red
     And the results API should have been asked only for the list and each shown file's details
     And the photo service should have been asked only: "GET status"
 
-  Scenario: Ticking a photo enables both actions; ticking more updates the count
+  Scenario: Each switch is a real switch, easy to tap, and says which photo it is for
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    And I tick the photo "Half Moon"
-    Then the home background bar should say "1 selected"
-    And the "Set as background" button of the home background bar should be enabled
-    And the "Remove from background" button of the home background bar should be enabled
-    When I tick the photo "Orion Nebula"
-    Then the home background bar should say "2 selected"
+    Then each switch should be announced as a switch named "In the home background: <the photo>", at least 44 pixels to tap
 
-  Scenario: Selecting all ticks only the photos with a checkbox
+  Scenario: Flipping switches counts the unsaved changes, and flipping one back undoes it
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    And I click the "Select all" button of the home background bar
-    Then the home background bar should say "3 selected"
-    And every photo with a checkbox should be ticked
+    And I switch the photo "Half Moon" on
+    Then the home background bar should say "1 change to save"
+    And the "Save changes" button of the home background bar should be enabled
+    And the row for "Half Moon" should show an unsaved change
+    And the edit mode should be shown in red
+    When I switch the photo "Orion Nebula" on
+    Then the home background bar should say "2 changes to save"
+    When I switch the photo "Orion Nebula" off
+    Then the home background bar should say "1 change to save"
+    And the row for "Orion Nebula" should show no unsaved change
 
   Scenario: Clicking Home Background while Edit Photos is showing switches to it directly
     When I open "/admin/#pics-viewer"
@@ -66,94 +69,98 @@ Feature: The Admin page's Home Background button sets or clears the photos ticke
     And I click the "Home Background" button
     Then the "Edit Photos" button should not be pressed
     And the "Home Background" button should be pressed
-    And the home background bar should say "0 selected"
+    And the switch for "Half Moon" should be off
 
-  Scenario: Cancel takes the checkboxes away, forgets the ticks, and returns to the Home Background button
+  Scenario: Cancel takes the switches away, forgets what was flipped, and returns to the Home Background button
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    And I tick the photo "Half Moon"
+    And I switch the photo "Half Moon" on
     And I click the "Cancel" button of the home background bar
-    Then the Pics Viewer should show no checkbox to select a photo
+    Then the Pics Viewer should show no switch
+    And the photo "Half Moon" should not be marked Home background
     And keyboard focus should be on the "Home Background" button
 
-  # --- Setting and clearing -----------------------------------------------------------------------------------------------------
+  # --- Saving -----------------------------------------------------------------------------------------------------------------------
 
-  Scenario: Setting one photo as the background marks it, and says so
+  Scenario: Switching one photo on and saving marks it, and says so
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    And I tick the photo "Half Moon"
-    And I click the "Set as background" button of the home background bar
+    And I switch the photo "Half Moon" on
+    And I click the "Save changes" button of the home background bar
     Then the Pics Viewer should say "1 photo set as the home background."
     And the photo service should have been asked only: "GET status, POST hero-background"
     And the photo "Half Moon" should be marked Home background
     And the row for "Half Moon" should read, top to bottom: its title, the Home background badge, its category, its path
-    And the Pics Viewer should show no checkbox to select a photo
+    And the Pics Viewer should show no switch
 
-  Scenario: Setting several photos at once marks them all
+  Scenario: Switching several photos on saves them all at once
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    And I tick the photo "Half Moon"
-    And I tick the photo "Orion Nebula"
-    And I click the "Set as background" button of the home background bar
+    And I switch the photo "Half Moon" on
+    And I switch the photo "Orion Nebula" on
+    And I click the "Save changes" button of the home background bar
     Then the Pics Viewer should say "2 photos set as the home background."
     And the photo "Half Moon" should be marked Home background
     And the photo "Orion Nebula" should be marked Home background
 
-  Scenario: Reopening Home Background starts with its current members already ticked
+  Scenario: Reopening Home Background shows its current members switched on
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    And I tick the photo "Half Moon"
-    And I click the "Set as background" button of the home background bar
+    And I switch the photo "Half Moon" on
+    And I click the "Save changes" button of the home background bar
     And the Pics Viewer should say "1 photo set as the home background."
     And I click the "Home Background" button
-    Then the photo "Half Moon" should be ticked
-    And the photo "Orion Nebula" should not be ticked
-    And the home background bar should say "1 selected"
+    Then the switch for "Half Moon" should be on
+    And the switch for "Orion Nebula" should be off
+    And the home background bar should say "Switch a photo on to show it in the home background, or off to take it out."
+    And the "Save changes" button of the home background bar should be disabled
 
-  Scenario: Setting an already-marked photo again changes nothing, and says so
+  Scenario: One Save changes switches one photo in and another out together
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    And I tick the photo "Half Moon"
-    And I click the "Set as background" button of the home background bar
+    And I switch the photo "Half Moon" on
+    And I click the "Save changes" button of the home background bar
     And the Pics Viewer should say "1 photo set as the home background."
     And I click the "Home Background" button
-    And I tick the photo "Half Moon"
-    And I click the "Set as background" button of the home background bar
-    Then the Pics Viewer should say "It was already set that way."
-    And the photo "Half Moon" should be marked Home background
+    And I switch the photo "Half Moon" off
+    And I switch the photo "Orion Nebula" on
+    Then the home background bar should say "2 changes to save"
+    When I click the "Save changes" button of the home background bar
+    Then the Pics Viewer should say "1 photo set as the home background. 1 photo removed from the home background."
+    And the photo "Orion Nebula" should be marked Home background
+    And the photo "Half Moon" should not be marked Home background
+    And the photo service should have been asked only: "GET status, POST hero-background, GET status, POST hero-background, POST hero-background"
 
-  Scenario: On a slow connection the next action still waits for the last one to finish
-    # Seen on GitHub's runners: reopening Home Background before "Set as background" had answered was ignored (a bulk
-    # action refuses to start while another is under way), and the test went on to click the old, busy bar.
+  Scenario: On a slow connection the next change still waits for the last one to finish
+    # Seen on GitHub's runners: reopening Home Background before the save had answered was ignored (a bulk action
+    # refuses to start while another is under way), and the test went on to use the old, busy bar.
     Given the local photo service takes 1500 milliseconds to answer
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    And I tick the photo "Half Moon"
-    And I click the "Set as background" button of the home background bar
+    And I switch the photo "Half Moon" on
+    And I click the "Save changes" button of the home background bar
     And the Pics Viewer should say "1 photo set as the home background."
     And I click the "Home Background" button
-    Then the photo "Half Moon" should be ticked
-    When I click the "Set as background" button of the home background bar
-    Then the Pics Viewer should say "It was already set that way."
+    Then the switch for "Half Moon" should be on
+    When I switch the photo "Half Moon" off
+    And I click the "Save changes" button of the home background bar
+    Then the Pics Viewer should say "1 photo removed from the home background."
 
-  Scenario: Removing a marked photo from the background clears its mark, and says so
+  Scenario: While saving, the switches and buttons wait
+    Given the local photo service takes 1500 milliseconds to answer
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    And I tick the photo "Half Moon"
-    And I click the "Set as background" button of the home background bar
-    And the Pics Viewer should say "1 photo set as the home background."
-    And I click the "Home Background" button
-    And I tick the photo "Half Moon"
-    And I click the "Remove from background" button of the home background bar
-    Then the Pics Viewer should say "1 photo removed from the home background."
-    And the photo "Half Moon" should not be marked Home background
+    And I switch the photo "Half Moon" on
+    And I click the "Save changes" button of the home background bar
+    Then the home background bar should say "Saving the change…"
+    And every switch and button of the home background bar should be disabled
 
   # --- Spanish, and quality --------------------------------------------------------------------------------------------------------
 
@@ -161,9 +168,10 @@ Feature: The Admin page's Home Background button sets or clears the photos ticke
     When I open "/es/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Fondo de inicio" button
-    Then the home background bar should say "0 seleccionadas"
-    When I tick the photo "Media luna"
-    And I click the "Usar como fondo" button of the home background bar
+    Then the home background bar should say "Activa una foto para mostrarla en el fondo de inicio, o desactívala para quitarla."
+    When I switch the photo "Media luna" on
+    Then the home background bar should say "1 cambio por guardar"
+    When I click the "Guardar cambios" button of the home background bar
     Then the Pics Viewer should say "1 foto establecida como fondo de inicio."
 
   Scenario Outline: Each state of the home background change passes the automated accessibility audit
@@ -173,17 +181,17 @@ Feature: The Admin page's Home Background button sets or clears the photos ticke
     Then the page should pass the automated accessibility audit
 
     Examples:
-      | state          |
-      | choosing       |
-      | photos ticked  |
-      | not available  |
+      | state            |
+      | choosing         |
+      | photos switched  |
+      | not available    |
 
   Scenario: Using the home background change causes no script errors, no policy violations and no unexpected requests
     When I open "/admin/#pics-viewer"
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Home Background" button
-    And I tick the photo "Half Moon"
-    And I click the "Set as background" button of the home background bar
+    And I switch the photo "Half Moon" on
+    And I click the "Save changes" button of the home background bar
     Then the Pics Viewer should say "1 photo set as the home background."
     And no script error should have been logged
     And no Content-Security-Policy violation should have been reported

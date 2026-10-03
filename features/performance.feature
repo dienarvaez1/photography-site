@@ -5,7 +5,7 @@ Feature: The site stays fast
 
   Scenario: Every page stays within its size budget
     When I load every built page
-    Then no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 65 KB, their scripts 59 KB and their styles 28 KB
+    Then no page's HTML should exceed 30 KB, its scripts 31 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 67 KB, their scripts 61 KB and their styles 39 KB
 
   Scenario: Every image reserves its space, so the page cannot jump while loading
     When I load every built page
@@ -13,12 +13,11 @@ Feature: The site stays fast
 
   Scenario: The header logos are sized for what they show
     Then the file "public/logo.png" should be under 70 KB and at most 1000 pixels wide
-    And the file "public/aperture-logo.png" should be under 30 KB and at most 300 pixels wide
     And no image in public should be over 100 KB
 
   Scenario: The logo is prioritised because it is the first thing on screen
     When I load the built page "/"
-    Then the header logo should have high fetch priority and the icon should not
+    Then the header logo should have high fetch priority
 
   Scenario Outline: Gallery photos offer the browser several sizes
     Given all photo content entries

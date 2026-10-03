@@ -9,16 +9,33 @@ Feature: The Admin page's tabs work in a real browser
   Background:
     Given I am signed in to the Admin page
 
-  Scenario Outline: The tabs sit side by side on one row, and the first one is showing
-    Given the visitor uses a <device>
+  Scenario: On a laptop the tabs sit side by side on one row, and the first one is showing
+    Given the visitor uses a laptop
     When I open "/admin/"
     Then the tabs should sit side by side on one row, left to right
     And the "Access Info" tab should be selected, its panel visible and every other panel hidden
 
+  Scenario Outline: On a phone the tabs stack three over three, all on screen, in order (<page>)
+    Given the visitor uses a phone
+    When I open "<page>"
+    Then the tabs should stack in two rows of three, left to right and top to bottom, all on screen
+    And the "<first>" tab should be selected, its panel visible and every other panel hidden
+    And the page should not scroll sideways
+
     Examples:
-      | device |
-      | laptop |
-      | phone  |
+      | page       | first              |
+      | /admin/    | Access Info        |
+      | /es/admin/ | Información de acceso |
+
+  Scenario: The tab under the pointer stands out clearly, and never looks like the chosen one
+    Given the visitor uses a laptop
+    When I open "/admin/"
+    And I hover over the "Test Results" tab
+    Then the "Test Results" tab should be highlighted: a gold-tinted face, a gold border and a gold bar along its bottom
+    And the "Access Info" tab should still look chosen: its dark face and its bar on top
+    And the "Test Results" tab's highlight should be the same color as "About" when highlighted
+    When I hover over the "Access Info" tab
+    Then the "Access Info" tab should not take the hover highlight
 
   Scenario: Clicking a tab shows its panel and the address remembers it
     When I open "/admin/"

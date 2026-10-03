@@ -309,3 +309,24 @@ Then('the cities of {string} should be {string}', function (country, expected) {
   const found = view.byCountry(state(this).entries).countries.find((c) => c.country === country);
   assert.equal(found.cities.map(({ key, count }) => `${key} ${count}`).join(', '), expected);
 });
+
+Then('by IP address the day should be {string}', function (expected) {
+  const rows = view.byIp(state(this).entries).map((r) => `${r.ip} ${r.views}+${r.photos} ${[r.city, r.country].filter(Boolean).join(', ') || '-'}`);
+  assert.equal(rows.join('; '), expected);
+});
+
+
+Then('choosing {string} then {string} should give the days from {string} to {string}, {int} in all', function (first, second, from, to, count) {
+  const range = view.rangeOf(first, second);
+  assert.deepEqual(range, { from, to });
+  assert.equal(view.daysBetween(range).length, count);
+});
+
+Then('on {string} the {string} range should run from {string} to {string}', function (today, preset, from, to) {
+  assert.deepEqual(view.presetRange(preset, today), { from, to });
+});
+
+Then('page {int} of {int} rows should show rows {int} to {int}, with a previous page {string} and a next page {string}', function (page, total, first, last, previous, next) {
+  const at = view.pageOf(total, page);
+  assert.deepEqual([at.first, at.last, at.hasPrevious, at.hasNext], [first, last, previous === 'yes', next === 'yes']);
+});

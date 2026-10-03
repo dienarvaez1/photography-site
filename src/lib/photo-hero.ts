@@ -1,7 +1,8 @@
-// The Admin page's Home Background button (bulk hero-background change), opened by the Pics Viewer. Each
-// photo in the list gets a checkbox (the same mechanism Edit Photos and Remove Photos use — only one of the
-// three bulk actions is ever active at a time, see pics-viewer.ts's `mode`); this is the bar above the list:
-// how many are chosen, select all / none, and two actions, Set as background and Remove from background.
+// The Admin page's Home Background button (bulk hero-background change), opened by the Pics Viewer. Each photo the site
+// lists gets an on/off switch showing whether it is in the home page's background, starting as it is now (only one of
+// the bulk actions is ever active at a time, see pics-viewer.ts's `mode`); this is the bar above the list: how many
+// switches have been changed, and one Save changes button that sets the ones switched on and clears the ones switched
+// off, together.
 // The change is done by the local photo service (scripts/lib/photos.mjs's setHeroBackground, through
 // scripts/lib/photo-form.mjs), which exists only in `astro dev`: it only ever writes the `heroBackground`
 // field of the entries named — the photo itself, its files in R2, its category and every other field of its
@@ -26,9 +27,13 @@ export async function setHeroBackground(photos: HeroBackgroundChange[], value: b
   return results;
 }
 
+/** What one Save changes asks for: the photos switched on (to set) and off (to clear) since the bar opened. */
+export type HeroBackgroundChanges = { set: HeroBackgroundChange[]; clear: HeroBackgroundChange[] };
+export type HeroBackgroundOutcome = { set: HeroBackgroundResult[]; cleared: HeroBackgroundResult[] };
+
 export interface HeroBackgroundBar {
   element: HTMLElement;
-  /** The selection changed (a checkbox was ticked): refresh the count and the buttons. */
+  /** A switch was flipped: refresh the count of unsaved changes and the Save button. */
   update(): void;
   focus(): void;
 }
@@ -36,54 +41,61 @@ export interface HeroBackgroundBar {
 export function heroBackgroundBar(options: {
   m: Reader;
   rows: PicRow[];
+  /** The photos switched on now: the current members when the bar opens, then whatever the switches say. */
   selected: Set<string>;
-  /** How many of the rows are drawn so far (the list shows a page at a time): "select all" only ever ticks those. */
-  shown: () => number;
-  onSelectAll: (all: boolean) => void;
   onCancel: () => void;
-  /** Sets or clears the flag; resolves with what happened, or rejects when the service could not be reached. */
-  perform: (photos: HeroBackgroundChange[], value: boolean) => Promise<HeroBackgroundResult[]>;
-  onDone: (value: boolean, outcome: HeroBackgroundResult[] | Error) => void;
+  /** Saves every change at once; resolves with what happened, or rejects when the service could not be reached. */
+  perform: (changes: HeroBackgroundChanges) => Promise<HeroBackgroundOutcome>;
+  onDone: (outcome: HeroBackgroundOutcome | Error) => void;
 }): HeroBackgroundBar {
-  const { m, rows, selected, shown, onSelectAll, onCancel, perform, onDone } = options;
+  const { m, rows, selected, onCancel, perform, onDone } = options;
   const t = (key: string, values?: Record<string, string | number>) => m(`pics.background.${key}`, values);
   const element = el('div', { class: 'pics-edit-bar', attrs: { role: 'group', 'aria-label': t('barLabel'), 'data-hero-bar': '' } });
-  const chosen = () => rows.filter((row) => selected.has(row.id));
   const button = (text: string, onClick: () => void, extra = '') => {
     const node = el('button', { class: `results-button ${extra}`.trim(), text, attrs: { type: 'button' } });
     node.addEventListener('click', onClick);
     return node;
   };
 
+  /** Each listed photo whose switch no longer matches what it was when the bar opened. */
+  const changes = (): HeroBackgroundChanges => {
+    const listed = rows.filter((row) => row.categorySlug !== null);
+    const asChange = ({ id, categorySlug }: PicRow) => ({ id, category: categorySlug ?? '' });
+    return {
+      set: listed.filter((row) => selected.has(row.id) && !row.heroBackground).map(asChange),
+      clear: listed.filter((row) => !selected.has(row.id) && row.heroBackground).map(asChange),
+    };
+  };
+  const pending = () => {
+    const { set, clear } = changes();
+    return set.length + clear.length;
+  };
+
   const count = el('p', { class: 'pics-edit-count', attrs: { role: 'status' } });
-  const allShownTicked = () => rows.slice(0, shown()).every((row) => selected.has(row.id));
-  const toggleAll = button('', () => onSelectAll(!allShownTicked()));
-  const setBtn = button(t('set'), () => void run(true), 'primary');
-  const clearBtn = button(t('clear'), () => void run(false));
+  const save = button(t('save'), () => void run(), 'primary');
   const cancel = button(t('cancel'), onCancel);
 
   function update() {
-    count.textContent = t('selected', { count: selected.size });
-    // With more photos still to be drawn, say that only those shown are ticked (never photos nobody has seen).
-    toggleAll.textContent = allShownTicked() ? t('selectNone') : shown() < rows.length ? t('selectShown', { count: shown() }) : t('selectAll');
-    setBtn.disabled = selected.size === 0;
-    clearBtn.disabled = selected.size === 0;
+    const n = pending();
+    count.textContent = n === 0 ? t('noChanges') : t(n === 1 ? 'changesOne' : 'changes', { count: n });
+    save.disabled = n === 0;
   }
 
-  async function run(value: boolean) {
-    const photos = chosen();
-    if (!photos.length) return;
+  async function run() {
+    const n = pending();
+    if (!n) return;
     element.setAttribute('aria-busy', 'true');
-    for (const control of [setBtn, clearBtn, cancel, toggleAll]) control.disabled = true;
-    count.textContent = photos.length === 1 ? t(value ? 'settingOne' : 'clearingOne') : t(value ? 'setting' : 'clearing', { count: photos.length });
+    for (const control of [save, cancel]) control.disabled = true;
+    for (const toggle of document.querySelectorAll<HTMLInputElement>('.pic-switch')) toggle.disabled = true;
+    count.textContent = n === 1 ? t('savingOne') : t('saving', { count: n });
     try {
-      onDone(value, await perform(photos.map(({ id, categorySlug }) => ({ id, category: categorySlug ?? '' })), value));
+      onDone(await perform(changes()));
     } catch (error) {
-      onDone(value, error instanceof Error ? error : new Error(String(error)));
+      onDone(error instanceof Error ? error : new Error(String(error)));
     }
   }
 
-  element.replaceChildren(count, el('div', { class: 'pics-edit-controls' }, toggleAll, setBtn, clearBtn, cancel));
+  element.replaceChildren(count, el('div', { class: 'pics-edit-controls' }, save, cancel));
   update();
-  return { element, update, focus: () => (setBtn.disabled ? toggleAll.focus() : setBtn.focus()) };
+  return { element, update, focus: () => (save.disabled ? cancel.focus() : save.focus()) };
 }

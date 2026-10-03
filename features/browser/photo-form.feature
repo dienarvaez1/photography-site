@@ -35,6 +35,7 @@ Feature: The Admin page's New Photo form adds a photo from its own metadata, in 
     And I sign in to the Pics Viewer with the token "browser-test-admin-token"
     And I click the "Upload Photos" button
     Then the New Photo form should be open, above the list of photos
+    And the edit mode should be shown in red
     And the New Photo form should ask for these, in this order: "Photo (JPEG)", "Title", "Title in Spanish (optional)", "Category", "Order", "Featured"
     And the results API should have been asked only for the list and each shown file's details
     And the photo service should have been asked only: "GET status"

@@ -131,7 +131,8 @@ Then("a CI run started by hand should never cancel a push's run, or the reverse"
 
 Then('the CI workflow should type-check, run the tests, run the browser tests and audit dependencies', function () {
   const runs = stepsOf(workflow('ci.yml').jobs.test).join('\n');
-  for (const command of ['npm ci', 'astro check', 'npm test', 'npm run test:browser', 'npm audit', 'playwright install']) {
+  // The audit is `npm run audit` (scripts/audit.mjs: npm audit, minus the advisories accepted there; dependency-audit.feature).
+  for (const command of ['npm ci', 'astro check', 'npm test', 'npm run test:browser', 'npm run audit', 'playwright install']) {
     assert.ok(runs.includes(command), `CI should run "${command}"`);
   }
 });

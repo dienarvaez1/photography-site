@@ -23,7 +23,7 @@ Feature: The Admin page signs out after 5 minutes of inactivity
     And I sign in with the token "browser-test-admin-token"
     And 4 minutes and 55 seconds pass with nobody touching the page
     Then the latest run should be shown as commit "ccccccc", Passed, with "3 of 3 passed"
-    And "Refresh" then "Sign out" should sit on the same line as the "Admin" title, at the right of the page
+    And "Refresh" then "Sign out" should sit in the top menu right after "Contact", styled like it
     When 0 minutes and 10 seconds pass with nobody touching the page
     Then the Test Results tab should ask for the admin token
     And the Test Results tab should say "You were signed out after 5 minutes of inactivity. Enter the token to continue."

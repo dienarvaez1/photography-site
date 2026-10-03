@@ -151,7 +151,7 @@ function referencedBytes(root, pattern, attribute, extraImports = false) {
   return total;
 }
 
-Then("no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 65 KB, their scripts 59 KB and their styles 28 KB", function () {
+Then("no page's HTML should exceed 30 KB, its scripts 31 KB, or its styles 25 KB, except that the Admin pages' HTML may reach 67 KB, their scripts 61 KB and their styles 39 KB", function () {
   const problems = [];
   for (const { route, page } of this.data.pages) {
     const isAdmin = /\/admin\/$/.test(route);
@@ -189,12 +189,27 @@ Then("no page's HTML should exceed 30 KB, its scripts 28 KB, or its styles 25 KB
     // Run in CI (Test Results tab) and Run in Production (Lighthouse tab) added their texts in turn: 63 KB of HTML.
     // Run in CI's branch dialog (its texts and styles) and the Lighthouse tab's wait for the results API to confirm a
     // new run (its texts): 65 KB of HTML and 28 KB of styles.
-    if (kb(html) > (isAdmin ? 65 : 30)) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
+    // The Access Info tab's calendar (its texts in both languages, and its styles) and its table of IP addresses: 66 KB
+    // of HTML and 30 KB of styles.
+    // The pies' phone layout (side by side, tap for a slice's numbers) and its hint: 67 KB of HTML and 32 KB of styles.
+    if (kb(html) > (isAdmin ? 67 : 30)) problems.push(`${route}: HTML ${kb(html).toFixed(1)} KB`);
     // The page's own sign-in (src/lib/admin-gate.ts: one token box, the tabs hidden until GET /auth accepts the token)
     // replaced the six tabs' own token forms, but the check itself is new: 57 KB.
     // Cleanup Test Results / Remove Results going through the results API (the shared request code's POST, admin-common.ts): 59 KB.
-    if (kb(js) > (isAdmin ? 59 : 28)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
-    if (kb(css) > (isAdmin ? 28 : 25)) problems.push(`${route}: styles ${kb(css).toFixed(1)} KB`);
+    // The page editor's loader (BaseLayout, with the helper Vite adds for its dynamic import: ~1.8 KB) is in these
+    // test builds, which the browser tests need it in; a production build drops it (site-render.feature checks): 30/60 KB.
+    // Then two small things every visitor's page does carry: the lightbox turning a phone's screen to suit the photo in
+    // full screen, and the footer's "Build …" becoming a link back to the Admin page for the signed-in Admin (in the
+    // layout's script, which the Admin pages share): 31/61 KB.
+    if (kb(js) > (isAdmin ? 61 : 31)) problems.push(`${route}: scripts ${kb(js).toFixed(1)} KB`);
+    // The calendar's phone layout (a bottom sheet with 44 px touch targets): 31 KB of styles.
+    // The Access Info tables' shared text size and the countries' two aligned columns: 33 KB of styles.
+    // The site-wide hover highlight on every button, link-button and the calendar (global, header and Admin), and
+    // Refresh and Sign out styled as top-menu items: 35 KB.
+    // Home Background's on/off switches (a drawn switch, and the unsaved-change frame): 36 KB. Then edit mode in red on
+    // every tab (each bar, form, pressed mode button, field, checkbox, switch and chosen row, and its hover): 38 KB. Then
+    // one size for every button that edits or submits (--control-text, the Access Info controls' size): 39 KB.
+    if (kb(css) > (isAdmin ? 39 : 25)) problems.push(`${route}: styles ${kb(css).toFixed(1)} KB`);
   }
   assert.deepEqual(problems, [], 'A page grew past its budget — check for an oversized script, style or inlined asset');
 });
@@ -222,12 +237,11 @@ Then('no image in public should be over {int} KB', function (max) {
   assert.deepEqual(big, []);
 });
 
-Then('the header logo should have high fetch priority and the icon should not', function () {
+Then('the header logo should have high fetch priority', function () {
   const logo = this.data.page.root.querySelector('.brand-logo');
-  const icon = this.data.page.root.querySelector('.aperture-logo');
   assert.equal(logo.getAttribute('fetchpriority'), 'high');
-  assert.equal(icon.getAttribute('fetchpriority') ?? null, null);
   assert.equal(logo.getAttribute('loading') ?? null, null, 'the logo must not be lazy-loaded');
+  assert.equal(this.data.page.root.querySelectorAll('.site-header img').length, 1, 'the one logo, nothing beside it');
 });
 
 function srcsetEntries(img) {

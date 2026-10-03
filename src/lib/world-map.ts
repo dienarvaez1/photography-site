@@ -9,6 +9,7 @@
 import { el } from './admin-common';
 import { bandOf, bands, type CountryCount } from './access-view';
 import worldMap from '../data/world-map.json';
+import { pager, type PagerTexts } from './pager';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -23,6 +24,9 @@ export interface MapTexts {
   topCities: string;
   cityCount: (n: number) => string;
   noCities: string;
+  /** The country list's arrows, past 50 countries, and the name of the list they page through. */
+  pager: PagerTexts;
+  pagerLabel: string;
 }
 
 /** How many of a country's cities its tooltip in the list names. */
@@ -112,18 +116,24 @@ export function worldMapChart(countries: CountryCount[], unplaced: number, texts
   const hideCities = () => {
     cityTip.hidden = true;
   };
-  const list = el('ol', { class: 'access-ranked map-list' },
-    ...countries.map((c) => {
-      const item = el('li', { attrs: { tabindex: '0', 'data-country': c.country, 'aria-label': `${c.country}: ${texts.counts(c)}` } },
-        el('span', { class: 'access-name', text: c.country }), el('span', { class: 'access-times', text: texts.counts(c) }));
-      item.addEventListener('pointerenter', () => showCities(c, item));
-      item.addEventListener('pointerleave', hideCities);
-      item.addEventListener('focus', () => showCities(c, item));
-      item.addEventListener('blur', hideCities);
-      return item;
-    }));
+  const listItem = (c: CountryCount) => {
+    const item = el('li', { attrs: { tabindex: '0', 'data-country': c.country, 'aria-label': `${c.country}: ${texts.counts(c)}` } },
+      el('span', { class: 'access-name', text: c.country }), el('span', { class: 'access-times', text: texts.counts(c) }));
+    item.addEventListener('pointerenter', () => showCities(c, item));
+    item.addEventListener('pointerleave', hideCities);
+    item.addEventListener('focus', () => showCities(c, item));
+    item.addEventListener('blur', hideCities);
+    return item;
+  };
+  // 50 countries at a time (in rank order, so the numbering carries on), with arrows for the rest.
+  const list = el('ol', { class: 'map-list' });
+  const nav = pager(countries.length, (start, end) => {
+    hideCities();
+    list.start = start + 1;
+    list.replaceChildren(...countries.slice(start, end).map(listItem));
+  }, texts.pager, texts.pagerLabel);
   listBox.append(list, cityTip);
 
   // The visits the map can't place come last, under the countries they're missing from.
-  return el('figure', { class: 'map-figure' }, plot, legend, listBox, unplaced ? el('p', { class: 'results-hint map-unplaced', text: texts.unplaced(unplaced) }) : null);
+  return el('figure', { class: 'map-figure' }, plot, legend, listBox, nav, unplaced ? el('p', { class: 'results-hint map-unplaced', text: texts.unplaced(unplaced) }) : null);
 }

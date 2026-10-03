@@ -30,6 +30,8 @@ const { photoFormMiddleware } = await import(join(ROOT, 'scripts/lib/photo-form-
 // Remove Results' service (the Test Results tab), the same way, over the scenario's own fake results bucket.
 const { resultsFormMiddleware } = await import(join(ROOT, 'scripts/lib/results-form-server.mjs'));
 const { categoryFormMiddleware } = await import(join(ROOT, 'scripts/lib/category-form-server.mjs'));
+// The page editor's save service, the same way, over the scenario's own copies of the text files (startPageTextService).
+const { pageTextMiddleware } = await import(join(ROOT, 'scripts/lib/page-text-form-server.mjs'));
 
 // Real-browser scenarios are slower than the rest: page loads, axe scans, animations.
 setDefaultTimeout(60_000);
@@ -46,6 +48,7 @@ async function shared() {
     server = await startStaticServer();
     server.mount('/__photos/', servePhotoService);
     server.mount('/__categories/', serveCategoryService);
+    server.mount('/__page-text/', servePageTextService);
     server.mount('/__results/', serveResultsService);
   }
   if (!imageBytes) imageBytes = await sharp({ create: { width: 16, height: 11, channels: 3, background: '#557' } }).webp().toBuffer();
@@ -73,6 +76,7 @@ Before({ tags: '@browser' }, function () {
     api: 'success', // what Web3Forms answers: 'success', 'failure', 'unreachable', 'slow'
     imageDelayMs: 0,
     clock: false, // true: the page's clock is Playwright's, so a scenario can let minutes pass at once
+    today: null, // an ISO time: the page's clock is fixed there (e.g. the Access Info tab's "today")
     remembered: null, // localStorage 'preferred-locale' to set before the first visit
     initScripts: [], // extra scripts to run in every page before its own (e.g. block localStorage)
     csp: [], // Content-Security-Policy violations, accumulated across navigations
@@ -92,6 +96,8 @@ Before({ tags: '@browser' }, function () {
     photoService: null,
     // Category Maintenance's local service — same shape, same reasoning.
     categoryService: null,
+    // The page editor's save service — the same again.
+    pageTextService: null,
     // Remove Results' local service — the same again — and the file where it saves the CI run it follows.
     resultsService: null,
     ciStateFile: null,
@@ -358,6 +364,39 @@ function serveCategoryService(req, res, next) {
   return service.middleware(req, res, next);
 }
 
+/** Starts the page editor's save service over this scenario's own copies of the site's text files, as `astro dev` would. */
+export async function startPageTextService(world, { categoriesFile, localeFiles, allowWrites = true }) {
+  await shared();
+  world.b.pageTextService = { middleware: await pageTextMiddleware({ categoriesFile, localeFiles, allowWrites }), requests: [] };
+}
+
+/** Answers /__page-text/ for the scenario that is running (none: the site as deployed, which has no such service). */
+function servePageTextService(req, res, next) {
+  const service = currentWorld?.b.pageTextService;
+  if (!service) return next();
+  service.requests.push({ method: req.method, path: new URL(req.url, 'http://localhost').pathname.replace('/__page-text/', '') });
+  return service.middleware(req, res, next);
+}
+
+/**
+ * A stand-in for Workers AI behind the results API's POST /translate: "[es] <text>" (or "[en] …"), keeping everything;
+ * mode 'down' fails. Every request is noted in `world.b.translations`.
+ */
+export function useTranslator(world, mode = 'ok') {
+  world.b.translations = [];
+  world.b.results.env = {
+    ...world.b.results.env,
+    AI: {
+      run: async (_model, input) => {
+        const text = input.messages.at(-1).content;
+        world.b.translations.push(text);
+        if (mode === 'down') throw new Error('AI unavailable');
+        return { response: `[${/to Spanish\./.test(input.messages[0].content) ? 'es' : 'en'}] ${text}` };
+      },
+    },
+  };
+}
+
 /** Creates the browser context (once per scenario) with the stubs described above. */
 export async function open(world) {
   if (world.b.context) return world.b.page;
@@ -375,6 +414,7 @@ export async function open(world) {
   world.b.siteOrigin = site.url;
   // Scenarios about time (the idle sign-out) take over the page's clock: it runs normally until they advance it.
   if (b.clock) await context.clock.install({ time: new Date('2026-09-21T12:00:00Z') });
+  else if (b.today) await context.clock.setFixedTime(new Date(b.today));
 
   await context.route('**/*', async (route) => {
     const request = route.request();

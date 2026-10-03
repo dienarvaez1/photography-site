@@ -3,7 +3,7 @@ import { ClientRouter } from 'astro:transitions';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import SEO from '../components/SEO.astro';
-import { getLocale, useTranslations } from '../i18n';
+import { getLocale, getMessages, useTranslations } from '../i18n';
 import '../styles/global.css';
 
 interface Props {
@@ -18,11 +18,16 @@ interface Props {
   noindex?: boolean;
   /** Admin passes this: see the comment on Header's own `forceReload` prop. */
   reloadNavLinks?: boolean;
+  /** A page with no editable text (the Admin page) leaves out the page editor's mount point and texts. */
+  noPageEditor?: boolean;
 }
 
-const { title, description, image, imageAlt, imageWidth, imageHeight, jsonLd, noindex = false, reloadNavLinks = false } = Astro.props;
+const { title, description, image, imageAlt, imageWidth, imageHeight, jsonLd, noindex = false, reloadNavLinks = false, noPageEditor = false } = Astro.props;
 const locale = getLocale(Astro);
 const t = useTranslations(locale);
+// The page editor (src/lib/page-editor.ts) exists only in dev-box builds (and the test snapshot): a deployed page has no
+// mount point, so it never loads it.
+const pageEditor = !noPageEditor && (__SITE_ENV__ === 'development' || Boolean(import.meta.env.PHOTOS_SNAPSHOT));
 ---
 
 <!doctype html>
@@ -48,11 +53,12 @@ const t = useTranslations(locale);
   </head>
   <body>
     <a href="#main-content" class="skip-link">{t('nav.skipToContent')}</a>
-    <Header forceReload={reloadNavLinks} />
+    <Header forceReload={reloadNavLinks}><slot name="nav-actions" slot="nav-actions" /></Header>
     <main id="main-content">
       <slot />
     </main>
     <Footer />
+    {pageEditor && <div class="page-editor-root" data-page-editor hidden data-messages={JSON.stringify(getMessages(locale).pageEditor)} />}
     <script>
       import { initScrollReveal } from '../lib/scroll-reveal';
       import { trackTransitionOrigin } from '../lib/transition-referrer';
@@ -67,6 +73,43 @@ const t = useTranslations(locale);
       // its photos and category switches through events (registered once, ever, like trackTransitionOrigin below).
       document.addEventListener('astro:page-load', recordPageView);
       listenForAccessEvents();
+
+      // Signed in to the Admin page (this tab holds the token): the footer's "Build …" becomes a way back to it. Visitors
+      // never see it as a link, so the Admin page stays unadvertised, as in the header.
+      document.addEventListener('astro:page-load', () => {
+        const build = document.querySelector<HTMLElement>('.site-footer .build-info');
+        let signedIn = false;
+        try {
+          signedIn = Boolean(sessionStorage.getItem('admin-token'));
+        } catch {
+          // storage blocked: not signed in, as far as this page can tell
+        }
+        if (!build || !signedIn || build.querySelector('a')) return;
+        const admin = document.documentElement.lang === 'es' ? '/es/admin/' : '/admin/';
+        if (location.pathname === admin) return;
+        const link = Object.assign(document.createElement('a'), { href: admin, textContent: build.textContent?.trim() ?? '' });
+        link.dataset.astroReload = '';
+        link.className = 'build-admin-link';
+        // Styled here, not in a stylesheet every page would carry: the footer's own grey, a dotted underline.
+        Object.assign(link.style, { color: 'inherit', textDecorationStyle: 'dotted' });
+        build.replaceChildren(link);
+      });
+
+      // The page editor: only on a dev-box page that marks editable text, in a tab signed in to the Admin page. The
+      // condition is fixed when the site is built, so a production build carries none of this (nor the editor).
+      if (__SITE_ENV__ === 'development' || import.meta.env.PHOTOS_SNAPSHOT) document.addEventListener('astro:page-load', () => {
+        const root = document.querySelector<HTMLElement>('[data-page-editor]');
+        if (!root || !document.querySelector('[data-edit-key]')) return;
+        let token: string | null = null;
+        try {
+          token = sessionStorage.getItem('admin-token');
+        } catch {
+          // storage blocked: not signed in, as far as this page can tell
+        }
+        if (!token) return;
+        root.hidden = false;
+        void import('../lib/page-editor').then(({ mountPageEditor }) => mountPageEditor(root));
+      });
 
       // Registered once, ever (same reasoning) — it needs to fire on every future transition, not
       // re-run per page, so this one call is outside the astro:page-load listener above.

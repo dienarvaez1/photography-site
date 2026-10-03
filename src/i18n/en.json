@@ -58,7 +58,7 @@
     },
     "events": {
       "label": "Social Events",
-      "description": "Weddings, parties, and gatherings."
+      "description": "Quinceañeras, Weddings, parties, and gatherings."
     },
     "other": {
       "label": "Other",
@@ -106,7 +106,7 @@
     "eyebrow": "About",
     "heading": "Real moments. Beautiful places. Photographs worth remembering.",
     "intro": [
-      "Hi, I’m a Portland, Oregon photographer with a passion for finding the story in a moment — whether that’s a quiet landscape beneath the stars, a joyful family gathering, a curious pet, or the energy of a special event.",
+      "Hi, my name is Diego Narvaez, and I’m a Portland, Oregon photographer with a passion for finding the story in a moment — whether that’s a quiet landscape beneath the stars, a joyful family gathering, a curious pet, or the energy of a special event.",
       "I fell in love with photography because a photograph can do something incredible: it can bring you back to a moment you thought had already passed.",
       "That idea guides everything I photograph.",
       "I enjoy working across a wide range of subjects, including portraits, public events, pets, nature and landscapes, astrophotography, aviation, food, and everyday moments. Each one gives me a different opportunity to look at the world differently and capture something authentic."
@@ -470,18 +470,14 @@
         "checking": "Checking the local photo service…",
         "unavailable": "Changing the home background only works while the site runs on your computer (npm run dev): it needs your Cloudflare login to publish the change. Start the dev server and open this page from localhost:4321.",
         "barLabel": "Home background",
-        "select": "Select {title}",
-        "selected": "{count} selected",
-        "selectAll": "Select all",
-        "selectShown": "Select the {count} shown",
-        "selectNone": "Select none",
-        "set": "Set as background",
-        "clear": "Remove from background",
+        "select": "In the home background: {title}",
+        "noChanges": "Switch a photo on to show it in the home background, or off to take it out.",
+        "changes": "{count} changes to save",
+        "changesOne": "1 change to save",
+        "save": "Save changes",
+        "saving": "Saving {count} changes…",
+        "savingOne": "Saving the change…",
         "cancel": "Cancel",
-        "setting": "Setting {count} photos as the home background…",
-        "settingOne": "Setting the photo as the home background…",
-        "clearing": "Removing {count} photos from the home background…",
-        "clearingOne": "Removing the photo from the home background…",
         "done": "{count} photos set as the home background.",
         "doneOne": "1 photo set as the home background.",
         "cleared": "{count} photos removed from the home background.",
@@ -665,11 +661,10 @@
     "access": {
       "intro": "Who opened which page, and which photo, one day at a time (UTC), from the site's private access log: the day's totals, the most visited pages and most opened photos, and how the day's visits and photos opened are shared out (hover over or focus a slice for its numbers). Every page reports itself when it opens; visitors without JavaScript, and most bots, are not counted.",
       "needsJs": "The Access Info viewer needs JavaScript. Without it, read the day files in the photography-site-access bucket with wrangler.",
-      "day": "Day (UTC)",
+      "day": "Days (UTC)",
       "summary": {
         "views": "Page visits",
-        "photos": "Photos opened",
-        "visitors": "Different addresses"
+        "photos": "Photos opened"
       },
       "topPages": "Most visited pages",
       "topPhotos": "Most opened photos",
@@ -716,7 +711,67 @@
           "other": "{count} accesses"
         },
         "noCities": "No city was recorded for these visits."
-      }
+      },
+      "ips": {
+        "heading": "Visits by IP address",
+        "count": "Addresses",
+        "ip": "IP address",
+        "location": "Location",
+        "views": "Page visits",
+        "photos": "Photos opened",
+        "unknown": "Unknown"
+      },
+      "noVisits": "No visits were recorded on these days.",
+      "calendar": {
+        "previous": "Previous month",
+        "next": "Next month",
+        "pickStart": "Choose a first day, then a last day (at most {max} days).",
+        "pickEnd": "From {day}: now choose the last day.",
+        "hasVisits": "has visits",
+        "presets": {
+          "today": "Today",
+          "lastWeek": "Last Week",
+          "currentWeek": "Current Week",
+          "lastMonth": "Last Month",
+          "currentMonth": "Current Month",
+          "currentYear": "Current Year"
+        },
+        "presetsLabel": "Quick range",
+        "close": "Close",
+        "custom": "Custom",
+        "month": "Month",
+        "year": "Year"
+      },
+      "pager": {
+        "previous": "Previous 50",
+        "next": "Next 50",
+        "status": "{first}–{last} of {total}"
+      },
+      "tapHint": "Tap a slice to see its visits or opens."
+    }
+  },
+  "pageEditor": {
+    "label": "Page editor",
+    "edit": "Edit page",
+    "update": "Update",
+    "cancel": "Cancel",
+    "loading": "Opening the editor…",
+    "hint": "Change the outlined text, then Update: it is saved in English and Spanish. Leave any word in curly braces as it is.",
+    "translating": "Translating into {language}…",
+    "saving": "Saving…",
+    "saved": "Saved in English and Spanish. Commit and deploy to publish it.",
+    "nothingChanged": "Nothing has changed.",
+    "languages": {
+      "en": "English",
+      "es": "Spanish"
+    },
+    "errors": {
+      "noService": "The page editor only works with npm run dev on the dev box.",
+      "notDevBox": "Saving page text only works on the dev box (SITE_ENV=development).",
+      "unauthorized": "Your admin token wasn’t accepted. Sign in again on the Admin page.",
+      "translationFailed": "The translation didn’t work: {message}",
+      "unreachable": "Couldn’t reach the translation service. Try again.",
+      "generic": "That didn’t save: {message}"
     }
   }
 }

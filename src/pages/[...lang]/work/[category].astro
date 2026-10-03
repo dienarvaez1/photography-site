@@ -56,6 +56,8 @@ const visibleSlugs = new Set(sortedCategories.map((c) => c.slug));
 const categoriesData = JSON.stringify(sortedCategories.map((c) => ({ slug: c.slug, label: c.label, description: c.description })));
 
 const category = isAll ? allCategory : getLocalizedCategory(slug!, locale)!;
+// What the page editor (src/lib/page-editor.ts) changes for the category showing; the script below follows a switch.
+const editKeys = (s: string) => (s === ALL_SLUG ? { label: 'work.allLabel', description: 'work.allDescription' } : { label: `categories.${s}.label`, description: `categories.${s}.description` });
 // Already in the Sort by control's default order (newest first), so the first paint — and a visitor with no JS, who
 // never gets the control at all — sees the same order the control shows as selected.
 const photos = sortPhotos(
@@ -104,10 +106,10 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
       )}
     </div>
 
-    <h1 id="work-heading">{category.label}</h1>
+    <h1 id="work-heading" data-edit-key={editKeys(category.slug).label}>{category.label}</h1>
 
     <div class="description-row">
-      <p id="work-description">{category.description}</p>
+      <p id="work-description" data-edit-key={editKeys(category.slug).description}>{category.description}</p>
 
       {/* Invisible (not `hidden`) until the script reveals it: a sort control that does nothing
           without JS is worse than no control at all — but its box stays in flow from the very first
@@ -212,6 +214,13 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
   a.filter-pill:hover {
     border-color: var(--accent);
     color: var(--fg);
+  }
+
+  @media (hover: hover) {
+    a.filter-pill:hover {
+      background: var(--hover-face);
+      box-shadow: var(--hover-ring);
+    }
   }
 
   .filter-pill.is-current {
@@ -459,6 +468,8 @@ const openPhotoTemplate = (locale === 'es' ? es : en).gallery.openPhoto;
 
       headingEl!.textContent = category.label;
       descriptionEl!.textContent = category.description;
+      headingEl!.dataset.editKey = slug === ALL_SLUG ? 'work.allLabel' : `categories.${slug}.label`;
+      descriptionEl!.dataset.editKey = slug === ALL_SLUG ? 'work.allDescription' : `categories.${slug}.description`;
       emptyMessageEl!.hidden = filtered.length > 0;
       galleryEl!.innerHTML = '';
       filtered.forEach((entry, index) => galleryEl!.append(buildTile(entry, locale, openPhotoTemplate, index)));

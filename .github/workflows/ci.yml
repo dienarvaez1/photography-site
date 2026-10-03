@@ -53,7 +53,9 @@ jobs:
       - name: Browser tests (real Chromium)
         run: npm run test:browser -- --format json:test-results/browser.json --format html:test-results/browser.html
       - name: Dependency audit
-        run: npm audit --audit-level=high
+        # npm audit, failing on any high or critical advisory except those accepted for a written reason until a fix
+        # exists (scripts/audit.mjs: each names its issue, e.g. #22).
+        run: npm run audit
       - name: Store the test results in R2 (only when the R2 secrets are configured)
         if: ${{ always() && env.CLOUDFLARE_API_TOKEN != '' }}
         # The run's source: the host that started it by hand (Run in CI), else (empty) the publisher names the GitHub
