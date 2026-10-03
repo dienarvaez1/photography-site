@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,13 +17,27 @@ const freePort = () =>
   });
 
 /**
+ * The results Worker's own wrangler.jsonc, minus its Workers AI binding: wrangler opens a remote session for that binding
+ * when it starts, which needs a Cloudflare login, and CI has none (issue #21). These scenarios only read the R2 buckets,
+ * never translate. Written into the scenario's temporary folder, with `main` pointing back at the real code.
+ */
+function localConfig(dir) {
+  const source = readFileSync(join(ROOT, 'workers/results-api/wrangler.jsonc'), 'utf-8');
+  const local = source.replace(/^\s*"ai"\s*:\s*\{[^}]*\},?\s*$\n/m, '').replace('"main": "src/index.mjs"', `"main": ${JSON.stringify(join(ROOT, 'workers/results-api/src/index.mjs'))}`);
+  if (local.includes('"ai"') || !local.includes(join(ROOT, 'workers/results-api/src/index.mjs'))) throw new Error('could not make a local copy of the results Worker config');
+  const file = join(dir, 'wrangler.jsonc');
+  writeFileSync(file, local);
+  return file;
+}
+
+/**
  * Runs the results Worker in the real Workers runtime (workerd, via `wrangler dev`) over local R2 buckets
  * seeded from `seed` = { RESULTS: Map(key -> { body }), ORIGINALS: Map(key -> { body }) }.
  * Returns { base, stop }.
  */
 export async function startWorker({ token, origins, seed, siteEnv }) {
-  const config = join(ROOT, 'workers/results-api/wrangler.jsonc');
   const dir = mkdtempSync(join(tmpdir(), 'results-workerd-'));
+  const config = localConfig(dir);
   // The same local R2 simulation `wrangler dev` uses, filled with what the fakes hold.
   const proxy = await getPlatformProxy({ configPath: config, persist: { path: join(dir, 'v3') } });
   for (const [binding, objects] of Object.entries(seed)) for (const [key, object] of objects) await proxy.env[binding].put(key, object.body);
