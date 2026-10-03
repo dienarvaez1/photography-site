@@ -50,7 +50,8 @@
     "results-api:deploy": "wrangler deploy -c workers/results-api/wrangler.jsonc",
     "access:geo-backfill": "node scripts/access-geo.mjs",
     "map:build": "node scripts/build-world-map.mjs",
-    "results:label": "node scripts/label-runs.mjs"
+    "results:label": "node scripts/label-runs.mjs",
+    "audit": "node scripts/audit.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.2",

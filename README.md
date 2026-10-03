@@ -17,6 +17,7 @@ paid backend.
 | `npm run preview`               | Preview the production build locally                                |
 | `npm run astro check`           | Type-check the project                                              |
 | `npm run lint`                  | Run ESLint (see Linting)                                             |
+| `npm run audit`                 | Dependency audit: fails on high/critical advisories, minus those accepted in `scripts/audit.mjs` |
 | `npm run generate-types`        | Regenerate the Cloudflare binding types (`wrangler types`)          |
 | `npm test`                      | Run the offline test suite (see Testing)                            |
 | `npm run test:browser`          | Run the real-browser tests in Chromium (see Testing)                |
@@ -85,13 +86,17 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against thirty-seven areas. Each run builds into
+tests bake in sample photos instead), then checks that built output against thirty-eight areas. Each run builds into
 its own folder (`.test-builds/run-<process id>/`, removed when the run ends), never `dist/`, so two runs at once (an
 offline run while the browser suite is going) can't rebuild the site under each other. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
 against every page in both English and Spanish**; expected text is read from
 `src/i18n/<locale>.json`, so tests follow the page's own language.
 
+- **`dependency-audit.feature`** — `scripts/audit.mjs` on made-up `npm audit` reports: an accepted advisory passes and
+  is listed; any other high or critical one blocks, a moderate or low one doesn't, a package flagged only through another
+  counts once; an accepted package that becomes fixable without a breaking change is called out; every accepted
+  advisory gives a reason and an issue link; and CI runs `npm run audit`, not the bare `npm audit`.
 - **`content-integrity.feature`** — (on the sample library; the real entries are checked by `photos:verify`)
   every entry is `<category>/images/<photo id>.md` (file name = its
   photo id), references its photo in R2 by a valid id and size, has no `exif`/`copyright` field (only
@@ -912,7 +917,10 @@ confirm both arrive in your inbox.
 
 `.github/workflows/ci.yml` runs on every push and pull request, and when started by hand (the Admin page's Test
 Results tab, Actions → CI → Run workflow, or `gh workflow run ci.yml --ref main`): type-check, `npm test`, the browser
-tests, and `npm audit`. A run started by hand has its own concurrency group, so it never cancels a push's run, and
+tests, and the dependency audit (`npm run audit`: `npm audit`, failing on any high or critical advisory except the
+few accepted in `scripts/audit.mjs`, each with its reason and issue — today only GHSA-ch52-4w7c-c8xp in
+`http-cache-semantics`, which has no patched version and sits in Astro code the site never runs, issue #22; the audit
+says when a fix appears, so the exception can go). A run started by hand has its own concurrency group, so it never cancels a push's run, and
 takes an optional `source` input (where it was started from), which the stored results record (`GitHub` otherwise). On pushes to `main` it then waits five minutes for Cloudflare's build and
 smoke-checks the live site; a run started by hand smoke-checks it straight after the tests. `.github/workflows/smoke.yml` runs the same smoke check every six hours
 and on demand (Actions → Live smoke check → Run workflow); a failure emails the repo owner.
