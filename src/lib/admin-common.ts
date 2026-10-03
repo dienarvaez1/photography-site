@@ -4,6 +4,8 @@ import { ADMIN_IDLE_TIMEOUT_MINUTES } from '../config/admin';
 import { formatMessage } from './results-view';
 
 export const TOKEN_KEY = 'admin-token';
+/** The API the Admin page signed in to (its `?api=` override on the dev box), for the page editor on the other pages. */
+export const API_KEY = 'admin-api';
 /** Fired on `window` whenever the remembered token changes, so every viewer on the page follows a sign-in or sign-out. */
 export const AUTH_EVENT = 'admin-auth-changed';
 /** Fired on `window` by the page's Refresh button; the viewer of the tab being shown reloads. */

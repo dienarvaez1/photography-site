@@ -58,7 +58,7 @@
     },
     "events": {
       "label": "Eventos Sociales",
-      "description": "Bodas, fiestas y reuniones."
+      "description": "Quinceañeras, bodas, fiestas y reuniones."
     },
     "other": {
       "label": "Otros",
@@ -106,10 +106,10 @@
     "eyebrow": "Sobre mí",
     "heading": "Momentos reales. Lugares hermosos. Fotografías que valen la pena recordar.",
     "intro": [
-      "Hola, hago fotografía en Portland, Oregón, y me apasiona encontrar la historia en cada momento: ya sea un paisaje tranquilo bajo las estrellas, una alegre reunión familiar, una mascota curiosa o la energía de un evento especial.",
-      "Me enamoré de la fotografía porque una imagen puede hacer algo increíble: llevarte de vuelta a un momento que creías haber dejado atrás.",
+      "Hola, me llamo Diego Narvaez, y soy un fotógrafo de Portland, Oregón, con una pasión por encontrar la historia en un momento — ya sea un paisaje tranquilo bajo las estrellas, una reunión familiar alegre, una mascota curiosa o la energía de un evento especial.",
+      "Me enamoré de la fotografía porque una fotografía puede hacer algo increíble: puede llevarte de vuelta a un momento que pensabas que ya había pasado.",
       "Esa idea guía todo lo que fotografío.",
-      "Disfruto trabajar con una gran variedad de temas, como retratos, eventos públicos, mascotas, naturaleza y paisajes, astrofotografía, aviación, comida y momentos cotidianos. Cada uno me ofrece la oportunidad de mirar el mundo de otra manera y capturar algo auténtico."
+      "Disfruto trabajar con una amplia variedad de temas, incluyendo retratos, eventos públicos, mascotas, naturaleza y paisajes, astrofotografía, aviación, comida y momentos cotidianos. Cada uno me da una oportunidad diferente de ver el mundo de manera distinta y capturar algo auténtico."
     ],
     "curiosityHeading": "Fotografía con curiosidad de fondo",
     "curiosity": [
@@ -470,18 +470,14 @@
         "checking": "Comprobando el servicio local de fotos…",
         "unavailable": "Cambiar el fondo de inicio solo funciona mientras el sitio se ejecuta en tu computadora (npm run dev): necesita tu sesión de Cloudflare para publicar el cambio. Inicia el servidor de desarrollo y abre esta página desde localhost:4321.",
         "barLabel": "Fondo de inicio",
-        "select": "Seleccionar {title}",
-        "selected": "{count} seleccionadas",
-        "selectAll": "Seleccionar todas",
-        "selectShown": "Seleccionar las {count} mostradas",
-        "selectNone": "No seleccionar ninguna",
-        "set": "Usar como fondo",
-        "clear": "Quitar del fondo",
+        "select": "En el fondo de inicio: {title}",
+        "noChanges": "Activa una foto para mostrarla en el fondo de inicio, o desactívala para quitarla.",
+        "changes": "{count} cambios por guardar",
+        "changesOne": "1 cambio por guardar",
+        "save": "Guardar cambios",
+        "saving": "Guardando {count} cambios…",
+        "savingOne": "Guardando el cambio…",
         "cancel": "Cancelar",
-        "setting": "Estableciendo {count} fotos como fondo de inicio…",
-        "settingOne": "Estableciendo la foto como fondo de inicio…",
-        "clearing": "Quitando {count} fotos del fondo de inicio…",
-        "clearingOne": "Quitando la foto del fondo de inicio…",
         "done": "{count} fotos establecidas como fondo de inicio.",
         "doneOne": "1 foto establecida como fondo de inicio.",
         "cleared": "{count} fotos quitadas del fondo de inicio.",
@@ -665,11 +661,10 @@
     "access": {
       "intro": "Quién abrió cada página y cada foto, día a día (UTC), según el registro de accesos privado del sitio: los totales del día, las páginas más visitadas y las fotos más abiertas, y cómo se reparten las visitas y las fotos abiertas del día (pasa el puntero o enfoca una porción para ver sus números). Cada página se registra al abrirse; no se cuentan los visitantes sin JavaScript ni la mayoría de los bots.",
       "needsJs": "El visor de Información de acceso necesita JavaScript. Sin él, lee los archivos de cada día del bucket photography-site-access con wrangler.",
-      "day": "Día (UTC)",
+      "day": "Días (UTC)",
       "summary": {
         "views": "Visitas a páginas",
-        "photos": "Fotos abiertas",
-        "visitors": "Direcciones distintas"
+        "photos": "Fotos abiertas"
       },
       "topPages": "Páginas más visitadas",
       "topPhotos": "Fotos más abiertas",
@@ -716,7 +711,67 @@
           "other": "{count} accesos"
         },
         "noCities": "No se registró ninguna ciudad para estas visitas."
-      }
+      },
+      "ips": {
+        "heading": "Visitas por dirección IP",
+        "count": "Direcciones",
+        "ip": "Dirección IP",
+        "location": "Ubicación",
+        "views": "Visitas",
+        "photos": "Fotos abiertas",
+        "unknown": "Desconocida"
+      },
+      "noVisits": "No se registraron visitas en estos días.",
+      "calendar": {
+        "previous": "Mes anterior",
+        "next": "Mes siguiente",
+        "pickStart": "Elige un primer día y luego un último día (como máximo {max} días).",
+        "pickEnd": "Desde el {day}: elige ahora el último día.",
+        "hasVisits": "con visitas",
+        "presets": {
+          "today": "Hoy",
+          "lastWeek": "Semana pasada",
+          "currentWeek": "Esta semana",
+          "lastMonth": "Mes pasado",
+          "currentMonth": "Este mes",
+          "currentYear": "Este año"
+        },
+        "presetsLabel": "Rango rápido",
+        "close": "Cerrar",
+        "custom": "Personalizado",
+        "month": "Mes",
+        "year": "Año"
+      },
+      "pager": {
+        "previous": "50 anteriores",
+        "next": "50 siguientes",
+        "status": "{first}–{last} de {total}"
+      },
+      "tapHint": "Toca una porción para ver sus visitas o aperturas."
+    }
+  },
+  "pageEditor": {
+    "label": "Editor de página",
+    "edit": "Editar página",
+    "update": "Actualizar",
+    "cancel": "Cancelar",
+    "loading": "Abriendo el editor…",
+    "hint": "Cambia el texto resaltado y pulsa Actualizar: se guarda en español e inglés. Deja tal cual cualquier palabra entre llaves.",
+    "translating": "Traduciendo al {language}…",
+    "saving": "Guardando…",
+    "saved": "Guardado en español e inglés. Haz commit y despliega para publicarlo.",
+    "nothingChanged": "No ha cambiado nada.",
+    "languages": {
+      "en": "inglés",
+      "es": "español"
+    },
+    "errors": {
+      "noService": "El editor de página solo funciona con npm run dev en el equipo de desarrollo.",
+      "notDevBox": "Guardar el texto de las páginas solo funciona en el equipo de desarrollo (SITE_ENV=development).",
+      "unauthorized": "No se aceptó tu token de administración. Vuelve a iniciar sesión en la página de Administración.",
+      "translationFailed": "La traducción no funcionó: {message}",
+      "unreachable": "No se pudo contactar el servicio de traducción. Inténtalo de nuevo.",
+      "generic": "No se guardó: {message}"
     }
   }
 }

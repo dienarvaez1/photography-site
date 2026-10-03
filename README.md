@@ -85,7 +85,7 @@ internet and can never send you a real message. CI runs both suites on every pus
 
 `npm test` builds the site once as static HTML from the **sample library** in `test-fixtures/photos`
 (`PHOTOS_SNAPSHOT=1 npm run build`: the real site renders its photo pages when they are requested, from R2, so the
-tests bake in sample photos instead), then checks that built output against thirty-five areas. Each run builds into
+tests bake in sample photos instead), then checks that built output against thirty-seven areas. Each run builds into
 its own folder (`.test-builds/run-<process id>/`, removed when the run ends), never `dist/`, so two runs at once (an
 offline run while the browser suite is going) can't rebuild the site under each other. The
 production build is tested separately, in the real Workers runtime (`site-render.feature`). **Every page-level check runs
@@ -246,7 +246,8 @@ against every page in both English and Spanish**; expected text is read from
   the real handler (days newest first, a day as recorded, the admin token, bad and missing days, no bucket bound);
   the `geo` names from Cloudflare's codes and from ipinfo.io for the backfill (continents for every country), the
   backfill itself (one lookup per address, private ones skipped, a dry run, a visit landing meanwhile kept); the map's
-  counts by country, its color bands, and its data (every country named as the log names it); and the tab's totals, top
+  counts by country, its color bands, and its data (every country named as the log names it); the counts by IP address
+  (most visits first, each placed where its latest entry was); and the tab's totals, top
   pages and photos, and pie slices (five named and a sixth "Other", shares that make the whole,
   no pie for a single group).
 - **`github-issues-api.feature`** — the results API's `/github/issues` route, called through the real handler with a
@@ -302,6 +303,17 @@ against every page in both English and Spanish**; expected text is read from
   same guarantees as the command: the original, the web sizes, the entry file and `index.json` each in the right
   bucket, the manifest exact (older entries untouched, the new one with its EXIF camera line), and a photo whose
   upload fails part-way is not listed.
+- **`page-text.feature`** — the page editor's save service (`scripts/lib/page-text-form.mjs`) over temporary
+  copies of `categories.json`/`en.json`/`es.json`: reads a page's texts in both languages; saving writes both
+  languages and leaves everything else in the files as it was; paragraph lists are saved as paragraphs; it refuses
+  anything but the editable headings and descriptions (menu text, the Admin page's own text, hidden categories), a
+  missing translation, HTML, and a {placeholder} lost or added; only the owner's own page on localhost may save,
+  and off the dev box (SITE_ENV) nothing is saved.
+- **`translate-api.feature`** — the results API's `POST /translate` (Workers AI, with a stand-in that notes what it
+  was asked): English to Spanish and back, one translation per text with the model and languages named; quotes or a
+  label around an answer are tidied; a {placeholder} that doesn't survive, an answer that comes back as HTML, or a
+  service that's down is reported, not saved; bad requests and a wrong token are refused before the service is
+  asked; a Worker without the AI binding says so; and `wrangler.jsonc` binds it.
 - **`category-form.feature`** — the Admin page's Category Maintenance tab, through its real request handler over a
   temporary copy of `categories.json`/`en.json`/`es.json` and a temporary entries folder (never the real project
   files): listing shows both languages' text and each category's photo count; adding writes the new category to
@@ -327,8 +339,8 @@ against every page in both English and Spanish**; expected text is read from
 - **Idle sign-out** — (in `admin.feature`) the timeout is 5 minutes, configured in one place and documented,
   which events count as being there, the reminder is translated with the minutes filled in from the
   configuration, and the built pages contain the timeout.
-- **Header buttons** — (in `results-viewer.feature`) the built pages hold Refresh and Sign out in the header
-  beside the title, hidden until a sign-in and never inside a tab, in both languages; and only those buttons
+- **Header buttons** — (in `results-viewer.feature`) the built pages hold Refresh and Sign out in the top menu
+  right after Contact, hidden until a sign-in and never inside a tab, in both languages; and only those buttons
   can refresh or sign out.
 - **`documentation.feature`** — the README lists every feature file (including the browser ones),
   states the right number of test areas, and documents every npm script and `photos:*` command.
@@ -341,7 +353,9 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   locked while open; Spanish labels; works on a phone; the deep-linkable `?photo=` address (opening
   it, reloading it, a direct shared link, the Back button, history not growing per photo); swipe
   between photos and pinch-to-zoom on a phone.
-- **`lightbox-controls.feature`** (browser) — the lightbox's control box: one box-height above the
+- **`lightbox-controls.feature`** (browser) — on a phone, full screen gives the photo the whole screen edge to edge
+  (no margins, title or counter) and asks to turn the screen to suit it (landscape for a wide photo; Android only),
+  all undone on leaving; the lightbox's control box: one box-height above the
   screen's bottom margin, bottom right on a laptop and centered on a phone; a white border round the five
   controls, in order; below a real-sized photo and its caption, never over them; staying put while moving
   between photos, zooming and panning; a zoomed photo passing under it with every control still on top
@@ -372,7 +386,9 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   Spanish; the lightbox still works on a category switched to client-side; clicking "All" swaps in
   every visible category's photos the same way, and clicking a specific category from "All" swaps
   back to just that one.
-- **`navigation.feature`** — the mobile menu opens and collapses (Escape returns focus to its
+- **`navigation.feature`** — the top menu stays on one line beside the full-size logo from 901 px up (1.5rem
+  between items, even the Spanish Admin page's five), folding behind the ☰ button at 900 px and narrower, where the menu spans the full width and holds still under a mouse (a
+  hover never resizes a row, which used to make neighbouring rows trade the hover and flicker); the mobile menu opens and collapses (Escape returns focus to its
   button); the Portfolio submenu; keyboard tab order; the dropdown on keyboard focus; "All" sits
   first in the dropdown, ahead of the real categories, and leads to every category's photos; clicking Portfolio
   itself (on a screen wide enough to hover) jumps to the home page's "Explore by Category" section, clear
@@ -415,20 +431,36 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
 - **`access-info.feature`** (browser) — every page reporting its visit once (the Admin page too, the path without
   its query, from the site's own pages), each photo opened in the lightbox and each one reached with the arrow keys,
   and a category switch in the gallery; and the Access Info tab against the real results API code and a stand-in
-  for the log: the token gate, the newest day's totals, the two-by-two table of pies (no row of counts under them), the
+  for the log: the token gate, today's totals, the calendar (the days with visits marked, a range of days added up,
+  today with no visits saying so, no day after today, Escape closing it, the accessibility audit open on laptop and
+  phone), the two-by-two table of pies (no row of counts under them), the
   world map under them (only countries with visits
   shaded, in their bands, the legend and the list, the outline and tooltip on hover and on keyboard focus, "No visits"
-  for the rest, only countries with visits in the tab order), the table's titles and pies with light gray lines (slices
-  in the legend's order and colors, each named and keyboard-reachable, no times or addresses shown), the tooltip on
+  for the rest, only countries with visits in the tab order), the table of IP addresses under the map (most visits
+  first, location, page visits and photos opened, no sideways scrolling on a phone), the table's titles and pies with
+  light gray lines (slices in the legend's order and colors, each named and keyboard-reachable, no times shown, and
+  addresses only in their own table), the tooltip on
   hover and on keyboard focus (number first, then name), more than five pages folding into a sixth "Other" slice, a
   day too small for a pie (its one line instead), no
   visits yet, Spanish, and the accessibility audit, no sideways scrolling, no script errors and no CSP violations.
-- **`admin-gate.feature`** (browser) — until the token is accepted, only the token box and its button, whichever tab
+- **`admin-gate.feature`** (browser) — the token page centred across the page and between the header and the footer, "ADMIN" and the title flush
+  with the form's left edge, on laptop and phone (and back to the left once signed in); until the token is accepted, only the token box and its button, whichever tab
   the address asks for (no tabs, titles or descriptions, nothing requested from the results API or the local
   services); a wrong token refused with the tabs still hidden; the right one showing the tabs on the tab asked for;
   Sign out bringing the box back; the keyboard; no JavaScript (a message, no tabs); a results API without `/auth`
   named as the problem (issue #6); Spanish and the accessibility audit.
-- **`admin.feature`** (browser) — signed in, the six tabs really sit side by side on laptop and phone, Access Info
+- **`button-fonts.feature`** (browser) — every button that edits or submits wears the Access Info date-range
+  field's font and size (`--control-text` in `src/styles/global.css`: 0.82rem on a laptop, 16px on a phone): the
+  Admin tabs' buttons (Test Results, Pics Viewer, Category Maintenance), the token box's Sign in, the contact form's
+  Send and the page editor's buttons, on laptop and phone; the main menu and the Portfolio page's category buttons
+  keep their own sizes.
+- **`hover.feature`** (browser) — the shared hover highlight (`--hover-face`, one solid color: what About and Contact
+  show over the header; `--hover-bar`, `--hover-ring` in `src/styles/global.css`), every highlighted button's background
+  matching About's, on an outlined button, a filled button, a header link, a Portfolio dropdown item (its gold bar at
+  the bottom, like the rest), a gallery filter pill and an Admin button, each compared with itself at rest; and every use of it only where a pointer can hover, so a phone's tap never
+  leaves anything highlighted. (The Admin tabs' own hover is in `admin.feature`.)
+- **`admin.feature`** (browser) — signed in, the six tabs really sit side by side on a laptop and stack three over three on a phone (all on
+  screen, in order, in both languages), Access Info
   first and showing; clicking,
   arrow keys, Home/End (with wrap-around), deep links like `/admin/#pics-viewer`, Spanish, no-JavaScript, and
   that the page works at its address although the header never links to it, with no errors or CSP violations.
@@ -448,7 +480,7 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   says it is done (then the list read again), a failed run said so, a second press following the run going,
   GitHub's refusal shown, the button before the first run, an axe audit, Spanish.
 - **`pics-viewer.feature`** (browser) — the Pics Viewer against the real API code and fake buckets: Refresh
-  and Sign out at the top of the page (across from the title, only while signed in, Refresh reloads only the
+  and Sign out in the top menu right after Contact and styled like it (only while signed in, Refresh reloads only the
   tab showing, Sign out signs out of both, keyboard, Spanish, phone); the
   Upload Photos, Edit Photos, Remove Photos and Home Background buttons across from the counter (order, icons,
   size, keyboard, Remove Photos and Home Background on the deployed site saying they only work on your
@@ -486,14 +518,23 @@ the built site served like Cloudflare serves it (with its `_headers` and 404 han
   the category a photo is already in says so instead of moving it; Spanish; every state passes the accessibility
   audit; and nothing but the site and the results API is requested.
 - **`photo-hero.feature`** (browser) — the Home Background screens, with the real photo service over the very
-  buckets the Pics Viewer lists: a checkbox only on photos the site actually lists, and a bar with the count,
-  Select all, Set as background, Remove from background and Cancel; Upload Photos, Edit Photos, Remove Photos
-  and Home Background are mutually exclusive (choosing one while another shows switches to it directly);
-  setting one photo, or several at once, marks them with a "Home background" badge and updates the list in
-  place, without a page reload; setting an already-marked photo, or clearing an unmarked one, says so instead
-  of changing anything; the next action still waits for the last one on a slow photo service (as on a busy CI
-  runner); Spanish; every state passes the accessibility audit; and nothing but the site and the results API is
+  buckets the Pics Viewer lists: an on/off switch (a real switch, named for its photo, easy to tap) only on photos
+  the site actually lists, starting as things are, and a bar with the count of unsaved changes, one Save changes
+  button and Cancel; flipping a switch back undoes that change; Upload Photos, Edit Photos, Remove Photos and Home
+  Background are mutually exclusive (choosing one while another shows switches to it directly); saving one photo, or
+  several at once, marks them with a "Home background" badge and updates the list in place, without a page reload;
+  one save can switch one photo in and another out together; while saving, the switches and buttons wait; the next
+  change still waits for the last one on a slow photo service (as on a busy CI runner); Spanish; every state passes the accessibility audit; and nothing but the site and the results API is
   requested.
+- **`page-editor.feature`** (browser) — the page editor on the real pages, with the real save service over copies
+  of the text files and the real `POST /translate` with a stand-in translator: no editor without the admin token or
+  on the Admin page; the home page, All, every Portfolio category, About and Contact each open their own headings and
+  descriptions; Update saves English and its Spanish translation (or Spanish and its English), translating only what
+  changed; paragraphs stay paragraphs; the contact text keeps its email link; the category page edits whichever
+  category is showing; nothing changed means nothing is sent; Cancel puts the page back; a failed translation, a
+  refused token, or a computer that isn't the dev box saves nothing and says why; on a phone it fits on screen; its
+  controls sit in from the right edge, show only the buttons for the moment, and turn red while editing; and the
+  footer's Build is a link back to the Admin page (in the page's language) for the signed-in Admin only.
 - **`category-maintenance.feature`** (browser) — the Category Maintenance tab, with the real category service
   over a temporary configuration: gated by the admin token (checked against the results API, shared with the
   other two tabs, wrong token refused) before anything shows; once past it, the list shows every configured
@@ -916,8 +957,8 @@ clicking or touching the page counts as being there and restarts the 5 minutes; 
 itself do not. A tab left for longer than that and then reloaded is signed out too. (While the tab is in the
 background the browser slows timers down, so the sign-out happens when you come back to it at the latest.)
 
-**Refresh and Sign out** are at the top of the page, across from the "Admin" title (they appear only while
-you are signed in). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all six tabs.
+**Refresh and Sign out** are in the site's top menu, right after Contact and styled like its links (they appear
+only on the Admin page, while you are signed in; on a phone they are the last rows of the menu). Refresh reloads whichever tab is showing; Sign out forgets the admin token for all six tabs.
 
 **Every page's footer names the build**, in its right corner ("Build v1.0.1"), so you can tell which code is live.
 It is stamped in when the site is built (`scripts/lib/build-info.mjs`, read by `astro.config.mjs`):
@@ -1107,6 +1148,11 @@ by `npm run map:build` into `src/data/world-map.json` (plain SVG paths, about 11
 page ships no mapping library; it matches visits to countries by the same English names `geo` uses. Run it again only
 to change the map's look or detail.
 
+Under the map, **Visits by IP address** lists the day's addresses, most visits first (`byIp` in
+`src/lib/access-view.ts`): each address with where its latest entry placed it (city and country, or *Unknown*), its
+page visits and its photos opened, under a title with how many addresses there were. It's one row per address, never
+per visit, so the tab still shows no times.
+
 One file per UTC day, named by the day's first instant. A page sends only its path (no query, nothing typed) and,
 for a photo, its id and category; anything else is refused, and so is a report from another site's page. R2 can't
 append, so an entry is added with a conditional write and tried again when another visit at the same moment wrote
@@ -1115,10 +1161,23 @@ to the new category's page. Every page counts, the Admin page included, in every
 JavaScript, and most bots, never report themselves, so they aren't counted. Nothing is ever deleted: remove old days
 with `npx wrangler r2 object delete photography-site-access/logs/<day>.json --remote` when you want to.
 
-The tab shows one day at a time, the newest first (pick another day from the list): how many different addresses
-visited; then one table with light gray lines, two columns by two rows: the titles (**Most visited pages** with the
+The tab shows the days chosen in its **calendar**, today (UTC) by default; it follows the Astro UXDS date picker
+(`src/lib/day-range-calendar.ts`). A field shows the chosen days as YYYY-MM-DD (`2026-09-28 – 2026-10-01`) with a
+calendar icon; it opens a compact month calendar: month and year dropdowns between ‹ › arrows, short weekday names
+(weeks start on Monday), the neighbouring months' days dimmed to fill the grid, the days with visits marked, and no
+day after today. A first click starts a range and a second click ends it (the same day twice is one day; at most a
+year). Beside the field, a **Quick range** dropdown picks **Today**, **Last Week**, **Current Week**, **Last Month**,
+**Current Month** or **Current Year** in one step (the current ones end today, the last ones are whole; it reads
+*Custom* for a range chosen in the calendar). On a laptop the calendar is a 264 × 316 px popover under the field; on a
+phone (Android, iOS) it opens as a bottom sheet across the screen, clear of the iPhone home indicator, with 44 px touch
+targets, and the Quick range opens the phone's own picker. **Close**, Escape, or a tap outside closes it. Every logged
+day in the range is read (six at a time) and added up. Long lists (the IP addresses, the map's
+countries) show 50 rows at a time, with ‹ › arrows and a "1–50 of 230" line.
+
+Under the calendar comes one table with light gray lines, two columns by two rows: the titles (**Most visited pages** with the
 day's page visits under it, **Most opened photos** with its photos opened), then each one's **pie chart** with its
-legend (every slice's count and share, by title for photos); then, in a table of its own with the same lines (titled
+legend (every slice's count and share, by title for photos; on a phone the two pies sit side by side, smaller, the
+legends are hidden from sight, and a tap on a slice shows its visits or opens in the tooltip until a tap elsewhere); then, in a table of its own with the same lines (titled
 **Visits by country**, with how many countries), a **world map** of the day by country (each country
 shaded by its page visits and photos opened, one blue, lighter for more; hovering over a country, or focusing one with
 the keyboard, outlines it and shows a tooltip with its counts, and a country without visits says so), with a legend of
@@ -1223,12 +1282,13 @@ and the results API is read-only): on the deployed site, Remove Photos says so i
 
 #### Setting the home background in bulk
 
-Press **Home Background** and every photo the site actually lists gets a checkbox (the same restriction as Edit
-Photos — there is no entry to flag otherwise), with a bar above the list: *N selected*, **Select all / Select
-none**, **Set as background**, **Remove from background** (both off until something is ticked) and **Cancel**.
-Unlike a removal there is no confirmation step first, the same reasoning as Edit Photos: marking or unmarking a
-photo by mistake costs nothing to put right (choose it again), so both buttons act right away. A photo already
-set stays put and is reported as such, alongside any real change in the same request. A photo marked this way
+Press **Home Background** and every photo the site actually lists gets an **on/off switch** (the same restriction as
+Edit Photos — there is no entry to flag otherwise), showing whether that photo is in the home background: the photos
+already in it start switched on. Flip whichever you like — a changed row gets a dashed gold frame, and flipping it back
+undoes the change — and the bar above the list counts the unsaved changes. **Save changes** (off until something has
+changed) saves them all at once, adding the photos switched on and taking out the ones switched off; **Cancel** forgets
+them. Unlike a removal there is no confirmation step first, the same reasoning as Edit Photos: a mistake costs nothing
+to put right (switch it back). A photo already set that way stays put and is reported as such. A photo marked this way
 shows a **"Home background"** badge next to its title in the list, so it's clear which photos are currently
 chosen.
 
@@ -1327,6 +1387,35 @@ the deployed site these buttons say so instead of doing anything.
 A change here still needs a commit and a deploy to reach the live site, the same as hand-editing those files
 would — this only saves doing that by hand.
 
+### Editing a page's text (page editor)
+
+Signed in with the admin token on the dev box, open the home page, any Portfolio category (All, Abstract,
+Astrophotography, Nature, Pets, Social Events), About or Contact in the **same browser tab**: an **Edit page** button
+appears near the bottom-right corner (set in from the right edge and up from the bottom). It turns the page's headings and descriptions into text
+boxes in place (the category page edits whichever category is showing), and the controls turn red while you edit;
+change what you like and press **Update**, or **Cancel**.
+
+While signed in, the footer's **Build …** label on every page is a link back to the Admin page. Visitors who aren't
+signed in see it as plain text, so the Admin page stays unadvertised.
+
+Update translates what you changed into the other language — English to Spanish, or Spanish to English if you are
+editing the Spanish page — with Cloudflare Workers AI, through the results API's `POST /translate` (it needs the admin
+token, and the Worker's `AI` binding in `workers/results-api/wrangler.jsonc`). It then saves both languages into
+`src/i18n/en.json` and `es.json` through a local service (`scripts/lib/page-text-form.mjs`, only in `npm run dev`,
+and only where `SITE_ENV=development`). Words in curly braces, such as `{email}` on the Contact page, must stay as
+they are; the translation is refused if it loses one. Text is plain: no HTML.
+
+As with Category Maintenance, a change reaches the live site with a commit and a deploy. Production pages have no
+editor at all — not even its code. Workers AI is billed per use beyond its free daily allowance; a page's few
+headings cost next to nothing.
+
+### Edit mode is red
+
+Every edit on the Admin page shows in red while it's under way, as the page editor does on the site's own pages:
+the bar of Edit Photos, Remove Photos, Home Background, Remove Categories and Cleanup (Lighthouse) Test Results, the
+Upload Photos and Add Category forms, Edit Categories' rows, the fields, checkboxes and switches, and the button that
+started it. Filled buttons use a deeper red so their white text stays readable.
+
 ## Error pages
 
 Unknown URLs get a real 404 status and a localized page (`src/pages/[...lang]/404.astro`, built as
@@ -1350,11 +1439,11 @@ Photos have five WebP sizes in R2 (`w400`, `thumb` 700, `cover` 900, `w1000`, `f
 thumbnails and category-card covers carry a `srcset` + `sizes`, so a phone downloads a smaller file
 than a large screen (`photoSrcSet` never lists the same width twice for small photos). The first three
 gallery photos load eagerly (the first with high priority); the rest lazily. Every image declares its
-width and height so the page can't jump while loading; the header logos are right-sized (the small
-icon went from 142 KB to 19 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
-28 KB, styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
+width and height so the page can't jump while loading; the header logo is right-sized (the gold
+signature, cropped from its 4K original in `docs/brand/` to 720 px and 256 colours: 31 KB). `performance.feature` enforces per-page budgets (HTML 30 KB, scripts
+31 KB in the test build — 29 KB plus the dev-only page editor's loader, which production drops — styles 25 KB — most of that is Astro's View Transitions runtime itself, plus the category
 page's client-side category switcher and every page's report of its own visit to the access log; the Admin pages,
-which carry six tabs of tools and are opened only by you, may have 65 KB of HTML, 59 KB of scripts and 28 KB of styles, with the
+which carry six tabs of tools and are opened only by you, may have 67 KB of HTML, 61 KB of scripts and 39 KB of styles, with the
 Lighthouse, GitHub Issues and Access Info tabs' code loaded only when they are opened). If you change `PHOTO_VARIANTS`, run
 `npm run photos:sync` to create the new sizes for photos already in R2.
 

@@ -404,31 +404,35 @@ Then('the Pics Viewer should offer no Upload Photos, Edit Photos, Remove Photos 
 const topButtons = (world) => page(world).locator('[data-admin-actions]');
 
 async function topLayout(world) {
-  await topButtons(world).waitFor({ state: 'visible', timeout: 8000 });
+  await topButtons(world).waitFor({ state: 'attached', timeout: 8000 });
+  await page(world).waitForFunction(() => !document.querySelector('[data-admin-actions]').hidden);
   return page(world).evaluate(() => {
     const box = (el) => el.getBoundingClientRect().toJSON();
     const actions = document.querySelector('[data-admin-actions]');
-    const content = document.querySelector('.admin');
+    const nav = document.getElementById('primary-nav');
+    const look = (el) => { const css = getComputedStyle(el); return { size: css.fontSize, family: css.fontFamily, color: css.color, border: css.borderTopStyle, background: css.backgroundColor }; };
+    const items = [...nav.querySelectorAll(':scope > a, :scope > .nav-group > .nav-label, [data-admin-actions] button')];
     return {
-      title: box(document.querySelector('.admin h1')),
-      content: box(content),
-      contentPadding: parseFloat(getComputedStyle(content).paddingRight),
-      buttons: [...actions.querySelectorAll('button')].map((b) => ({ text: b.textContent.trim(), ...box(b) })),
+      inNav: nav.contains(actions),
+      order: items.map((el) => el.textContent.trim()),
+      contact: { ...box([...nav.querySelectorAll(':scope > a')].at(-1)), look: look([...nav.querySelectorAll(':scope > a')].at(-1)) },
+      buttons: [...actions.querySelectorAll('button')].map((b) => ({ text: b.textContent.trim(), ...box(b), look: look(b) })),
     };
   });
 }
 
-Then('{string} then {string} should sit on the same line as the {string} title, at the right of the page', async function (first, second, title) {
+Then('{string} then {string} should sit in the top menu right after {string}, styled like it', async function (first, second, contact) {
   const layout = await topLayout(this);
-  assert.equal(await page(this).locator('.admin h1').innerText(), title);
-  assert.deepEqual(layout.buttons.map((b) => b.text), [first, second]);
+  assert.ok(layout.inNav, 'the buttons are in the top menu');
+  const at = layout.order.indexOf(contact);
+  assert.deepEqual(layout.order.slice(at, at + 3), [contact, first, second], `the menu reads ${layout.order.join(', ')}`);
   const [a, b] = layout.buttons;
-  const middleOfTitle = layout.title.y + layout.title.height / 2;
-  for (const button of layout.buttons) assert.ok(button.y <= middleOfTitle && button.y + button.height >= middleOfTitle, `${button.text} is across from the title: ${JSON.stringify({ title: layout.title, button })}`);
-  assert.ok(layout.title.x + layout.title.width <= a.x, 'the title is at the left of the buttons');
-  assert.ok(a.x + a.width <= b.x, 'Refresh comes first');
-  const rightEdge = layout.content.x + layout.content.width - layout.contentPadding;
-  assert.ok(Math.abs(b.x + b.width - rightEdge) < 2, `the buttons end at the right of the page: ${b.x + b.width} vs ${rightEdge}`);
+  for (const button of layout.buttons) {
+    assert.deepEqual([button.look.size, button.look.family, button.look.color], [layout.contact.look.size, layout.contact.look.family, layout.contact.look.color], `${button.text} looks like ${contact}`);
+    assert.equal(button.look.border, 'none', 'no button border');
+    assert.ok(Math.abs(button.y + button.height / 2 - (layout.contact.y + layout.contact.height / 2)) <= 2, `${button.text} is on ${contact}'s line`);
+  }
+  assert.ok(layout.contact.x + layout.contact.width <= a.x && a.x + a.width <= b.x, 'Contact, then Refresh, then Sign out');
 });
 
 Then('neither tab\'s panel should hold a {string} or {string} button', async function (a, b) {
@@ -465,10 +469,13 @@ Then('both top buttons should be in the tab order, before the tabs, and at least
   for (const height of info.heights) assert.ok(height >= 44, `${height}px tall`);
 });
 
-Then('the two top buttons should be entirely inside the screen', async function () {
+Then('the two top buttons should be entirely inside the screen, after {string} in the menu', async function (contact) {
   const layout = await topLayout(this);
   const viewport = page(this).viewportSize();
-  for (const b of layout.buttons) assert.ok(b.x >= 0 && b.x + b.width <= viewport.width, JSON.stringify(b));
+  for (const b of layout.buttons) assert.ok(b.x >= 0 && b.x + b.width <= viewport.width && b.height >= 44, JSON.stringify(b));
+  const at = layout.order.indexOf(contact);
+  assert.deepEqual(layout.order.slice(at, at + 3), [contact, ...layout.buttons.map((b) => b.text)]);
+  for (const b of layout.buttons) assert.ok(b.y >= layout.contact.y + layout.contact.height - 1, `${b.text} comes under ${contact}`);
 });
 
 Then('the Pics Viewer should show no checkbox to select a photo', async function () {

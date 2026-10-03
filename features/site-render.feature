@@ -111,6 +111,22 @@ Feature: The site renders its photo pages from R2 when they are requested
       | /admin/    |
       | /es/admin/ |
 
+  Scenario: The production build's scripts leave the page editor out entirely
+    Then the production build's scripts should hold none of the page editor
+
+  Scenario Outline: In production no page carries the page editor
+    When I request "<route>"
+    Then the site should answer 200
+    And the page should have no page editor, though it still marks its editable text
+
+    Examples:
+      | route          |
+      | /              |
+      | /work/nature/  |
+      | /es/work/all/  |
+      | /about/        |
+      | /es/contact/   |
+
   # --- A photo added while the site is running -------------------------------------------------------------------------------------
 
   Scenario: A photo published to the bucket is on the site at once, and gone once removed, with no build and no deploy

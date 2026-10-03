@@ -17,6 +17,29 @@ Then('the tabs should sit side by side on one row, left to right', async functio
   }
 });
 
+Then('the tabs should stack in two rows of three, left to right and top to bottom, all on screen', async function () {
+  const { boxes, width, listScrolls } = await page(this).evaluate(() => ({
+    boxes: [...document.querySelectorAll('[role="tab"]')].map((el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, width: r.width, height: r.height, lines: el.scrollWidth > el.clientWidth }; }),
+    width: document.documentElement.clientWidth,
+    listScrolls: (() => { const l = document.querySelector('[role="tablist"]'); return l.scrollWidth > l.clientWidth + 1; })(),
+  }));
+  assert.equal(boxes.length, 6);
+  const rows = [boxes.slice(0, 3), boxes.slice(3)];
+  for (const row of rows) {
+    for (let i = 1; i < row.length; i++) {
+      assert.ok(Math.abs(row[i].y - row[0].y) <= 1, `tabs on one row share a top: ${JSON.stringify(row)}`);
+      assert.ok(row[i].x >= row[i - 1].right - 1, 'left to right');
+    }
+  }
+  assert.ok(rows[1][0].y >= rows[0][0].y + rows[0][0].height - 1, 'the second three are under the first three');
+  for (const box of boxes) {
+    assert.ok(box.x >= 0 && box.right <= width + 0.5, `on screen: ${JSON.stringify(box)}`);
+    assert.ok(box.height >= 44, `easy to tap: ${box.height}px`);
+    assert.equal(box.lines, false, 'no label is cut off');
+  }
+  assert.equal(listScrolls, false, 'the row of tabs no longer scrolls sideways');
+});
+
 Then('the {string} tab should be selected, its panel visible and every other panel hidden', async function (name) {
   assert.equal(await tab(this, name).getAttribute('aria-selected'), 'true');
   const shown = await panelOf(this, name);
@@ -114,4 +137,79 @@ Then('no tab, tab title or tab description should be shown', async function () {
 
 Given('the results API has no sign-in route yet', function () {
   this.b.results.noAuthRoute = true;
+});
+
+// --- Hovering over a tab --------------------------------------------------------------------------------------------------
+
+const look = (world, name) =>
+  tab(world, name).evaluate((el) => {
+    const css = getComputedStyle(el);
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    // The accent as the browser writes colors, for comparing borders and bars.
+    const probe = document.createElement('span');
+    probe.style.color = accent;
+    document.body.append(probe);
+    const gold = getComputedStyle(probe).color;
+    probe.remove();
+    return { background: css.backgroundColor, border: css.borderTopColor, shadow: css.boxShadow, gold };
+  });
+
+When('I hover over the {string} tab', async function (name) {
+  await tab(this, name).hover();
+  await new Promise((resolve) => setTimeout(resolve, 250)); // the highlight fades in
+});
+
+Then('the {string} tab should be highlighted: a gold-tinted face, a gold border and a gold bar along its bottom', async function (name) {
+  const hovered = await look(this, name);
+  await page(this).mouse.move(1, 1);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const resting = await look(this, name);
+  assert.notEqual(hovered.background, resting.background, 'the face changes');
+  assert.equal(hovered.border, hovered.gold, 'a gold border');
+  assert.match(hovered.shadow, /inset/, 'a bar');
+  assert.ok(hovered.shadow.includes(hovered.gold) && /-3px/.test(hovered.shadow), `a gold bar along the bottom: ${hovered.shadow}`);
+  assert.notEqual(resting.border, resting.gold, 'no gold border at rest');
+});
+
+Then('the {string} tab should still look chosen: its dark face and its bar on top', async function (name) {
+  const chosen = await look(this, name);
+  assert.ok(chosen.shadow.includes(chosen.gold) && /\b3px\b/.test(chosen.shadow) && !/-3px/.test(chosen.shadow), `its bar on top: ${chosen.shadow}`);
+});
+
+Then('the {string} tab should not take the hover highlight', async function (name) {
+  const hovered = await look(this, name);
+  assert.ok(!/-3px/.test(hovered.shadow), `no bottom bar on the chosen tab: ${hovered.shadow}`);
+  assert.notEqual(hovered.border, hovered.gold, 'no gold border on the chosen tab');
+});
+
+Then('the {string} tab\'s highlight should be the same color as {string} when highlighted', async function (name, link) {
+  await tab(this, name).hover();
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const face = (await look(this, name)).background;
+  await page(this).locator(`.primary-nav > a:text-is("${link}")`).first().hover();
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const about = await page(this).locator(`.primary-nav > a:text-is("${link}")`).first().evaluate((el) => getComputedStyle(el).backgroundColor);
+  assert.equal(face, about, `the tab ${face}, ${link} ${about}`);
+});
+
+// --- The token page, centred ------------------------------------------------------------------------------------------
+
+Then('the token box should be centred across the page, between the header and the footer, with "ADMIN" and the title flush with its left edge', async function () {
+  await page(this).locator('.results-gate').waitFor({ state: 'visible' });
+  const r = await page(this).evaluate(() => {
+    const box = (sel) => document.querySelector(sel).getBoundingClientRect();
+    const textLeft = (sel) => { const range = document.createRange(); range.selectNodeContents(document.querySelector(sel)); return range.getBoundingClientRect().left; };
+    const middle = document.documentElement.clientWidth / 2;
+    const [form, header, footer, title] = ['.results-gate', '.site-header', '.site-footer', '.admin h1'].map(box);
+    return { form: form.x + form.width / 2 - middle, formLeft: form.left, eyebrow: textLeft('.admin .eyebrow'), title: textLeft('.admin h1'), above: title.top - header.bottom, below: footer.top - form.bottom };
+  });
+  assert.ok(Math.abs(r.form) <= 2, `the form is off centre by ${r.form}px`);
+  assert.ok(Math.abs(r.eyebrow - r.formLeft) <= 2 && Math.abs(r.title - r.formLeft) <= 2, `ADMIN starts at ${r.eyebrow}px and the title at ${r.title}px; the form at ${r.formLeft}px`);
+  assert.ok(r.above > 40 && r.below > 40 && Math.abs(r.above - r.below) < 80, `room above ${r.above}px and below ${r.below}px`);
+});
+
+Then('the title should be back at the left of the page', async function () {
+  await page(this).locator('[data-tabs]').waitFor({ state: 'visible' });
+  const r = await page(this).evaluate(() => ({ title: document.querySelector('.admin h1').getBoundingClientRect().x, content: document.querySelector('.admin').getBoundingClientRect().x + parseFloat(getComputedStyle(document.querySelector('.admin')).paddingLeft) }));
+  assert.ok(Math.abs(r.title - r.content) <= 2, `title at ${r.title}px, content starts at ${r.content}px`);
 });

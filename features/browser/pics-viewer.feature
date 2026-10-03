@@ -154,19 +154,19 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
     And I click the "Pics Viewer" tab
     Then the results API should have been asked for photo "22d56df0b2da3a99" 1 time and for photo "4c4f46c18b70c4b5" 1 time
 
-  # --- Refresh and Sign out, at the top of the page ------------------------------------------------------------------------------
+  # --- Refresh and Sign out, in the top menu after Contact ------------------------------------------------------------------------
 
-  Scenario: Refresh and Sign out sit across from the "Admin" title, at the right, and not inside the tabs
+  Scenario: Refresh and Sign out sit in the top menu right after Contact, styled like it, and not inside the tabs
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    Then "Refresh" then "Sign out" should sit on the same line as the "Admin" title, at the right of the page
+    Then "Refresh" then "Sign out" should sit in the top menu right after "Contact", styled like it
     And neither tab's panel should hold a "Refresh" or "Sign out" button
 
   Scenario: The buttons are only there while signed in
     When I open "/admin/#test-results"
     Then there should be no "Refresh" or "Sign out" button at the top of the page
     When I sign in with the token "browser-test-admin-token"
-    Then "Refresh" then "Sign out" should sit on the same line as the "Admin" title, at the right of the page
+    Then "Refresh" then "Sign out" should sit in the top menu right after "Contact", styled like it
     When I click "Sign out" at the top of the page
     Then there should be no "Refresh" or "Sign out" button at the top of the page
 
@@ -209,15 +209,16 @@ Feature: The Admin page's Pics Viewer lists the private originals and describes 
   Scenario: The buttons speak Spanish
     When I open "/es/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    Then "Actualizar" then "Cerrar sesión" should sit on the same line as the "Administración" title, at the right of the page
+    Then "Actualizar" then "Cerrar sesión" should sit in the top menu right after "Contacto", styled like it
     When I click "Cerrar sesión" at the top of the page
     Then the Test Results tab should ask for the token in Spanish
 
-  Scenario: On a phone the buttons stay on screen and the page does not scroll sideways
+  Scenario: On a phone the buttons are in the menu after Contact, on screen, and the page does not scroll sideways
     Given the visitor uses a phone
     When I open "/admin/#test-results"
     And I sign in with the token "browser-test-admin-token"
-    Then the two top buttons should be entirely inside the screen
+    And I open the mobile menu
+    Then the two top buttons should be entirely inside the screen, after "Contact" in the menu
     And the page should not scroll sideways
 
   Scenario: The way back from a run stays in the tab, without the top buttons being repeated

@@ -321,6 +321,7 @@ Feature: The Admin page's Test Results tab shows the stored test runs in a real 
     And I sign in with the token "browser-test-admin-token"
     And I press "Cleanup Test Results" in the Test Results tab
     Then every run in the list should have a checkbox, none ticked
+    And the edit mode should be shown in red
     And the Test Results tab should not say "only works on your own computer"
     When I tick the runs "aaaaaaa"
     And I press "Delete selected" in the removal bar

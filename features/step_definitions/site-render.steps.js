@@ -2,7 +2,7 @@ import { AfterAll, Given, When, Then } from '@cucumber/cucumber';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'node-html-parser';
 import { PRODUCTION_BUILD_DIR, ROOT } from '../support/lib.js';
@@ -333,4 +333,18 @@ Then("its place should be recorded from Cloudflare's own data, by name", async f
   for (const value of Object.values(geo)) assert.equal(typeof value, 'string');
   assert.ok(geo.country && !/^[A-Z]{2}$/.test(geo.country), `the country by name, not code: ${geo.country}`);
   if (geo.continent) assert.ok(['Africa', 'Antarctica', 'Asia', 'Europe', 'North America', 'Oceania', 'South America'].includes(geo.continent), geo.continent);
+});
+
+Then('the page should have no page editor, though it still marks its editable text', function () {
+  assert.equal(this.response.doc.querySelector('[data-page-editor]'), null, 'no page editor in production');
+  assert.ok(this.response.doc.querySelectorAll('[data-edit-key]').length > 0, 'the editable text is marked (harmless without the editor)');
+});
+
+Then("the production build's scripts should hold none of the page editor", function () {
+  const dir = join(PROD, '_astro');
+  const scripts = readdirSync(dir).filter((f) => f.endsWith('.js'));
+  for (const file of scripts) {
+    const text = readFileSync(join(dir, file), 'utf-8');
+    assert.ok(!text.includes('data-page-editor') && !text.includes('__page-text'), `${file} carries the page editor`);
+  }
 });

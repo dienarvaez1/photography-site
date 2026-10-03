@@ -4,7 +4,7 @@
 // signed-in token is kept for the browser tab (admin-common.ts `remembered`); signing out, the idle timeout, or any
 // tab finding the token refused clears it, and the page goes back to just the token box.
 import { resolveApiUrl } from './results-view';
-import { AUTH_EVENT, ApiError, GATE_PROBLEM_EVENT, apiGet, gateForm, messageReader, parseJson, remembered, type Messages } from './admin-common';
+import { API_KEY, AUTH_EVENT, ApiError, GATE_PROBLEM_EVENT, apiGet, gateForm, messageReader, parseJson, remembered, storage, type Messages } from './admin-common';
 
 export function mountAdminGate(gate: HTMLElement, tabs: HTMLElement) {
   const m = messageReader(parseJson<Messages>(gate.dataset.messages ?? '{}'));
@@ -27,6 +27,7 @@ export function mountAdminGate(gate: HTMLElement, tabs: HTMLElement) {
       showGate(error instanceof ApiError ? error : new ApiError('generic'));
       return;
     }
+    storage.set(API_KEY, apiUrl); // the page editor (page-editor.ts) on the site's other pages calls the same API
     remembered.set(token); // every tab follows (AUTH_EVENT), and update() below reveals them
   }
 

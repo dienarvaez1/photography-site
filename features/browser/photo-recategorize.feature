@@ -33,6 +33,7 @@ Feature: The Admin page's Edit Photos button moves the photos ticked in the Pics
     And the edit bar should say "0 selected"
     And the "Change category" button of the edit bar should be disabled
     And the "Edit Photos" button should be pressed
+    And the edit mode should be shown in red, with the "Edit Photos" button marked red
     And the results API should have been asked only for the list and each shown file's details
     And the photo service should have been asked only: "GET status"
 

@@ -60,8 +60,8 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
     </div>
 
     <a href={localizePath('/', locale)} class="brand" data-astro-reload={forceReload}>
-      <img src="/logo.png" width="800" height="231" alt={SITE.author} class="brand-logo" fetchpriority="high" decoding="async" />
-      <img src="/aperture-logo.png" width="240" height="244" alt="" class="aperture-logo" decoding="async" />
+      {/* The gold signature logo (original: docs/brand/logo-gold-original-4k.png, cropped and sized to 720 px wide). */}
+      <img src="/logo.png" width="720" height="316" alt={SITE.author} class="brand-logo" fetchpriority="high" decoding="async" />
     </a>
 
     <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" id="nav-toggle">
@@ -117,6 +117,8 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
         {t('nav.contact')}
       </a>
       {/* The Admin page is deliberately not linked here: it stays reachable directly at /admin/, just not advertised. */}
+      {/* A page's own menu items after Contact (the Admin page's Refresh and Sign out). */}
+      <slot name="nav-actions" />
     </nav>
   </div>
 </header>
@@ -139,8 +141,7 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
        in practice (this side's nav links need far more min-content room than the other side's
        language switcher), so as the viewport narrows toward the mobile nav-toggle breakpoint below,
        the wider one claims more of the grid — pushing the centered brand column toward the narrower
-       side and closing the gap between it (the aperture logo, its rightmost element) and the nav
-       links right next to it. column-gap guarantees they never actually touch. */
+       side and closing the gap between it (the logo) and whatever sits right next to it. column-gap guarantees they never actually touch. */
     column-gap: var(--space-4);
     align-items: center;
     padding-block: var(--space-2);
@@ -156,15 +157,11 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
   }
 
   .brand-logo {
-    height: 5.0625rem;
+    height: 6rem;
     width: auto;
     display: block;
-  }
-
-  .aperture-logo {
-    height: 3.4rem;
-    width: auto;
-    display: block;
+    /* Never squeezed out of shape by a crowded menu. */
+    flex-shrink: 0;
   }
 
   .primary-nav {
@@ -172,15 +169,9 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
     justify-self: end;
     display: flex;
     align-items: center;
-    gap: var(--space-4);
-    /* .bar's own column-gap (below) already puts a measured, equal var(--space-4) on both sides of
-       the brand — verified against the same gap between "Portfolio" and "About" pixel-for-pixel, at
-       every width down to the mobile nav-toggle breakpoint. This nudges the nav side out a little
-       further anyway: a circle (the aperture logo) shows less of its own ink near a straight box
-       edge than a letter does, so a numerically identical gap next to it reads as tighter — the
-       lang-switcher side, with no round shape next to it, needs no equivalent nudge. Reset to 0
-       below the nav-toggle breakpoint, where this becomes the mobile dropdown's own left edge. */
-    margin-left: var(--space-1);
+    gap: var(--space-3);
+    /* Every item on one line, however many words ("Sobre mí", "Cerrar sesión"). */
+    white-space: nowrap;
   }
 
   .primary-nav > a {
@@ -193,6 +184,43 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
   .primary-nav > a:hover,
   .primary-nav > a.active {
     color: var(--fg);
+  }
+
+  /* The shared hover highlight (global.css): a tinted face and a gold bar under the word. It only ever changes colours:
+     in the folded (☰) menu, a hover that resized its row moved the next row under the pointer, and the two traded the
+     hover back and forth endlessly (the menu flickered). Only the wide header pads the face out around the word, with
+     margins that cancel it so nothing moves. */
+  @media (hover: hover) {
+    .primary-nav > a:hover,
+    .nav-label:hover,
+    .lang-switcher a:hover {
+      background: var(--hover-face);
+      box-shadow: var(--hover-bar);
+    }
+  }
+  @media (hover: hover) and (min-width: 901px) {
+    .primary-nav > a:hover,
+    .nav-label:hover {
+      padding: 0.2rem 0.4rem;
+      margin: -0.2rem -0.4rem;
+      border-radius: var(--radius);
+    }
+  }
+  @media (hover: hover) {
+    .lang-switcher a:hover {
+      padding: 0.2rem 0.4rem;
+      margin: -0.2rem -0.4rem;
+      border-radius: var(--radius);
+    }
+    .nav-dropdown a:hover,
+    .nav-dropdown a.active:hover {
+      background: var(--hover-face);
+      box-shadow: var(--hover-bar);
+    }
+    .nav-toggle:hover {
+      background: var(--hover-face);
+      border-color: var(--accent);
+    }
   }
 
   .lang-switcher {
@@ -237,13 +265,20 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
     cursor: pointer;
     font-size: 1.0rem;
     color: var(--fg-muted);
+    transition: color 0.2s ease;
+  }
+
+  .nav-label:hover {
+    color: var(--fg);
   }
 
   .nav-dropdown {
     position: absolute;
     top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
+    /* Flush with "Portfolio": each item's text starts where its label does, so the panel sits out to the left by its
+       border, its padding and an item's own padding (the frame and the hover face reach just past the words). */
+    left: 0;
+    margin-left: calc(-1 * (1px + var(--space-1) + 0.75rem));
     /* The gap before the visible panel (below) is padding, not margin, and stays part of this
        element's own box: margin would leave a dead zone with nothing to hover in between, and since
        the whole thing switches to pointer-events: none while closed, the pointer sliding through that
@@ -285,7 +320,11 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
     white-space: nowrap;
   }
 
-  .nav-dropdown a:hover,
+  .nav-dropdown a:hover {
+    color: var(--fg);
+  }
+
+  /* The page you're on (hover takes the shared highlight, above). */
   .nav-dropdown a.active {
     color: var(--fg);
     background: rgba(255, 255, 255, 0.04);
@@ -340,13 +379,13 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
 
   @media (max-width: 720px) {
     .brand-logo {
-      height: 2.75rem;
+      height: 3.75rem;
     }
+  }
 
-    .aperture-logo {
-      height: 1.85rem;
-    }
-
+  /* The menu folds behind the ☰ button below 900px: wide enough for the Admin page's five items in Spanish
+     ("Portafolio … Cerrar sesión") on one line beside the full-size logo. */
+  @media (max-width: 900px) {
     .nav-toggle {
       display: flex;
     }
@@ -356,6 +395,9 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
       top: 100%;
       left: 0;
       right: 0;
+      /* Full width, not shrunk to its words at the right (the wide header's justify-self: end, which also applies to
+         an absolutely placed grid child). */
+      justify-self: stretch;
       margin-left: 0;
       flex-direction: column;
       align-items: stretch;
@@ -384,6 +426,7 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
     .nav-dropdown {
       position: static;
       transform: none;
+      margin-left: 0;
       opacity: 1;
       /* Mobile shows/hides via the .open class (JS), not hover/focus,
          so it must stay clickable regardless of focus state. */
@@ -449,7 +492,7 @@ const exploreByCategoryHref = `${localizePath('/', locale)}#explore-by-category`
     navLabel?.addEventListener('click', () => {
       // Narrow enough that hovering was never an option (matches the CSS breakpoint above): clicking
       // is the only way to reach the dropdown at all, so it opens it, the same as it always has.
-      if (window.innerWidth <= 720) {
+      if (window.innerWidth <= 900) {
         const isOpen = navGroup?.classList.toggle('open');
         navLabel.setAttribute('aria-expanded', String(Boolean(isOpen)));
         return;

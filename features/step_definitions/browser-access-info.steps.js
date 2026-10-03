@@ -97,10 +97,34 @@ When('I sign in to the Access Info tab with the token {string}', async function 
 
 const loaded = (world) => eventually(async () => !(await panel(world).locator('.results-loading').count()) && (await panel(world).locator('.access-summary, .results-empty, .results-error').count()) > 0, 'the Access Info tab loaded');
 
-When('I choose the day {string} in the Access Info tab', async function (label) {
-  await panel(this).getByLabel('Day (UTC)').waitFor({ state: 'visible', timeout: 8000 });
-  await panel(this).getByLabel('Day (UTC)').selectOption({ label });
-  await eventually(async () => (await panel(this).getByLabel('Day (UTC)').inputValue()).startsWith(label) && !(await panel(this).locator('.results-loading').count()), `the day ${label} shown`);
+Given('today is {string} in UTC', function (day) {
+  this.b.today = `${day}T12:00:00Z`;
+});
+
+const toggle = (world) => panel(world).locator('#access-range');
+const calendar = (world) => panel(world).locator('#access-calendar');
+
+/** Opens the calendar and clicks a day; `months` goes back that many months first. */
+async function clickDay(world, day) {
+  if (!(await calendar(world).isVisible())) await toggle(world).click();
+  for (let i = 0; i < 24 && !(await calendar(world).locator(`button[data-day="${day}"]`).count()); i++) await calendar(world).getByRole('button', { name: /Previous month|Mes anterior/ }).click();
+  await calendar(world).locator(`button[data-day="${day}"]`).click();
+}
+
+const settled = (world, text) => eventually(async () => (await toggle(world).innerText()).includes(text) && !(await panel(world).locator('.results-loading').count()), `the days ${text} shown`);
+
+When('I choose the day {string} in the Access Info tab', async function (day) {
+  await toggle(this).waitFor({ state: 'visible', timeout: 8000 });
+  await clickDay(this, day);
+  await clickDay(this, day);
+  await eventually(async () => !(await calendar(this).isVisible()) && !(await panel(this).locator('.results-loading').count()), `the day ${day} shown`);
+});
+
+When('I choose the days from {string} to {string} in the Access Info tab', async function (from, to) {
+  await toggle(this).waitFor({ state: 'visible', timeout: 8000 });
+  await clickDay(this, from);
+  await clickDay(this, to);
+  await eventually(async () => !(await calendar(this).isVisible()) && !(await panel(this).locator('.results-loading').count()), 'the days shown');
 });
 
 Then('the Access Info tab should ask for the admin token', async function () {
@@ -114,20 +138,39 @@ Then('the results API should not have been asked for the access log', async func
   assert.deepEqual(this.b.results.requests.filter((r) => r.path.startsWith('/access')).map((r) => r.path), []);
 });
 
-Then('the Access Info tab should show the day {string}, with the days {string} to choose from', async function (day, days) {
+Then('the day button should read {string}, and the calendar should mark the days {string} as having visits', async function (label, days) {
   await loaded(this);
-  const select = panel(this).getByLabel('Day (UTC)');
-  assert.equal((await select.inputValue()).slice(0, 10), day);
-  assert.deepEqual(await select.locator('option').allInnerTexts(), days.split(', '));
+  await settled(this, label);
+  assert.equal((await toggle(this).innerText()).trim(), label);
+  await toggle(this).click();
+  const marked = await calendar(this).locator('button.logged').evaluateAll((buttons) => buttons.map((b) => b.dataset.day));
+  // The calendar shows one month at a time: check the marked days of this month, then the month before.
+  const seen = new Set(marked);
+  await calendar(this).getByRole('button', { name: /Previous month|Mes anterior/ }).click();
+  for (const day of await calendar(this).locator('button.logged').evaluateAll((buttons) => buttons.map((b) => b.dataset.day))) seen.add(day);
+  assert.deepEqual([...seen].sort().reverse(), days.split(', '));
+  await this.b.page.keyboard.press('Escape');
+});
+
+Then('the calendar should not let me choose a day after today, {string}', async function (today) {
+  await toggle(this).click();
+  const after = await calendar(this).locator('button[data-day]').evaluateAll((buttons, t) => buttons.filter((b) => b.dataset.day > t).map((b) => b.disabled), today);
+  assert.ok(after.length > 0 && after.every(Boolean), 'every day after today is unavailable');
+  assert.equal(await calendar(this).locator(`button[data-day="${today}"]`).getAttribute('aria-current'), 'date');
+  await this.b.page.keyboard.press('Escape');
+  assert.equal(await calendar(this).isVisible(), false, 'Escape closes the calendar');
 });
 
 Then('the Access Info tab should add up to {int} page visits, {int} photos opened and {int} different addresses', async function (views_, photos, visitors) {
   await loaded(this);
-  // Page visits and photos opened sit under their columns' titles; different addresses above the table.
+  // Page visits and photos opened sit under their columns' titles; the different addresses in the IP table's title (and
+  // nowhere else: there is no separate line for them under the calendar).
   const totals = await panel(this).locator('table.access-groups thead .access-group-total').allInnerTexts();
   const spanish = (await page(this).getAttribute('html', 'lang')) === 'es';
   assert.deepEqual(totals, spanish ? [`Visitas a páginas: ${views_}`, `Fotos abiertas: ${photos}`] : [`Page visits: ${views_}`, `Photos opened: ${photos}`]);
-  assert.deepEqual((await panel(this).locator('.access-summary dd').allInnerTexts()).map(Number), [visitors]);
+  const addresses = (await panel(this).locator('.access-ip-table thead .access-group-total').innerText()).trim();
+  assert.equal(addresses, `${spanish ? 'Direcciones' : 'Addresses'}: ${visitors}`);
+  assert.equal(await panel(this).locator('.access-summary dl').count(), 0, 'no separate count of addresses');
 });
 
 Then('the table of pies should have no row of counts under the pies', async function () {
@@ -174,10 +217,18 @@ Then(/^under the (most visited pages|most opened photos), a pie should share the
 });
 
 Then('no table of the raw entries should be shown', async function () {
-  // The only tables are the pies' and the map's: no times or addresses anywhere on the tab.
-  assert.equal(await panel(this).locator('table:not(.access-groups):not(.access-map-table)').count(), 0);
+  // The only tables are the pies', the map's, the addresses' (one row per address, never per visit) and the calendar's
+  // month grid: no visit times
+  // anywhere, and the addresses only in their own table.
+  assert.equal(await panel(this).locator('table:not(.access-groups):not(.access-map-table):not(.access-calendar-grid)').count(), 0);
   const text = await panel(this).innerText();
-  assert.ok(!/\d{2}:\d{2}:\d{2}|203\.0\.113\.7|2001:db8::1/.test(text), 'no times or addresses shown');
+  assert.ok(!/\d{2}:\d{2}:\d{2}/.test(text), 'no times shown');
+  const outside = await panel(this).evaluate((root) => {
+    const clone = root.cloneNode(true);
+    clone.querySelectorAll('.access-ip-table').forEach((t) => t.remove());
+    return clone.textContent;
+  });
+  assert.ok(!/203\.0\.113\.7|2001:db8::1/.test(outside), 'addresses only in the IP address table');
 });
 
 Then("the groups' table should have light gray lines", async function () {
@@ -387,4 +438,249 @@ Then('that note should come under the list of countries, with a blank line befor
     return cell.getBoundingClientRect().bottom - p.getBoundingClientRect().bottom - parseFloat(getComputedStyle(cell).paddingBottom);
   });
   assert.ok(gap <= 1, `no blank line after the note (${gap}px)`);
+});
+
+// --- Visits by IP address ---------------------------------------------------------------------------------------------
+
+Then('the IP address table should sit under the world map, titled {string} over {string}', async function (title, total) {
+  const table = panel(this).locator('.access-ip-table');
+  await table.waitFor({ state: 'visible', timeout: 8000 });
+  assert.equal((await table.locator('thead .access-group-title').innerText()).trim(), title);
+  assert.equal((await table.locator('thead .access-group-total').innerText()).trim(), total);
+  const [map, ips] = await Promise.all([panel(this).locator('.access-map').boundingBox(), table.boundingBox()]);
+  assert.ok(ips.y >= map.y + map.height - 1, 'the table comes after the map');
+});
+
+Then('the IP address table should list, in order:', async function (table) {
+  const ipTable = panel(this).locator('.access-ip-table');
+  const heads = (await ipTable.locator('thead tr').nth(1).locator('th').allInnerTexts()).map((t) => t.trim());
+  assert.deepEqual(heads, table.raw()[0]);
+  const rows = await ipTable.locator('tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.children].map((c) => c.textContent.trim())));
+  assert.deepEqual(rows, table.rows());
+});
+
+When('I open the calendar in the Access Info tab', async function () {
+  await toggle(this).waitFor({ state: 'visible', timeout: 8000 });
+  await toggle(this).click();
+  await calendar(this).waitFor({ state: 'visible', timeout: 8000 });
+});
+
+// --- Ready-made ranges and long lists ----------------------------------------------------------------------------------
+
+When('I choose the ready-made range {string} in the Access Info tab', async function (name) {
+  const quick = panel(this).locator('#access-quick');
+  await quick.waitFor({ state: 'visible', timeout: 8000 });
+  await quick.selectOption({ label: name });
+  await eventually(async () => !(await panel(this).locator('.results-loading').count()) && (await panel(this).locator('#access-quick option:checked').innerText()) === name, `the ${name} range shown`);
+});
+
+Then('the Quick range dropdown should offer {string}', async function (names) {
+  // Its first option, "Custom", names a range chosen in the calendar and can't be picked itself.
+  const options = await panel(this).locator('#access-quick option:not([disabled])').allInnerTexts();
+  assert.deepEqual(options, names.split(', '));
+});
+
+Given('the access log also holds, on {string}, a visit from each of {int} addresses in {int} countries', function (day, count, countries) {
+  const bucket = this.b.results.env.ACCESS;
+  const log = bucket.log(`${day}T00:00:00.000Z`);
+  for (let i = 0; i < count; i++) log.entries.push({ time: `${day}T13:00:00.000Z`, ip: `198.18.${Math.floor(i / 250)}.${(i % 250) + 1}`, page: '/', event: 'view', geo: { country: `Country ${String((i % countries) + 1).padStart(2, '0')}` } });
+  bucket.raw(`logs/${day}T00:00:00.000Z.json`, JSON.stringify(log));
+});
+
+const ipPager = (world) => panel(world).locator('.access-ips .pager');
+
+Then(/^the IP address table should show (\d+) rows and say "([^"]+)"(, with no next arrow)?$/, async function (rows, status, noNext) {
+  await eventually(async () => (await ipPager(this).locator('.pager-status').innerText()).trim() === status, `the pager says ${status}`);
+  assert.equal(await panel(this).locator('.access-ip-table tbody tr').count(), Number(rows));
+  if (noNext) assert.equal(await ipPager(this).getByRole('button', { name: 'Next 50' }).isDisabled(), true);
+});
+
+When(/^I press the (next|previous) arrow of the IP address table$/, async function (which) {
+  await ipPager(this).getByRole('button', { name: which === 'next' ? 'Next 50' : 'Previous 50' }).click();
+});
+
+Then("the map's list of countries should show {int} countries and say {string}", async function (count, status) {
+  const box = panel(this).locator('.access-map');
+  assert.equal((await box.locator('.pager .pager-status').innerText()).trim(), status);
+  assert.equal(await box.locator('ol.map-list > li').count(), count);
+});
+
+// --- The calendar's size, on a laptop and a phone ------------------------------------------------------------------------
+
+Then('the calendar should open under its button, at most {int} px wide and {int} px tall', async function (width, height) {
+  const [button, box] = await Promise.all([toggle(this).boundingBox(), calendar(this).boundingBox()]);
+  assert.ok(box.y >= button.y + button.height - 1, 'under its button');
+  assert.ok(box.width <= width, `${box.width} px wide`);
+  assert.ok(box.height <= height, `${box.height} px tall`);
+});
+
+Then('the calendar should sit at the bottom of the screen, across its whole width, inside the screen', async function () {
+  const box = await calendar(this).boundingBox();
+  const { width, height } = this.b.page.viewportSize();
+  assert.ok(Math.abs(box.x) <= 1 && Math.abs(box.width - width) <= 1, `across the screen: x ${box.x}, ${box.width} of ${width} px`);
+  assert.ok(Math.abs(box.y + box.height - height) <= 1, `at the bottom: ends at ${box.y + box.height} of ${height} px`);
+  assert.ok(box.y >= 0, 'starts inside the screen');
+});
+
+Then('every day, arrow and button in the calendar should be at least {int} px tall', async function (min) {
+  const heights = await calendar(this).locator('.access-calendar-day, .access-calendar-nav, .access-calendar-foot button').evaluateAll((buttons) => buttons.map((b) => b.getBoundingClientRect().height));
+  assert.ok(heights.length > 30);
+  assert.ok(heights.every((h) => h >= min - 0.5), `smallest: ${Math.min(...heights)} px`);
+});
+
+Then('the date field and the Quick range dropdown should be at least {int} px tall', async function (min) {
+  for (const control of [toggle(this), panel(this).locator('#access-quick')]) {
+    const box = await control.boundingBox();
+    assert.ok(box.height >= min - 0.5, `${box.height} px tall`);
+  }
+});
+
+When('I tap {string} in the calendar', async function (name) {
+  await calendar(this).getByRole('button', { name, exact: true }).tap();
+});
+
+When('I click outside the calendar', async function () {
+  // The tab's heading: away from the calendar and its button.
+  await panel(this).locator('h2').first().click();
+});
+
+Then('the calendar should be closed', async function () {
+  await eventually(async () => !(await calendar(this).isVisible()), 'the calendar closed');
+  assert.equal(await toggle(this).getAttribute('aria-expanded'), 'false');
+});
+
+// --- The pies on a phone ------------------------------------------------------------------------------------------------
+
+/** The middle of a slice's own area, on screen (a thin slice's bounding box can lie mostly over its neighbours). */
+const sliceMiddle = (target) =>
+  target.evaluate((path) => {
+    const edge = path.getPointAtLength(path.getTotalLength() * 0.5);
+    const matrix = path.getScreenCTM();
+    const inside = { x: 100 + (edge.x - 100) * 0.6, y: 100 + (edge.y - 100) * 0.6 };
+    return { x: matrix.a * inside.x + matrix.e, y: matrix.d * inside.y + matrix.f };
+  });
+
+When(/^I tap the slice "([^"]+)" of the (pages|photos) pie$/, async function (label, kind) {
+  await loaded(this);
+  const target = slice(this, kind, label);
+  await target.scrollIntoViewIfNeeded();
+  const point = await sliceMiddle(target);
+  await page(this).touchscreen.tap(point.x, point.y);
+});
+
+When('I tap outside the pies', async function () {
+  const heading = panel(this).locator('h2').first();
+  await heading.scrollIntoViewIfNeeded();
+  const box = await heading.boundingBox();
+  await page(this).touchscreen.tap(box.x + 5, box.y + box.height / 2);
+});
+
+Then("no pie's tooltip should be shown", async function () {
+  await eventually(async () => (await panel(this).locator('.pie-tooltip:visible').count()) === 0, 'every tooltip hidden');
+});
+
+Then('the two pies should sit side by side, each at most {int} px wide, inside the screen', async function (max) {
+  await loaded(this);
+  const [a, b] = await Promise.all([pie(this, 'pages').locator('.pie-plot').boundingBox(), pie(this, 'photos').locator('.pie-plot').boundingBox()]);
+  const { width } = page(this).viewportSize();
+  assert.ok(Math.abs(a.y - b.y) <= 2, `side by side: tops at ${a.y} and ${b.y}`);
+  for (const box of [a, b]) {
+    assert.ok(box.width <= max, `${box.width} px wide`);
+    assert.ok(box.x >= 0 && box.x + box.width <= width, 'inside the screen');
+  }
+});
+
+Then('the pies\' legends should be hidden, with {string} under them', async function (hint) {
+  await loaded(this);
+  for (const kind of ['pages', 'photos']) {
+    const legend = pie(this, kind).locator('.pie-legend');
+    const box = await legend.boundingBox();
+    assert.ok(!box || box.width <= 1, 'the legend takes no room on screen');
+    // Still there for a screen reader, and every slice is named too.
+    assert.ok((await legend.locator('li').count()) > 0);
+  }
+  const shown = panel(this).locator('.pie-touch-hint');
+  assert.equal(await shown.isVisible(), true);
+  assert.equal((await shown.innerText()).trim(), hint);
+});
+
+Then('the pies\' legends should be shown under them, with no tap hint', async function () {
+  await loaded(this);
+  for (const kind of ['pages', 'photos']) {
+    const [plot, legend] = await Promise.all([pie(this, kind).locator('.pie-plot').boundingBox(), pie(this, kind).locator('.pie-legend').boundingBox()]);
+    assert.ok(legend.width > 50 && legend.y >= plot.y + plot.height - 1, 'a visible legend under the pie');
+  }
+  assert.equal(await panel(this).locator('.pie-touch-hint').isVisible(), false);
+});
+
+Then("the IP address table's rows and column headers should be smaller than the page's text, and its title should not", async function () {
+  await loaded(this);
+  const sizes = await panel(this).locator('.access-ip-table').evaluate((table) => {
+    const px = (node) => parseFloat(getComputedStyle(node).fontSize);
+    return {
+      body: px(document.body),
+      cell: px(table.querySelector('tbody td')),
+      address: px(table.querySelector('tbody th')),
+      column: px(table.querySelector('thead tr + tr th')),
+      title: px(table.querySelector('thead .access-group-title')),
+    };
+  });
+  for (const key of ['cell', 'address', 'column']) assert.ok(sizes[key] < sizes.body, `${key}: ${sizes[key]} px, page ${sizes.body} px`);
+  assert.ok(sizes.title >= sizes.body, `title: ${sizes.title} px`);
+});
+
+Then("the country list, the map's legend and the pies' legends should be the same size as the IP address table's rows", async function () {
+  await loaded(this);
+  const sizes = await panel(this).evaluate((root) => {
+    const px = (selector) => parseFloat(getComputedStyle(root.querySelector(selector)).fontSize);
+    return { ip: px('.access-ip-table tbody td'), countries: px('.map-list li'), legend: px('.map-legend'), pies: px('.pie-legend li'), title: px('.access-map-table thead .access-group-title') };
+  });
+  for (const key of ['countries', 'legend', 'pies']) assert.equal(sizes[key], sizes.ip, `${key}: ${sizes[key]} px, IP rows ${sizes.ip} px`);
+  assert.ok(sizes.title > sizes.ip, `the map's title stays larger: ${sizes.title} px`);
+});
+
+Then('"Days \\(UTC)", the date field, the Quick range dropdown and the calendar should be the same size as the IP address table\'s rows', async function () {
+  await loaded(this);
+  await toggle(this).click();
+  await calendar(this).waitFor({ state: 'visible', timeout: 8000 });
+  const sizes = await panel(this).evaluate((root) => {
+    const px = (selector) => parseFloat(getComputedStyle(root.querySelector(selector)).fontSize);
+    return {
+      ip: px('.access-ip-table tbody td'),
+      label: px('.access-range-label'),
+      field: px('#access-range'),
+      quick: px('#access-quick'),
+      month: px('.access-calendar-select'),
+      weekday: px('.access-calendar-grid th'),
+      day: px('.access-calendar-day'),
+      hint: px('.access-calendar-hint'),
+      close: px('.access-calendar-close'),
+    };
+  });
+  for (const [key, size] of Object.entries(sizes)) assert.equal(size, sizes.ip, `${key}: ${size} px, IP rows ${sizes.ip} px`);
+  await page(this).keyboard.press('Escape');
+});
+
+Then("the date field and the dropdowns should be 16 px, so iOS doesn't zoom the page when one is tapped", async function () {
+  const sizes = await panel(this).evaluate((root) => [...root.querySelectorAll('#access-range, #access-quick, .access-calendar-select')].map((node) => parseFloat(getComputedStyle(node).fontSize)));
+  assert.equal(sizes.length, 4);
+  assert.ok(sizes.every((size) => size >= 16), `sizes: ${sizes.join(', ')} px`);
+});
+
+Then("the world map's list of countries should be flush left, under the start of its legend", async function () {
+  const box = panel(this).locator('.access-map');
+  const legend = await box.locator('.map-legend').boundingBox();
+  const names = await box.locator('ol.map-list > li .access-name').evaluateAll((spans) => spans.map((s) => s.getBoundingClientRect().left));
+  assert.ok(names.length > 0);
+  for (const left of names) assert.ok(Math.abs(left - legend.x) <= 1, `a name starts at ${left} px, the legend at ${legend.x} px`);
+});
+
+Then("the world map's counts should line up in one column, starting at most {int} px after the longest country name", async function (max) {
+  const rows = await panel(this).locator('.access-map ol.map-list > li').evaluateAll((items) =>
+    items.map((li) => ({ nameEnd: li.querySelector('.access-name').getBoundingClientRect().right, countStart: li.querySelector('.access-times').getBoundingClientRect().left })));
+  assert.ok(rows.length > 1);
+  const starts = new Set(rows.map((r) => Math.round(r.countStart)));
+  assert.equal(starts.size, 1, `counts start at ${[...starts].join(', ')} px`);
+  const gap = rows[0].countStart - Math.max(...rows.map((r) => r.nameEnd));
+  assert.ok(gap > 0 && gap <= max, `${gap} px between the longest name and the counts`);
 });
